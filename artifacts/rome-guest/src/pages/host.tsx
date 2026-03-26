@@ -4,7 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { motion } from "framer-motion";
-import { ArrowLeft, Save, Shield, FileText, CheckCircle2, AlertCircle } from "lucide-react";
+import { ArrowLeft, Save, Shield, FileText, CheckCircle2, AlertCircle, Loader2, KeyRound } from "lucide-react";
 import { useGetHostKnowledge, useUpdateHostKnowledge, getGetHostKnowledgeQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";

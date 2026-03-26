@@ -92,7 +92,7 @@ export default function Chat() {
               </p>
             </div>
           </div>
-          <Link href="/host" className="p-2 text-muted-foreground hover:text-primary transition-colors rounded-full hover:bg-primary/10">
+          <Link href="/admin" className="p-2 text-muted-foreground hover:text-primary transition-colors rounded-full hover:bg-primary/10">
             <KeyRound className="w-5 h-5" />
             <span className="sr-only">Accesso Host</span>
           </Link>
