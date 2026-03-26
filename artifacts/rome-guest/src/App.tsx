@@ -8,12 +8,15 @@ import CeoPanel from "./pages/ceo";
 import Landing from "./pages/landing";
 import HostDashboard from "./pages/host-dashboard";
 
-// Create a client
+// Create a client — no background refetching on reconnect or window focus
+// to prevent HMR reconnections from resetting in-progress form state
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: 1,
       refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: 5 * 60 * 1000, // data stays fresh 5 minutes
     },
   },
 });

@@ -293,11 +293,20 @@ export default function HostDashboard() {
 
             <button
               type="submit"
-              disabled={updateForm.formState.isSubmitting}
-              className="w-full bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white font-bold py-4 rounded-2xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-100 disabled:opacity-60"
+              disabled={updateForm.formState.isSubmitting || saveSuccess}
+              className={`w-full active:scale-[0.99] text-white font-bold py-4 rounded-2xl transition-all flex items-center justify-center gap-2 shadow-lg disabled:opacity-70 ${
+                saveSuccess
+                  ? "bg-emerald-500 shadow-emerald-100"
+                  : "bg-blue-600 hover:bg-blue-700 shadow-blue-100"
+              }`}
             >
               {updateForm.formState.isSubmitting ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
+              ) : saveSuccess ? (
+                <>
+                  <CheckCircle2 className="w-5 h-5" />
+                  Salvato!
+                </>
               ) : (
                 <>
                   <Save className="w-4 h-4" />
