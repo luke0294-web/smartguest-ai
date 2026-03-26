@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap');
 @import "tailwindcss";
 @import "tw-animate-css";
 @plugin "@tailwindcss/typography";
@@ -6,9 +6,8 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --font-sans: 'DM Sans', sans-serif;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
   --font-serif: 'Playfair Display', serif;
-  --font-display: 'Playfair Display', serif;
 
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
@@ -52,72 +51,71 @@
 }
 
 :root {
-  /* Warm Mediterranean Palette */
-  --background: 40 33% 96%; /* Cream/Off-white */
-  --foreground: 20 14% 16%; /* Dark Charcoal/Brown */
-  
-  --card: 40 20% 99%;
-  --card-foreground: 20 14% 16%;
-  --card-border: 35 20% 85%;
-  
-  --popover: 40 20% 99%;
-  --popover-foreground: 20 14% 16%;
-  --popover-border: 35 20% 85%;
-  
-  --primary: 12 60% 50%; /* Terracotta */
-  --primary-foreground: 0 0% 100%;
-  
-  --secondary: 35 25% 90%; /* Warm Sand */
-  --secondary-foreground: 20 14% 16%;
-  
-  --muted: 40 10% 90%;
-  --muted-foreground: 25 10% 45%; /* Sage/Gray */
-  
-  --accent: 12 60% 90%; /* Light Terracotta */
-  --accent-foreground: 12 60% 30%;
-  
-  --destructive: 0 84% 60%;
-  --destructive-foreground: 210 40% 98%;
-  
-  --border: 35 20% 85%;
-  --input: 35 20% 85%;
-  --ring: 12 60% 50%;
-  
-  --radius: 0.75rem;
+  /* Apple-style elegant blue + hospitality palette */
+  --background: 220 20% 97%;
+  --foreground: 222 20% 12%;
 
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
-  --shadow-md: 0 10px 15px -3px rgb(0 0 0 / 0.05), 0 4px 6px -4px rgb(0 0 0 / 0.05);
-  --shadow-lg: 0 20px 25px -5px rgb(0 0 0 / 0.05), 0 8px 10px -6px rgb(0 0 0 / 0.05);
+  --card: 0 0% 100%;
+  --card-foreground: 222 20% 12%;
+  --card-border: 220 14% 90%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 20% 12%;
+  --popover-border: 220 14% 90%;
+
+  /* Deep hospitality blue */
+  --primary: 213 80% 38%;
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 220 14% 93%;
+  --secondary-foreground: 222 20% 20%;
+
+  --muted: 220 14% 93%;
+  --muted-foreground: 220 10% 50%;
+
+  --accent: 213 60% 92%;
+  --accent-foreground: 213 80% 30%;
+
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+
+  --border: 220 14% 90%;
+  --input: 220 14% 90%;
+  --ring: 213 80% 38%;
+
+  --radius: 0.75rem;
 }
 
 .dark {
-  --background: 20 14% 10%;
-  --foreground: 40 33% 96%;
-  
-  --card: 20 14% 14%;
-  --card-foreground: 40 33% 96%;
-  --card-border: 20 14% 20%;
-  
-  --popover: 20 14% 14%;
-  --popover-foreground: 40 33% 96%;
-  --popover-border: 20 14% 20%;
-  
-  --primary: 12 60% 55%;
+  --background: 222 25% 10%;
+  --foreground: 220 20% 96%;
+
+  --card: 222 22% 13%;
+  --card-foreground: 220 20% 96%;
+  --card-border: 222 20% 20%;
+
+  --popover: 222 22% 13%;
+  --popover-foreground: 220 20% 96%;
+  --popover-border: 222 20% 20%;
+
+  --primary: 213 80% 55%;
   --primary-foreground: 0 0% 100%;
-  
-  --secondary: 20 14% 20%;
-  --secondary-foreground: 40 33% 96%;
-  
-  --muted: 20 14% 20%;
-  --muted-foreground: 40 10% 70%;
-  
-  --accent: 12 60% 25%;
-  --accent-foreground: 12 60% 90%;
-  
-  --border: 20 14% 25%;
-  --input: 20 14% 25%;
-  --ring: 12 60% 55%;
+
+  --secondary: 222 22% 18%;
+  --secondary-foreground: 220 20% 90%;
+
+  --muted: 222 20% 18%;
+  --muted-foreground: 220 10% 60%;
+
+  --accent: 213 50% 22%;
+  --accent-foreground: 213 60% 80%;
+
+  --destructive: 0 72% 55%;
+  --destructive-foreground: 0 0% 100%;
+
+  --border: 222 20% 22%;
+  --input: 222 20% 22%;
+  --ring: 213 80% 55%;
 }
 
 @layer base {
@@ -125,43 +123,131 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground antialiased selection:bg-primary/20 selection:text-primary;
-    background-image: url('/images/mediterranean-bg.png');
-    background-size: cover;
-    background-attachment: fixed;
-    background-position: center;
-  }
-  
-  /* Add subtle overlay to the background for readability */
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    background: linear-gradient(to bottom, hsl(var(--background)/0.8), hsl(var(--background)/0.95));
-    z-index: -1;
-  }
-
-  h1, h2, h3, h4, h5, h6 {
-    @apply font-serif tracking-tight;
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background: linear-gradient(145deg, hsl(220, 25%, 95%) 0%, hsl(213, 30%, 92%) 50%, hsl(220, 20%, 96%) 100%);
+    min-height: 100dvh;
   }
 }
 
-/* Custom scrollbar for chat */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  @apply bg-muted-foreground/30 rounded-full;
-}
-::-webkit-scrollbar-thumb:hover {
-  @apply bg-muted-foreground/50;
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: hsl(220 14% 80%); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: hsl(220 14% 65%); }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* ── Chat container — glass card ── */
+.chat-container {
+  background: hsl(0 0% 100% / 0.72);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid hsl(220 14% 88% / 0.8);
+  box-shadow:
+    0 2px 4px hsl(213 40% 20% / 0.04),
+    0 8px 24px hsl(213 40% 20% / 0.07),
+    0 32px 64px hsl(213 40% 20% / 0.06),
+    inset 0 1px 0 hsl(0 0% 100% / 0.9);
 }
 
-/* Glassmorphism utilities */
+/* ── Header gradient ── */
+.chat-header {
+  background: linear-gradient(135deg, hsl(213, 80%, 36%) 0%, hsl(222, 70%, 42%) 100%);
+  box-shadow: 0 1px 0 hsl(213 80% 28% / 0.3), 0 4px 12px hsl(213 80% 30% / 0.15);
+}
+
+/* ── User bubble — Apple iMessage blue ── */
+.user-bubble {
+  background: linear-gradient(145deg, hsl(213, 80%, 44%) 0%, hsl(213, 85%, 38%) 100%);
+  color: #fff;
+  border-radius: 20px 20px 4px 20px;
+  box-shadow:
+    0 1px 2px hsl(213 80% 25% / 0.2),
+    0 4px 12px hsl(213 80% 30% / 0.18),
+    inset 0 1px 0 hsl(213 80% 60% / 0.3);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+/* ── Assistant bubble — white card ── */
+.assistant-bubble {
+  background: hsl(0 0% 100%);
+  color: hsl(222 20% 14%);
+  border-radius: 4px 20px 20px 20px;
+  border: 1px solid hsl(220 14% 90%);
+  box-shadow:
+    0 1px 2px hsl(220 20% 30% / 0.06),
+    0 4px 16px hsl(220 20% 30% / 0.08),
+    0 1px 0 hsl(0 0% 100%) inset;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+/* ── Quick reply buttons ── */
+.quick-reply-btn {
+  background: hsl(0 0% 100%);
+  color: hsl(213, 80%, 38%);
+  border: 1.5px solid hsl(213 60% 88%);
+  box-shadow: 0 1px 3px hsl(213 40% 20% / 0.08), 0 1px 0 hsl(0 0% 100%) inset;
+}
+.quick-reply-btn:hover:not(:disabled) {
+  background: hsl(213, 80%, 38%);
+  color: #fff;
+  border-color: hsl(213, 80%, 38%);
+  box-shadow: 0 2px 8px hsl(213 80% 30% / 0.25);
+  transform: translateY(-1px);
+}
+.quick-reply-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+/* ── Input area ── */
+.chat-input-area {
+  background: hsl(220 20% 97% / 0.9);
+  backdrop-filter: blur(12px);
+}
+
+.chat-input {
+  background: hsl(0 0% 100%);
+  color: hsl(222 20% 12%);
+  border: 1.5px solid hsl(220 14% 88%);
+  box-shadow: 0 1px 3px hsl(220 20% 30% / 0.06), inset 0 1px 2px hsl(220 14% 94%);
+  font-family: 'Inter', sans-serif;
+  font-size: 14.5px;
+  letter-spacing: -0.01em;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.chat-input:focus {
+  border-color: hsl(213 80% 55%);
+  box-shadow: 0 0 0 3px hsl(213 80% 55% / 0.12), 0 1px 3px hsl(220 20% 30% / 0.06);
+}
+.chat-input::placeholder {
+  color: hsl(220 10% 60%);
+}
+
+/* ── Send button ── */
+.send-btn {
+  background: linear-gradient(145deg, hsl(213, 80%, 44%), hsl(213, 85%, 38%));
+  color: #fff;
+  box-shadow: 0 2px 8px hsl(213 80% 30% / 0.3);
+  transition: all 0.15s ease;
+}
+.send-btn:hover:not(:disabled) {
+  box-shadow: 0 4px 12px hsl(213 80% 30% / 0.4);
+  transform: translateY(-1px);
+}
+.send-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+/* ── Glassmorphism utility (used in host panel) ── */
 .glass-panel {
-  @apply bg-background/80 backdrop-blur-xl border border-white/20 dark:border-white/5 shadow-xl;
+  background: hsl(0 0% 100% / 0.8);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid hsl(220 14% 88% / 0.8);
+  box-shadow: 0 4px 24px hsl(213 40% 20% / 0.08);
 }
