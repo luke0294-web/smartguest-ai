@@ -1,10 +1,14 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "wouter";
-import { Building, Plus, Trash2, ExternalLink, KeyRound, Loader2, Save, Users, AlertCircle, Sparkles } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
+import {
+  Building, Plus, Trash2, ExternalLink, KeyRound, Loader2, Save,
+  Users, AlertCircle, Sparkles, QrCode, X, Download, Inbox,
+} from "lucide-react";
 import { format } from "date-fns";
 
 import { useListProperties, useCreateProperty, useDeleteProperty, getListPropertiesQueryKey } from "@workspace/api-client-react";
@@ -19,12 +23,107 @@ const createPropertySchema = z.object({
 
 type CreatePropertyValues = z.infer<typeof createPropertySchema>;
 
+interface Lead {
+  id: number;
+  hostName: string;
+  email: string;
+  propertyName: string;
+  createdAt: string;
+}
+
+function QrModal({ property, onClose }: { property: { name: string; slug: string }; onClose: () => void }) {
+  const svgRef = useRef<HTMLDivElement>(null);
+  const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+  const chatUrl = `${window.location.origin}${base}/guest/${property.slug}`;
+
+  const handleDownload = () => {
+    const svg = svgRef.current?.querySelector("svg");
+    if (!svg) return;
+    const serialized = new XMLSerializer().serializeToString(svg);
+    const blob = new Blob([serialized], { type: "image/svg+xml" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `qr-${property.slug}.svg`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ backgroundColor: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)" }}
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.92 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.92 }}
+        transition={{ duration: 0.22 }}
+        className="bg-white rounded-3xl shadow-2xl w-full max-w-xs overflow-hidden"
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div>
+            <h3 className="font-bold text-gray-900 text-[15px]">QR Code</h3>
+            <p className="text-gray-400 text-[12px] mt-0.5 truncate max-w-[180px]">{property.name}</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"
+          >
+            <X className="w-4 h-4 text-gray-500" />
+          </button>
+        </div>
+
+        <div className="flex flex-col items-center gap-5 p-6">
+          <div ref={svgRef} className="p-3 bg-white border border-gray-200 rounded-2xl shadow-sm">
+            <QRCodeSVG
+              value={chatUrl}
+              size={200}
+              bgColor="#ffffff"
+              fgColor="#1d4ed8"
+              level="M"
+              marginSize={1}
+            />
+          </div>
+
+          <div className="w-full bg-gray-50 rounded-xl px-3 py-2 text-center">
+            <p className="text-[11px] text-gray-400 mb-0.5">Link chat ospiti</p>
+            <p className="text-[12px] font-mono text-gray-600 break-all">{chatUrl}</p>
+          </div>
+
+          <button
+            onClick={handleDownload}
+            className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm py-3 rounded-2xl transition-colors"
+          >
+            <Download className="w-4 h-4" />
+            Scarica QR Code (SVG)
+          </button>
+
+          <button
+            onClick={() => navigator.clipboard.writeText(chatUrl)}
+            className="w-full flex items-center justify-center gap-2 border border-gray-200 hover:border-gray-300 text-gray-600 font-medium text-sm py-3 rounded-2xl transition-colors"
+          >
+            Copia link
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 export default function CeoPanel() {
   const [password, setPassword] = useState("");
   const [authAttempt, setAuthAttempt] = useState(false);
+  const [activeTab, setActiveTab] = useState<"properties" | "leads">("properties");
+  const [qrProperty, setQrProperty] = useState<{ name: string; slug: string } | null>(null);
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [leadsLoading, setLeadsLoading] = useState(false);
   const queryClient = useQueryClient();
 
-  const { data: properties, isLoading: isListLoading, error: listError, refetch } = useListProperties(
+  const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+  const { data: properties, isLoading: isListLoading, error: listError } = useListProperties(
     { ceoPassword: password },
     {
       query: {
@@ -39,15 +138,9 @@ export default function CeoPanel() {
 
   const form = useForm<CreatePropertyValues>({
     resolver: zodResolver(createPropertySchema),
-    defaultValues: {
-      name: "",
-      slug: "",
-      whatsappNumber: "",
-      content: "",
-    }
+    defaultValues: { name: "", slug: "", whatsappNumber: "", content: "" }
   });
 
-  // Auto-generate slug from name
   const watchName = form.watch("name");
   useEffect(() => {
     if (watchName && !form.formState.touchedFields.slug) {
@@ -59,7 +152,32 @@ export default function CeoPanel() {
     }
   }, [watchName, form]);
 
-  // Handle authentication
+  useEffect(() => {
+    if (listError && (listError as any).status === 401) {
+      setAuthAttempt(false);
+      setPassword("");
+      alert("Password errata. Riprova.");
+    }
+  }, [listError]);
+
+  const fetchLeads = async () => {
+    if (!password) return;
+    setLeadsLoading(true);
+    try {
+      const res = await fetch(`${baseUrl}/api/leads?ceoPassword=${encodeURIComponent(password)}`);
+      const data = await res.json();
+      if (res.ok) setLeads(data);
+    } finally {
+      setLeadsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (authAttempt && activeTab === "leads") {
+      fetchLeads();
+    }
+  }, [activeTab, authAttempt]);
+
   const handleLogin = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
@@ -70,28 +188,13 @@ export default function CeoPanel() {
     }
   };
 
-  // Logout / clear auth on 401
-  useEffect(() => {
-    if (listError && (listError as any).status === 401) {
-      setAuthAttempt(false);
-      setPassword("");
-      alert("Password errata. Riprova.");
-    }
-  }, [listError]);
-
   const onSubmit = (data: CreatePropertyValues) => {
     createProperty(
-      {
-        data: {
-          ceoPassword: password,
-          ...data
-        }
-      },
+      { data: { ceoPassword: password, ...data } },
       {
         onSuccess: () => {
           form.reset();
           queryClient.invalidateQueries({ queryKey: getListPropertiesQueryKey({ ceoPassword: password }) });
-          alert("Proprietà creata con successo!");
         },
         onError: (err: any) => {
           alert(`Errore: ${err.response?.data?.error || 'Impossibile creare la proprietà'}`);
@@ -103,17 +206,12 @@ export default function CeoPanel() {
   const handleDelete = (slug: string) => {
     if (window.confirm(`Sei sicuro di voler eliminare la proprietà ${slug}?`)) {
       deleteProperty(
-        {
-          slug,
-          data: { ceoPassword: password }
-        },
+        { slug, data: { ceoPassword: password } },
         {
           onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: getListPropertiesQueryKey({ ceoPassword: password }) });
           },
-          onError: () => {
-            alert("Errore durante l'eliminazione");
-          }
+          onError: () => alert("Errore durante l'eliminazione"),
         }
       );
     }
@@ -129,13 +227,11 @@ export default function CeoPanel() {
           className="glass-panel p-8 sm:p-12 rounded-[2rem] max-w-md w-full text-center relative overflow-hidden"
         >
           <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-primary via-accent to-primary" />
-          
           <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-inner">
             <Building className="w-8 h-8 text-primary" />
           </div>
           <h1 className="text-2xl font-serif font-bold text-foreground mb-2">Professional Host Suite</h1>
           <p className="text-muted-foreground text-sm mb-8">Accesso riservato amministratori RomeGuest AI</p>
-          
           <form onSubmit={handleLogin} className="flex flex-col gap-4">
             <div className="relative">
               <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
@@ -159,177 +255,296 @@ export default function CeoPanel() {
     );
   }
 
-  // ── DASHBOARD SCREEN ──
+  // ── DASHBOARD ──
   return (
-    <div className="min-h-[100dvh] flex flex-col md:py-8 md:px-6">
-      <div className="max-w-7xl w-full mx-auto flex flex-col gap-8">
-        
-        {/* Header */}
-        <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 glass-panel p-6 sm:px-8 rounded-[2rem]">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-primary text-primary-foreground rounded-xl flex items-center justify-center shadow-lg shadow-primary/20">
-              <Sparkles className="w-6 h-6" />
+    <>
+      <AnimatePresence>
+        {qrProperty && (
+          <QrModal property={qrProperty} onClose={() => setQrProperty(null)} />
+        )}
+      </AnimatePresence>
+
+      <div className="min-h-[100dvh] flex flex-col md:py-8 md:px-6">
+        <div className="max-w-7xl w-full mx-auto flex flex-col gap-6">
+
+          {/* Header */}
+          <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 glass-panel p-6 sm:px-8 rounded-[2rem]">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-primary text-primary-foreground rounded-xl flex items-center justify-center shadow-lg shadow-primary/20">
+                <Sparkles className="w-6 h-6" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-serif font-bold text-foreground leading-tight">RomeGuest AI CEO</h1>
+                <p className="text-muted-foreground text-sm flex items-center gap-1.5 mt-0.5">
+                  <Users className="w-3.5 h-3.5" /> Professional Host Suite
+                </p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-2xl font-serif font-bold text-foreground leading-tight">RomeGuest AI CEO</h1>
-              <p className="text-muted-foreground text-sm flex items-center gap-1.5 mt-0.5">
-                <Users className="w-3.5 h-3.5" /> Professional Host Suite
-              </p>
-            </div>
-          </div>
-          <div className="flex gap-3">
-            <a href="/" className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-black/5 rounded-lg transition-colors">
+            <a href="/" className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-black/5 rounded-lg transition-colors self-start sm:self-auto">
               Esci
             </a>
-          </div>
-        </header>
+          </header>
 
-        <div className="grid lg:grid-cols-12 gap-8 items-start">
-          
-          {/* ── LEFT: PROPERTIES LIST ── */}
-          <div className="lg:col-span-7 flex flex-col gap-6">
-            <div className="flex items-center justify-between px-2">
-              <h2 className="text-xl font-serif font-semibold">Le mie proprietà ({properties?.length || 0})</h2>
-              {isListLoading && <Loader2 className="w-5 h-5 text-primary animate-spin" />}
-            </div>
-
-            <div className="flex flex-col gap-4">
-              <AnimatePresence>
-                {properties?.map((prop) => (
-                  <motion.div
-                    key={prop.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    className="glass-panel p-6 rounded-3xl flex flex-col sm:flex-row gap-6 justify-between group hover:border-primary/30 transition-colors"
-                  >
-                    <div className="space-y-2 flex-1">
-                      <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-                        {prop.name}
-                        <span className="px-2.5 py-0.5 rounded-full bg-primary/10 text-primary text-[11px] font-semibold tracking-wide uppercase">
-                          ATTIVA
-                        </span>
-                      </h3>
-                      <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted-foreground">
-                        <span className="flex items-center gap-1.5 font-mono bg-black/5 px-2 py-0.5 rounded-md text-[13px]">
-                          /{prop.slug}
-                        </span>
-                        {prop.whatsappNumber && (
-                          <span className="flex items-center gap-1">
-                            WA: {prop.whatsappNumber}
-                          </span>
-                        )}
-                        <span className="flex items-center gap-1 opacity-70">
-                          Creata: {format(new Date(prop.createdAt), 'dd MMM yyyy')}
-                        </span>
-                      </div>
-                    </div>
-                    
-                    <div className="flex sm:flex-col items-center justify-end gap-2 shrink-0 border-t sm:border-t-0 sm:border-l border-border/50 pt-4 sm:pt-0 sm:pl-6">
-                      <Link
-                        href={`/guest/${prop.slug}`}
-                        target="_blank"
-                        className="w-full sm:w-auto px-4 py-2 bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground font-medium rounded-xl transition-all flex items-center justify-center gap-2 text-sm"
-                      >
-                        Apri Chat <ExternalLink className="w-3.5 h-3.5" />
-                      </Link>
-                      <button
-                        onClick={() => handleDelete(prop.slug)}
-                        disabled={isDeleting}
-                        className="w-full sm:w-auto px-4 py-2 text-destructive hover:bg-destructive hover:text-white font-medium rounded-xl transition-all flex items-center justify-center gap-2 text-sm"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        Elimina
-                      </button>
-                    </div>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-
-              {(!properties || properties.length === 0) && !isListLoading && (
-                <div className="glass-panel p-12 rounded-3xl text-center flex flex-col items-center border-dashed">
-                  <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
-                    <Building className="w-8 h-8 text-muted-foreground/50" />
-                  </div>
-                  <h3 className="text-lg font-bold text-foreground mb-1">Nessuna proprietà</h3>
-                  <p className="text-muted-foreground text-sm max-w-sm">
-                    Non hai ancora creato alcun appartamento. Usa il form per aggiungere il tuo primo cliente.
-                  </p>
-                </div>
+          {/* Tabs */}
+          <div className="flex gap-2 px-1">
+            <button
+              onClick={() => setActiveTab("properties")}
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all ${
+                activeTab === "properties"
+                  ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
+                  : "text-muted-foreground hover:bg-black/5"
+              }`}
+            >
+              <Building className="w-4 h-4" />
+              Proprietà ({properties?.length ?? 0})
+            </button>
+            <button
+              onClick={() => setActiveTab("leads")}
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all ${
+                activeTab === "leads"
+                  ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
+                  : "text-muted-foreground hover:bg-black/5"
+              }`}
+            >
+              <Inbox className="w-4 h-4" />
+              Lead
+              {leads.length > 0 && (
+                <span className="ml-1 bg-white/30 text-xs font-bold px-1.5 py-0.5 rounded-full">
+                  {leads.length}
+                </span>
               )}
-            </div>
+            </button>
           </div>
 
-          {/* ── RIGHT: CREATE FORM ── */}
-          <div className="lg:col-span-5 sticky top-8">
-            <div className="glass-panel rounded-[2rem] overflow-hidden">
-              <div className="bg-primary/5 px-6 py-5 border-b border-border/50 flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-primary/20 text-primary flex items-center justify-center">
-                  <Plus className="w-5 h-5" />
+          <AnimatePresence mode="wait">
+
+            {/* ── TAB: PROPERTIES ── */}
+            {activeTab === "properties" && (
+              <motion.div
+                key="properties"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="grid lg:grid-cols-12 gap-8 items-start"
+              >
+                {/* Left: list */}
+                <div className="lg:col-span-7 flex flex-col gap-4">
+                  <div className="flex items-center justify-between px-1">
+                    <h2 className="text-xl font-serif font-semibold">Le mie proprietà</h2>
+                    {isListLoading && <Loader2 className="w-5 h-5 text-primary animate-spin" />}
+                  </div>
+
+                  <AnimatePresence>
+                    {properties?.map((prop) => (
+                      <motion.div
+                        key={prop.id}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        className="glass-panel p-5 rounded-3xl hover:border-primary/30 transition-colors"
+                      >
+                        <div className="flex flex-col sm:flex-row gap-4 justify-between">
+                          <div className="space-y-1.5 flex-1 min-w-0">
+                            <h3 className="text-[16px] font-bold text-foreground flex items-center gap-2 flex-wrap">
+                              {prop.name}
+                              <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold tracking-wide uppercase">
+                                ATTIVA
+                              </span>
+                            </h3>
+                            <div className="flex flex-wrap gap-x-3 gap-y-1.5 text-sm text-muted-foreground">
+                              <span className="font-mono bg-black/5 px-2 py-0.5 rounded-md text-[12px]">
+                                /guest/{prop.slug}
+                              </span>
+                              {prop.whatsappNumber && (
+                                <span className="text-[12px]">WA: {prop.whatsappNumber}</span>
+                              )}
+                              <span className="text-[12px] opacity-60">
+                                {format(new Date(prop.createdAt), 'dd MMM yyyy')}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap sm:flex-col items-start sm:items-stretch gap-2 shrink-0 border-t sm:border-t-0 sm:border-l border-border/50 pt-3 sm:pt-0 sm:pl-5">
+                            <button
+                              onClick={() => setQrProperty({ name: prop.name, slug: prop.slug })}
+                              className="flex-1 sm:flex-none px-3 py-2 bg-violet-50 text-violet-700 hover:bg-violet-100 font-medium rounded-xl transition-all flex items-center justify-center gap-1.5 text-[13px]"
+                            >
+                              <QrCode className="w-3.5 h-3.5" />
+                              QR Code
+                            </button>
+                            <Link
+                              href={`/guest/${prop.slug}`}
+                              className="flex-1 sm:flex-none px-3 py-2 bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground font-medium rounded-xl transition-all flex items-center justify-center gap-1.5 text-[13px]"
+                            >
+                              Chat <ExternalLink className="w-3 h-3" />
+                            </Link>
+                            <button
+                              onClick={() => handleDelete(prop.slug)}
+                              disabled={isDeleting}
+                              className="flex-1 sm:flex-none px-3 py-2 text-destructive hover:bg-destructive hover:text-white font-medium rounded-xl transition-all flex items-center justify-center gap-1.5 text-[13px]"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              Elimina
+                            </button>
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+
+                  {(!properties || properties.length === 0) && !isListLoading && (
+                    <div className="glass-panel p-12 rounded-3xl text-center flex flex-col items-center border-dashed">
+                      <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
+                        <Building className="w-8 h-8 text-muted-foreground/50" />
+                      </div>
+                      <h3 className="text-lg font-bold text-foreground mb-1">Nessuna proprietà</h3>
+                      <p className="text-muted-foreground text-sm max-w-sm">
+                        Usa il form per aggiungere il tuo primo appartamento.
+                      </p>
+                    </div>
+                  )}
                 </div>
-                <h2 className="text-lg font-serif font-bold">Aggiungi Proprietà</h2>
-              </div>
-              
-              <div className="p-6">
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
-                  <div className="space-y-1.5">
-                    <label className="text-sm font-semibold text-foreground">Nome Appartamento</label>
-                    <input
-                      {...form.register("name")}
-                      placeholder="es. Fleming Suite 1"
-                      className="w-full bg-background border border-border px-4 py-2.5 rounded-xl focus:outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/10 transition-all font-sans text-sm"
-                    />
-                    {form.formState.errors.name && <p className="text-xs text-destructive">{form.formState.errors.name.message}</p>}
-                  </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-sm font-semibold text-foreground">URL Slug</label>
-                      <input
-                        {...form.register("slug")}
-                        placeholder="es. fleming-1"
-                        className="w-full bg-black/5 border border-transparent px-4 py-2.5 rounded-xl focus:bg-background focus:border-primary/50 focus:outline-none transition-all font-mono text-sm"
-                      />
-                      {form.formState.errors.slug && <p className="text-xs text-destructive">{form.formState.errors.slug.message}</p>}
+                {/* Right: create form */}
+                <div className="lg:col-span-5 sticky top-8">
+                  <div className="glass-panel rounded-[2rem] overflow-hidden">
+                    <div className="bg-primary/5 px-6 py-5 border-b border-border/50 flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-primary/20 text-primary flex items-center justify-center">
+                        <Plus className="w-5 h-5" />
+                      </div>
+                      <h2 className="text-lg font-serif font-bold">Aggiungi Proprietà</h2>
                     </div>
+                    <div className="p-6">
+                      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+                        <div className="space-y-1.5">
+                          <label className="text-sm font-semibold text-foreground">Nome Appartamento</label>
+                          <input
+                            {...form.register("name")}
+                            placeholder="es. Fleming Suite 1"
+                            className="w-full bg-background border border-border px-4 py-2.5 rounded-xl focus:outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/10 transition-all font-sans text-sm"
+                          />
+                          {form.formState.errors.name && <p className="text-xs text-destructive">{form.formState.errors.name.message}</p>}
+                        </div>
 
-                    <div className="space-y-1.5">
-                      <label className="text-sm font-semibold text-foreground">WhatsApp Host</label>
-                      <input
-                        {...form.register("whatsappNumber")}
-                        placeholder="+39 333..."
-                        className="w-full bg-background border border-border px-4 py-2.5 rounded-xl focus:outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/10 transition-all font-sans text-sm"
-                      />
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-1.5">
+                            <label className="text-sm font-semibold text-foreground">URL Slug</label>
+                            <input
+                              {...form.register("slug")}
+                              placeholder="es. fleming-1"
+                              className="w-full bg-black/5 border border-transparent px-4 py-2.5 rounded-xl focus:bg-background focus:border-primary/50 focus:outline-none transition-all font-mono text-sm"
+                            />
+                            {form.formState.errors.slug && <p className="text-xs text-destructive">{form.formState.errors.slug.message}</p>}
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-sm font-semibold text-foreground">WhatsApp Host</label>
+                            <input
+                              {...form.register("whatsappNumber")}
+                              placeholder="+39 333..."
+                              className="w-full bg-background border border-border px-4 py-2.5 rounded-xl focus:outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/10 transition-all font-sans text-sm"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className="text-sm font-semibold text-foreground flex items-center justify-between">
+                            Knowledge Base
+                            <span className="text-[10px] font-normal text-muted-foreground uppercase tracking-wider">Regole e info</span>
+                          </label>
+                          <textarea
+                            {...form.register("content")}
+                            placeholder="Inserisci qui regolamento, WiFi, consigli..."
+                            className="w-full h-[180px] resize-y bg-background border border-border px-4 py-3 rounded-xl focus:outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/10 transition-all font-sans text-sm leading-relaxed"
+                          />
+                          {form.formState.errors.content && <p className="text-xs text-destructive">{form.formState.errors.content.message}</p>}
+                        </div>
+
+                        <button
+                          type="submit"
+                          disabled={isCreating}
+                          className="w-full bg-primary text-primary-foreground font-medium py-3.5 rounded-xl shadow-md shadow-primary/20 hover:shadow-lg hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        >
+                          {isCreating ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Save className="w-5 h-5" /> Crea Nuova Proprietà</>}
+                        </button>
+                      </form>
                     </div>
                   </div>
+                </div>
+              </motion.div>
+            )}
 
-                  <div className="space-y-1.5">
-                    <label className="text-sm font-semibold text-foreground flex items-center justify-between">
-                      Knowledge Base
-                      <span className="text-[10px] font-normal text-muted-foreground uppercase tracking-wider">Regole e info</span>
-                    </label>
-                    <textarea
-                      {...form.register("content")}
-                      placeholder="Inserisci qui regolamento, WiFi, consigli..."
-                      className="w-full h-[200px] resize-y bg-background border border-border px-4 py-3 rounded-xl focus:outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/10 transition-all font-sans text-sm leading-relaxed"
-                    />
-                    {form.formState.errors.content && <p className="text-xs text-destructive">{form.formState.errors.content.message}</p>}
-                  </div>
-
+            {/* ── TAB: LEADS ── */}
+            {activeTab === "leads" && (
+              <motion.div
+                key="leads"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="flex flex-col gap-4"
+              >
+                <div className="flex items-center justify-between px-1">
+                  <h2 className="text-xl font-serif font-semibold">Richieste di accesso</h2>
                   <button
-                    type="submit"
-                    disabled={isCreating}
-                    className="w-full bg-primary text-primary-foreground font-medium py-3.5 rounded-xl shadow-md shadow-primary/20 hover:shadow-lg hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-2"
+                    onClick={fetchLeads}
+                    disabled={leadsLoading}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-black/5 rounded-lg transition-colors"
                   >
-                    {isCreating ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Save className="w-5 h-5" /> Crea Nuova Proprietà</>}
+                    {leadsLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Aggiorna"}
                   </button>
-                </form>
-              </div>
-            </div>
-          </div>
+                </div>
 
+                {leadsLoading && (
+                  <div className="flex justify-center py-12">
+                    <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                  </div>
+                )}
+
+                {!leadsLoading && leads.length === 0 && (
+                  <div className="glass-panel p-12 rounded-3xl text-center flex flex-col items-center border-dashed">
+                    <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
+                      <Inbox className="w-8 h-8 text-muted-foreground/50" />
+                    </div>
+                    <h3 className="text-lg font-bold text-foreground mb-1">Nessuna richiesta</h3>
+                    <p className="text-muted-foreground text-sm">
+                      Le richieste dalla landing page appariranno qui.
+                    </p>
+                  </div>
+                )}
+
+                {!leadsLoading && leads.length > 0 && (
+                  <div className="flex flex-col gap-3">
+                    {leads.map((lead) => (
+                      <motion.div
+                        key={lead.id}
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="glass-panel p-5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-[15px] flex-shrink-0">
+                            {lead.hostName[0]?.toUpperCase()}
+                          </div>
+                          <div>
+                            <p className="font-bold text-foreground text-[15px]">{lead.hostName}</p>
+                            <p className="text-muted-foreground text-sm">{lead.email}</p>
+                          </div>
+                        </div>
+                        <div className="flex flex-col sm:items-end gap-1 pl-14 sm:pl-0">
+                          <span className="text-sm font-medium text-foreground">🏠 {lead.propertyName}</span>
+                          <span className="text-[12px] text-muted-foreground">
+                            {format(new Date(lead.createdAt), "dd MMM yyyy · HH:mm")}
+                          </span>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
+              </motion.div>
+            )}
+
+          </AnimatePresence>
         </div>
       </div>
-    </div>
+    </>
   );
 }

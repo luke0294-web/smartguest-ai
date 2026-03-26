@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { Link } from "wouter";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Zap,
   Globe,
@@ -9,6 +10,9 @@ import {
   ArrowRight,
   MessageSquare,
   Shield,
+  X,
+  Loader2,
+  PartyPopper,
 } from "lucide-react";
 
 const fadeUp = {
@@ -65,12 +69,178 @@ const REVIEWS = [
   },
 ];
 
+function RegistrationModal({ onClose }: { onClose: () => void }) {
+  const [hostName, setHostName] = useState("");
+  const [email, setEmail] = useState("");
+  const [propertyName, setPropertyName] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState("");
+
+  const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setIsSubmitting(true);
+
+    try {
+      const res = await fetch(`${baseUrl}/api/leads`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hostName, email, propertyName }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error ?? "Errore durante l'invio");
+      }
+
+      setSuccess(true);
+    } catch (err: any) {
+      setError(err.message ?? "Qualcosa è andato storto. Riprova.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ backgroundColor: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }}
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.94, y: 16 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.94, y: 16 }}
+        transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
+        className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden"
+      >
+        {/* Header */}
+        <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-5 flex items-center justify-between">
+          <div>
+            <p className="text-blue-200 text-[11px] font-semibold uppercase tracking-wider mb-0.5">
+              Primo mese GRATIS
+            </p>
+            <h2 className="text-white font-extrabold text-xl">Inizia la prova gratuita</h2>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors"
+          >
+            <X className="w-4 h-4 text-white" />
+          </button>
+        </div>
+
+        <div className="p-6">
+          {success ? (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex flex-col items-center text-center gap-4 py-4"
+            >
+              <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center">
+                <PartyPopper className="w-8 h-8 text-emerald-600" />
+              </div>
+              <div>
+                <h3 className="text-xl font-extrabold text-gray-900 mb-2">Grazie, {hostName}!</h3>
+                <p className="text-gray-500 text-[15px] leading-relaxed">
+                  Riceverai le credenziali di accesso e il tuo{" "}
+                  <strong className="text-gray-700">QR Code personalizzato</strong> entro{" "}
+                  <strong className="text-gray-700">5 minuti</strong> via email all'indirizzo{" "}
+                  <span className="text-blue-600">{email}</span>.
+                </p>
+              </div>
+              <button
+                onClick={onClose}
+                className="mt-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-2xl transition-colors w-full"
+              >
+                Perfetto, grazie!
+              </button>
+            </motion.div>
+          ) : (
+            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+              <p className="text-gray-500 text-sm mb-1">
+                Inserisci i tuoi dati. Ti contattiamo entro 5 minuti con le credenziali.
+              </p>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-semibold text-gray-700">Il tuo Nome</label>
+                <input
+                  type="text"
+                  value={hostName}
+                  onChange={(e) => setHostName(e.target.value)}
+                  placeholder="es. Marco Rossi"
+                  required
+                  className="border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-semibold text-gray-700">Email</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="marco@esempio.it"
+                  required
+                  className="border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-semibold text-gray-700">Nome della Struttura</label>
+                <input
+                  type="text"
+                  value={propertyName}
+                  onChange={(e) => setPropertyName(e.target.value)}
+                  placeholder="es. Appartamento Centrale Roma"
+                  required
+                  className="border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
+                />
+              </div>
+
+              {error && (
+                <p className="text-red-500 text-sm bg-red-50 rounded-xl px-4 py-2">{error}</p>
+              )}
+
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold py-4 rounded-2xl shadow-lg shadow-blue-200 transition-all flex items-center justify-center gap-2 mt-1 disabled:opacity-60"
+              >
+                {isSubmitting ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <>
+                    Invia Richiesta <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
+
+              <p className="text-center text-xs text-gray-400">
+                Nessuna carta di credito richiesta. Cancella quando vuoi.
+              </p>
+            </form>
+          )}
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 export default function Landing() {
+  const [showModal, setShowModal] = useState(false);
+
   return (
     <div className="min-h-screen bg-white font-sans antialiased text-gray-900 overflow-x-hidden">
+      <AnimatePresence>
+        {showModal && <RegistrationModal onClose={() => setShowModal(false)} />}
+      </AnimatePresence>
 
       {/* ── Nav ── */}
-      <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-100">
+      <nav className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-gray-100">
         <div className="max-w-6xl mx-auto px-5 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center">
@@ -85,19 +255,18 @@ export default function Landing() {
             >
               Accedi
             </Link>
-            <a
-              href="#pricing"
+            <button
+              onClick={() => setShowModal(true)}
               className="text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl transition-colors shadow-sm shadow-blue-200"
             >
               Inizia gratis
-            </a>
+            </button>
           </div>
         </div>
       </nav>
 
       {/* ── Hero ── */}
       <section className="relative overflow-hidden bg-gradient-to-b from-blue-50/60 to-white pt-20 pb-24 px-5">
-        {/* Decorative blobs */}
         <div className="pointer-events-none absolute -top-32 -right-32 w-[480px] h-[480px] rounded-full bg-blue-100/60 blur-3xl" />
         <div className="pointer-events-none absolute top-40 -left-24 w-[320px] h-[320px] rounded-full bg-emerald-100/50 blur-3xl" />
 
@@ -143,13 +312,13 @@ export default function Landing() {
             custom={3}
             className="flex flex-col sm:flex-row items-center justify-center gap-3"
           >
-            <a
-              href="#pricing"
+            <button
+              onClick={() => setShowModal(true)}
               className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-[15px] px-8 py-4 rounded-2xl shadow-lg shadow-blue-200 transition-all"
             >
               Inizia la prova gratuita di 30 giorni
               <ArrowRight className="w-4 h-4" />
-            </a>
+            </button>
             <Link
               href="/guest/fleming-1"
               className="w-full sm:w-auto inline-flex items-center justify-center gap-2 border border-gray-200 hover:border-gray-300 bg-white text-gray-700 font-semibold text-[14px] px-6 py-4 rounded-2xl transition-all"
@@ -158,7 +327,6 @@ export default function Landing() {
             </Link>
           </motion.div>
 
-          {/* Social proof */}
           <motion.div
             variants={fadeUp}
             initial="hidden"
@@ -231,9 +399,7 @@ export default function Landing() {
             <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900 mb-3">
               Tutto quello che ti serve
             </h2>
-            <p className="text-gray-400 text-lg">
-              Configurato in 5 minuti, operativo per sempre.
-            </p>
+            <p className="text-gray-400 text-lg">Configurato in 5 minuti, operativo per sempre.</p>
           </motion.div>
 
           <div className="grid sm:grid-cols-3 gap-6">
@@ -329,7 +495,6 @@ export default function Landing() {
             custom={1}
             className="relative rounded-3xl border-2 border-blue-600 bg-white shadow-2xl shadow-blue-100 p-8 overflow-hidden"
           >
-            {/* Badge */}
             <div className="absolute top-5 right-5 bg-emerald-500 text-white text-[11px] font-bold px-3 py-1 rounded-full uppercase tracking-wide">
               Primo mese GRATIS
             </div>
@@ -354,23 +519,24 @@ export default function Landing() {
                 "Assistente Marco sempre attivo",
                 "Chat in 50+ lingue automatiche",
                 "Pannello CEO multi-proprietà",
+                "QR Code personalizzato incluso",
                 "Aggiornamenti illimitati",
                 "Supporto prioritario via email",
               ].map((item) => (
                 <li key={item} className="flex items-center gap-2.5 text-[14px] text-gray-700">
-                  <CheckCircle2 className="w-4.5 h-4.5 text-emerald-500 flex-shrink-0" />
+                  <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />
                   {item}
                 </li>
               ))}
             </ul>
 
-            <Link
-              href="/ceo"
+            <button
+              onClick={() => setShowModal(true)}
               className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-[15px] py-4 rounded-2xl shadow-lg shadow-blue-200 transition-all"
             >
               Inizia la prova gratuita di 30 giorni
               <ArrowRight className="w-4 h-4" />
-            </Link>
+            </button>
 
             <p className="text-center text-[12px] text-gray-400 mt-4">
               Nessuna carta di credito richiesta.
