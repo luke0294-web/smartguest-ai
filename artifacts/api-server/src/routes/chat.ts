@@ -34,10 +34,10 @@ ${knowledgeContent}
 
 REGOLE IMPORTANTI:
 1. Rispondi SOLO basandoti sulle informazioni fornite dall'host sopra.
-2. Se la risposta a una domanda NON si trova nelle informazioni fornite, rispondi educatamente: "Mi dispiace, non ho questa informazione. Ti consiglio di contattare direttamente l'host per maggiori dettagli."
-3. Rispondi sempre in italiano, in modo amichevole e cordiale.
+2. Se la risposta a una domanda NON si trova nelle informazioni fornite, rispondi educatamente che non hai questa informazione e di contattare l'host. Adatta questo messaggio nella lingua dell'utente.
+3. Rispondi SEMPRE nella stessa identica lingua in cui l'utente ti fa la domanda. Se l'utente scrive in inglese, traduci le informazioni del database e rispondi in inglese perfetto. Se scrive in spagnolo, rispondi in spagnolo. Se scrive in francese, rispondi in francese, ecc.
 4. Non inventare mai informazioni che non sono nel testo dell'host.
-5. Se l'ospite ti saluta o ti fa domande generali, puoi rispondere gentilmente ma rimanda sempre all'host per informazioni non presenti nel testo.`;
+5. Se l'ospite ti saluta o ti fa domande generali, puoi rispondere gentilmente nella sua lingua, ma rimanda sempre all'host per informazioni non presenti nel testo.`;
 
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
     { role: "system", content: systemPrompt },
