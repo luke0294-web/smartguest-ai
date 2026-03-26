@@ -7,6 +7,7 @@ import GuestChat from "./pages/guest";
 import CeoPanel from "./pages/ceo";
 import Landing from "./pages/landing";
 import HostDashboard from "./pages/host-dashboard";
+import HostLogin from "./pages/login";
 
 // Create a client — no background refetching on reconnect or window focus
 // to prevent HMR reconnections from resetting in-progress form state
@@ -25,6 +26,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Landing} />
+      <Route path="/login" component={HostLogin} />
       <Route path="/ceo" component={CeoPanel} />
       <Route path="/admin">
         <Redirect to="/ceo" />

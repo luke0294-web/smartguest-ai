@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, Link } from "wouter";
 import { motion } from "framer-motion";
 import { useForm } from "react-hook-form";
@@ -50,7 +50,29 @@ export default function HostDashboard() {
     resolver: zodResolver(updateSchema),
   });
 
-  const handleLogin = async (data: LoginValues) => {
+  // Auto-login if credentials were stored by /login page
+  useEffect(() => {
+    if (property || !slug) return;
+    try {
+      const stored = sessionStorage.getItem(`host_auth_${slug}`);
+      if (!stored) return;
+      const { password, ts } = JSON.parse(stored) as { password: string; ts: number };
+      // Expire after 8 hours
+      if (Date.now() - ts > 8 * 60 * 60 * 1000) {
+        sessionStorage.removeItem(`host_auth_${slug}`);
+        return;
+      }
+      loginForm.setValue("hostPassword", password);
+      loginForm.handleSubmit(handleLoginFn)();
+    } catch {
+      // ignore parse errors
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug]);
+
+  const handleLogin = async (data: LoginValues) => handleLoginFn(data);
+
+  async function handleLoginFn(data: LoginValues) {
     setLoginError("");
     setIsLoggingIn(true);
     try {

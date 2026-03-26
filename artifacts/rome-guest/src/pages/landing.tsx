@@ -249,7 +249,7 @@ export default function Landing() {
           </div>
           <div className="flex items-center gap-3">
             <Link
-              href="/ceo"
+              href="/login"
               className="hidden sm:inline text-sm text-gray-500 hover:text-gray-800 transition-colors px-3 py-1.5"
             >
               Accedi
@@ -559,7 +559,7 @@ export default function Landing() {
             <a href="mailto:info@romeguest.ai" className="hover:text-gray-700 transition-colors">
               info@romeguest.ai
             </a>
-            <Link href="/ceo" className="hover:text-gray-700 transition-colors">
+            <Link href="/login" className="hover:text-gray-700 transition-colors">
               Host Login
             </Link>
           </div>
