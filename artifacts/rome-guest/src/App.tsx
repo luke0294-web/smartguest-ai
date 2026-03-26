@@ -6,6 +6,7 @@ import NotFound from "@/pages/not-found";
 import GuestChat from "./pages/guest";
 import CeoPanel from "./pages/ceo";
 import Landing from "./pages/landing";
+import HostDashboard from "./pages/host-dashboard";
 
 // Create a client
 const queryClient = new QueryClient({
@@ -26,6 +27,7 @@ function Router() {
         <Redirect to="/ceo" />
       </Route>
       <Route path="/guest/:slug" component={GuestChat} />
+      <Route path="/host/:slug" component={HostDashboard} />
       <Route component={NotFound} />
     </Switch>
   );

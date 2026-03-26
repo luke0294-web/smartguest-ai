@@ -8,6 +8,7 @@ import { QRCodeSVG } from "qrcode.react";
 import {
   Building, Plus, Trash2, ExternalLink, KeyRound, Loader2, Save,
   Users, AlertCircle, Sparkles, QrCode, X, Download, Inbox,
+  UserCog, Copy, CheckCheck, Link2,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -112,11 +113,150 @@ function QrModal({ property, onClose }: { property: { name: string; slug: string
   );
 }
 
+function HostPasswordModal({
+  property,
+  ceoPassword,
+  onClose,
+}: {
+  property: { name: string; slug: string; hostPassword?: string | null };
+  ceoPassword: string;
+  onClose: () => void;
+}) {
+  const [newPassword, setNewPassword] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [error, setError] = useState("");
+
+  const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+  const hostLink = `${window.location.origin}${base}/host/${property.slug}`;
+
+  const handleSave = async () => {
+    if (!newPassword.trim()) return;
+    setError("");
+    setIsSaving(true);
+    try {
+      const res = await fetch(`${base}/api/properties/${property.slug}/host-password`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ceoPassword, hostPassword: newPassword.trim() }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Errore nel salvataggio.");
+      setSaved(true);
+      setNewPassword("");
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(hostLink);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ backgroundColor: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)" }}
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.92 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.92 }}
+        transition={{ duration: 0.22 }}
+        className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden"
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div>
+            <h3 className="font-bold text-gray-900 text-[15px] flex items-center gap-2">
+              <UserCog className="w-4 h-4 text-blue-600" />
+              Gestione Host
+            </h3>
+            <p className="text-gray-400 text-[12px] mt-0.5 truncate max-w-[200px]">{property.name}</p>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors">
+            <X className="w-4 h-4 text-gray-500" />
+          </button>
+        </div>
+
+        <div className="p-5 flex flex-col gap-4">
+          {/* Current status */}
+          <div className={`flex items-center gap-2.5 px-4 py-3 rounded-xl text-sm font-medium ${property.hostPassword ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+            {property.hostPassword ? (
+              <><CheckCheck className="w-4 h-4" /> Password host già impostata</>
+            ) : (
+              <><AlertCircle className="w-4 h-4" /> Nessuna password impostata</>
+            )}
+          </div>
+
+          {/* Link host */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+              <Link2 className="w-3 h-3" /> Link da inviare all'host
+            </label>
+            <div className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2.5 border border-gray-100">
+              <p className="text-[11px] font-mono text-gray-600 flex-1 break-all">{hostLink}</p>
+              <button
+                onClick={handleCopyLink}
+                className={`p-1.5 rounded-lg transition-colors flex-shrink-0 ${copied ? "text-emerald-600 bg-emerald-100" : "text-gray-400 hover:text-gray-600 hover:bg-gray-200"}`}
+              >
+                {copied ? <CheckCheck className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+            <p className="text-[10px] text-gray-400">Invia questo link all'host. Dovrà usarlo con la password impostata qui sotto.</p>
+          </div>
+
+          {/* Set password */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-semibold text-gray-700">
+              {property.hostPassword ? "Reimposta password host" : "Imposta password host"}
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newPassword}
+                onChange={(e) => { setNewPassword(e.target.value); setSaved(false); }}
+                placeholder="es. casa2024"
+                className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all font-mono"
+              />
+              <button
+                onClick={handleSave}
+                disabled={isSaving || !newPassword.trim()}
+                className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold transition-colors disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                {isSaving ? "" : "Salva"}
+              </button>
+            </div>
+          </div>
+
+          {saved && (
+            <div className="flex items-center gap-2 bg-emerald-50 text-emerald-700 text-sm px-4 py-2.5 rounded-xl">
+              <CheckCheck className="w-4 h-4" /> Password aggiornata con successo!
+            </div>
+          )}
+          {error && (
+            <div className="flex items-center gap-2 bg-red-50 text-red-600 text-sm px-4 py-2.5 rounded-xl">
+              <AlertCircle className="w-4 h-4" /> {error}
+            </div>
+          )}
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 export default function CeoPanel() {
   const [password, setPassword] = useState("");
   const [authAttempt, setAuthAttempt] = useState(false);
   const [activeTab, setActiveTab] = useState<"properties" | "leads">("properties");
   const [qrProperty, setQrProperty] = useState<{ name: string; slug: string } | null>(null);
+  const [hostManageProp, setHostManageProp] = useState<{ name: string; slug: string; hostPassword?: string | null } | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [leadsLoading, setLeadsLoading] = useState(false);
   const queryClient = useQueryClient();
@@ -262,6 +402,13 @@ export default function CeoPanel() {
         {qrProperty && (
           <QrModal property={qrProperty} onClose={() => setQrProperty(null)} />
         )}
+        {hostManageProp && (
+          <HostPasswordModal
+            property={hostManageProp}
+            ceoPassword={password}
+            onClose={() => setHostManageProp(null)}
+          />
+        )}
       </AnimatePresence>
 
       <div className="min-h-[100dvh] flex flex-col md:py-8 md:px-6">
@@ -365,6 +512,13 @@ export default function CeoPanel() {
                           </div>
 
                           <div className="flex flex-wrap sm:flex-col items-start sm:items-stretch gap-2 shrink-0 border-t sm:border-t-0 sm:border-l border-border/50 pt-3 sm:pt-0 sm:pl-5">
+                            <button
+                              onClick={() => setHostManageProp({ name: prop.name, slug: prop.slug, hostPassword: (prop as any).hostPassword })}
+                              className="flex-1 sm:flex-none px-3 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 font-medium rounded-xl transition-all flex items-center justify-center gap-1.5 text-[13px]"
+                            >
+                              <UserCog className="w-3.5 h-3.5" />
+                              Gestisci Host
+                            </button>
                             <button
                               onClick={() => setQrProperty({ name: prop.name, slug: prop.slug })}
                               className="flex-1 sm:flex-none px-3 py-2 bg-violet-50 text-violet-700 hover:bg-violet-100 font-medium rounded-xl transition-all flex items-center justify-center gap-1.5 text-[13px]"

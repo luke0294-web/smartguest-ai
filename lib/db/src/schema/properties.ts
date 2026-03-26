@@ -8,6 +8,7 @@ export const propertiesTable = pgTable("properties", {
   name: text("name").notNull(),
   content: text("content").notNull().default(""),
   whatsappNumber: text("whatsapp_number"),
+  hostPassword: text("host_password"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
