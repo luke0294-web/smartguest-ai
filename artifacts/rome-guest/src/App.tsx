@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import GuestChat from "./pages/guest";
 import CeoPanel from "./pages/ceo";
+import Landing from "./pages/landing";
 
 // Create a client
 const queryClient = new QueryClient({
@@ -19,9 +20,7 @@ const queryClient = new QueryClient({
 function Router() {
   return (
     <Switch>
-      <Route path="/">
-        <Redirect to="/ceo" />
-      </Route>
+      <Route path="/" component={Landing} />
       <Route path="/ceo" component={CeoPanel} />
       <Route path="/admin">
         <Redirect to="/ceo" />
