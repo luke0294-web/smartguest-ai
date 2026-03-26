@@ -8,12 +8,17 @@ import type { ConversationMessage } from "@workspace/api-client-react/src/genera
 // ── UI Localization ─────────────────────────────────────────────────────────
 
 const LANGUAGES = [
-  { code: "it", flag: "🇮🇹", label: "IT" },
-  { code: "en", flag: "🇬🇧", label: "EN" },
-  { code: "fr", flag: "🇫🇷", label: "FR" },
-  { code: "es", flag: "🇪🇸", label: "ES" },
-  { code: "de", flag: "🇩🇪", label: "DE" },
-  { code: "zh", flag: "🇨🇳", label: "ZH" },
+  { code: "it", flag: "🇮🇹", native: "Italiano" },
+  { code: "en", flag: "🇬🇧", native: "English" },
+  { code: "de", flag: "🇩🇪", native: "Deutsch" },
+  { code: "fr", flag: "🇫🇷", native: "Français" },
+  { code: "es", flag: "🇪🇸", native: "Español" },
+  { code: "nl", flag: "🇳🇱", native: "Nederlands" },
+  { code: "zh", flag: "🇨🇳", native: "中文" },
+  { code: "ja", flag: "🇯🇵", native: "日本語" },
+  { code: "ko", flag: "🇰🇷", native: "한국어" },
+  { code: "pt", flag: "🇧🇷", native: "Português" },
+  { code: "pl", flag: "🇵🇱", native: "Polski" },
 ] as const;
 
 const TRANSLATIONS = {
@@ -59,6 +64,27 @@ const TRANSLATIONS = {
       { label: "🕒 Check-out", question: "What time is check-out?" },
     ],
   },
+  de: {
+    placeholder: "Ihre Frage hier eingeben...",
+    send: "Senden",
+    typing: "Marco schreibt",
+    onlineStatus: "Marco ist online",
+    loading: "Assistent wird geladen...",
+    notFound: "Unterkunft nicht gefunden",
+    notFoundDesc: "Die gesuchte Unterkunft existiert nicht oder der Link ist falsch.",
+    goToPanel: "Zum Panel",
+    welcome: (name: string) => `Willkommen in ${name}! Ich bin Marco, wie kann ich Ihnen helfen? 👋`,
+    errorMsg: "Entschuldigung, es gab einen Verbindungsfehler. Bitte versuchen Sie es erneut.",
+    helpBtn: "Hilfe",
+    whatsappDefault: (name: string) => `Hallo, ich bin ein Gast in ${name} und benötige direkte Hilfe`,
+    powered: "Powered by SmartGuest AI · Marco",
+    quickReplies: [
+      { label: "🔑 WLAN", question: "Was ist das WLAN-Passwort?" },
+      { label: "🚌 Innenstadt", question: "Wie komme ich ins Stadtzentrum?" },
+      { label: "🗑️ Müll", question: "Wie funktioniert die Mülltrennung?" },
+      { label: "🕒 Check-out", question: "Um wie viel Uhr ist der Check-out?" },
+    ],
+  },
   fr: {
     placeholder: "Écrivez votre question ici...",
     send: "Envoyer",
@@ -101,25 +127,25 @@ const TRANSLATIONS = {
       { label: "🕒 Check-out", question: "¿A qué hora es el check-out?" },
     ],
   },
-  de: {
-    placeholder: "Ihre Frage hier eingeben...",
-    send: "Senden",
-    typing: "Marco schreibt",
-    onlineStatus: "Marco ist online",
-    loading: "Assistent wird geladen...",
-    notFound: "Unterkunft nicht gefunden",
-    notFoundDesc: "Die gesuchte Unterkunft existiert nicht oder der Link ist falsch.",
-    goToPanel: "Zum Panel",
-    welcome: (name: string) => `Willkommen in ${name}! Ich bin Marco, wie kann ich Ihnen helfen? 👋`,
-    errorMsg: "Entschuldigung, es gab einen Verbindungsfehler. Bitte versuchen Sie es erneut.",
-    helpBtn: "Hilfe",
-    whatsappDefault: (name: string) => `Hallo, ich bin ein Gast in ${name} und benötige direkte Hilfe`,
+  nl: {
+    placeholder: "Typ hier uw vraag...",
+    send: "Versturen",
+    typing: "Marco typt",
+    onlineStatus: "Marco is online",
+    loading: "Assistent laden...",
+    notFound: "Accommodatie niet gevonden",
+    notFoundDesc: "De accommodatie die u zoekt bestaat niet of de link is onjuist.",
+    goToPanel: "Naar het paneel",
+    welcome: (name: string) => `Welkom bij ${name}! Ik ben Marco, hoe kan ik u vandaag helpen? 👋`,
+    errorMsg: "Sorry, er is een verbindingsfout opgetreden. Probeer het opnieuw.",
+    helpBtn: "Hulp",
+    whatsappDefault: (name: string) => `Hallo, ik ben een gast bij ${name} en heb directe hulp nodig`,
     powered: "Powered by SmartGuest AI · Marco",
     quickReplies: [
-      { label: "🔑 WLAN", question: "Was ist das WLAN-Passwort?" },
-      { label: "🚌 Innenstadt", question: "Wie komme ich ins Stadtzentrum?" },
-      { label: "🗑️ Müll", question: "Wie funktioniert die Mülltrennung?" },
-      { label: "🕒 Check-out", question: "Um wie viel Uhr ist der Check-out?" },
+      { label: "🔑 WiFi", question: "Wat is het WiFi-wachtwoord?" },
+      { label: "🚌 Stadscentrum", question: "Hoe kom ik naar het stadscentrum?" },
+      { label: "🗑️ Afval", question: "Hoe werkt de afvalscheiding?" },
+      { label: "🕒 Check-out", question: "Hoe laat is het check-out?" },
     ],
   },
   zh: {
@@ -141,6 +167,90 @@ const TRANSLATIONS = {
       { label: "🚌 市中心", question: "如何前往市中心？" },
       { label: "🗑️ 垃圾分类", question: "如何进行垃圾分类？" },
       { label: "🕒 退房", question: "退房时间是几点？" },
+    ],
+  },
+  ja: {
+    placeholder: "ご質問をここに入力してください...",
+    send: "送信",
+    typing: "Marcoが入力中",
+    onlineStatus: "Marcoはオンライン",
+    loading: "アシスタントを読み込み中...",
+    notFound: "物件が見つかりません",
+    notFoundDesc: "お探しの宿泊先は存在しないか、リンクが正しくありません。",
+    goToPanel: "パネルへ",
+    welcome: (name: string) => `${name}へようこそ！私はMarcoです。本日はどのようにお手伝いできますか？👋`,
+    errorMsg: "申し訳ありません、接続エラーが発生しました。もう一度お試しください。",
+    helpBtn: "ヘルプ",
+    whatsappDefault: (name: string) => `こんにちは、${name}のゲストです。直接サポートが必要です`,
+    powered: "Powered by SmartGuest AI · Marco",
+    quickReplies: [
+      { label: "🔑 WiFi", question: "WiFiのパスワードは何ですか？" },
+      { label: "🚌 市内中心部", question: "市内中心部へはどう行きますか？" },
+      { label: "🗑️ ゴミ分別", question: "ゴミの分別はどうすればいいですか？" },
+      { label: "🕒 チェックアウト", question: "チェックアウトは何時ですか？" },
+    ],
+  },
+  ko: {
+    placeholder: "질문을 여기에 입력하세요...",
+    send: "보내기",
+    typing: "Marco가 입력 중",
+    onlineStatus: "Marco 온라인",
+    loading: "어시스턴트 로딩 중...",
+    notFound: "숙소를 찾을 수 없음",
+    notFoundDesc: "찾으시는 숙소가 존재하지 않거나 링크가 올바르지 않습니다.",
+    goToPanel: "패널로 이동",
+    welcome: (name: string) => `${name}에 오신 것을 환영합니다! 저는 Marco입니다. 오늘 무엇을 도와드릴까요? 👋`,
+    errorMsg: "죄송합니다. 연결 오류가 발생했습니다. 다시 시도해 주세요.",
+    helpBtn: "도움말",
+    whatsappDefault: (name: string) => `안녕하세요, 저는 ${name}의 투숙객입니다. 직접 도움이 필요합니다`,
+    powered: "Powered by SmartGuest AI · Marco",
+    quickReplies: [
+      { label: "🔑 WiFi", question: "WiFi 비밀번호가 무엇인가요?" },
+      { label: "🚌 시내 중심", question: "시내 중심부에 어떻게 가나요?" },
+      { label: "🗑️ 쓰레기 분리", question: "쓰레기 분리수거는 어떻게 하나요?" },
+      { label: "🕒 체크아웃", question: "체크아웃은 몇 시인가요?" },
+    ],
+  },
+  pt: {
+    placeholder: "Digite sua pergunta aqui...",
+    send: "Enviar",
+    typing: "Marco está digitando",
+    onlineStatus: "Marco está online",
+    loading: "Carregando assistente...",
+    notFound: "Propriedade não encontrada",
+    notFoundDesc: "A acomodação que você procura não existe ou o link está incorreto.",
+    goToPanel: "Ir para o Painel",
+    welcome: (name: string) => `Bem-vindo(a) a ${name}! Sou o Marco, como posso ajudá-lo(a) hoje? 👋`,
+    errorMsg: "Desculpe, ocorreu um erro de conexão. Por favor, tente novamente.",
+    helpBtn: "Ajuda",
+    whatsappDefault: (name: string) => `Olá, sou hóspede em ${name} e preciso de assistência direta`,
+    powered: "Powered by SmartGuest AI · Marco",
+    quickReplies: [
+      { label: "🔑 WiFi", question: "Qual é a senha do WiFi?" },
+      { label: "🚌 Centro", question: "Como chego ao centro da cidade?" },
+      { label: "🗑️ Lixo", question: "Como funciona a coleta seletiva de lixo?" },
+      { label: "🕒 Check-out", question: "A que horas é o check-out?" },
+    ],
+  },
+  pl: {
+    placeholder: "Wpisz swoje pytanie tutaj...",
+    send: "Wyślij",
+    typing: "Marco pisze",
+    onlineStatus: "Marco jest online",
+    loading: "Ładowanie asystenta...",
+    notFound: "Nie znaleziono nieruchomości",
+    notFoundDesc: "Szukane zakwaterowanie nie istnieje lub link jest nieprawidłowy.",
+    goToPanel: "Przejdź do panelu",
+    welcome: (name: string) => `Witamy w ${name}! Jestem Marco, jak mogę Ci dzisiaj pomóc? 👋`,
+    errorMsg: "Przepraszamy, wystąpił błąd połączenia. Spróbuj ponownie.",
+    helpBtn: "Pomoc",
+    whatsappDefault: (name: string) => `Cześć, jestem gościem w ${name} i potrzebuję bezpośredniej pomocy`,
+    powered: "Powered by SmartGuest AI · Marco",
+    quickReplies: [
+      { label: "🔑 WiFi", question: "Jakie jest hasło do WiFi?" },
+      { label: "🚌 Centrum", question: "Jak dojechać do centrum miasta?" },
+      { label: "🗑️ Śmieci", question: "Jak działa segregacja śmieci?" },
+      { label: "🕒 Check-out", question: "O której jest check-out?" },
     ],
   },
 } as const;
@@ -266,8 +376,6 @@ export default function GuestChat() {
     ? `https://wa.me/${property.whatsappNumber.replace(/[^0-9]/g, "")}?text=${defaultWhatsappMessage}`
     : "#";
 
-  const currentLangMeta = LANGUAGES.find((l) => l.code === lang)!;
-
   return (
     <div className="flex flex-col h-[100dvh] max-w-2xl mx-auto md:py-6 md:px-4">
       <div className="flex flex-col h-full chat-container md:rounded-3xl overflow-hidden relative">
@@ -290,26 +398,26 @@ export default function GuestChat() {
             </div>
           </div>
 
-          {/* Right: actions + lang selector */}
+          {/* Right: language selector + WhatsApp + host panel */}
           <div className="flex items-center gap-1.5 flex-shrink-0">
+
             {/* Language selector */}
             <div className="relative">
               <select
                 value={lang}
                 onChange={(e) => handleLangChange(e.target.value as Lang)}
                 aria-label="Select language"
-                className="appearance-none bg-white/15 hover:bg-white/25 text-white text-[12px] font-semibold pl-2 pr-5 py-1.5 rounded-full cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-white/40 border border-white/20"
+                className="appearance-none bg-white/15 hover:bg-white/25 text-white text-[12px] font-semibold pl-2 pr-6 py-1.5 rounded-full cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-white/40 border border-white/20"
                 style={{ backgroundImage: "none" }}
               >
                 {LANGUAGES.map((l) => (
                   <option key={l.code} value={l.code} style={{ color: "#111", background: "#fff" }}>
-                    {l.flag} {l.label}
+                    {l.flag} {l.native}
                   </option>
                 ))}
               </select>
-              {/* Chevron icon */}
               <svg
-                className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 text-white/70"
+                className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-white/70"
                 viewBox="0 0 20 20" fill="currentColor"
               >
                 <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
