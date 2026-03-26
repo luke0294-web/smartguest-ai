@@ -331,8 +331,11 @@ export default function GuestChat() {
         onSuccess: (data) => {
           setMessages((prev) => [...prev, { role: "assistant", content: data.reply }]);
         },
-        onError: () => {
-          setMessages((prev) => [...prev, { role: "assistant", content: t.errorMsg }]);
+        onError: (err: any) => {
+          // If the server returned a polite rate-limit reply from Marco, show it
+          const marcoMsg: string | undefined = err?.data?.reply;
+          const content = marcoMsg ?? t.errorMsg;
+          setMessages((prev) => [...prev, { role: "assistant", content }]);
         },
       }
     );

@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { db, propertiesTable } from "@workspace/db";
 import { SendPropertyChatBody, SendPropertyChatResponse, SendPropertyChatParams } from "@workspace/api-zod";
 import { logger } from "../lib/logger";
+import { chatRateLimiter, getClientIp } from "../lib/rateLimiter";
 
 const router: IRouter = Router();
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -64,6 +65,23 @@ const tools: OpenAI.Chat.ChatCompletionTool[] = [
 ];
 
 router.post("/properties/:slug/chat", async (req, res): Promise<void> => {
+  // ── Rate limiting: 30 requests / hour per IP (guests only) ──────────────────
+  const clientIp = getClientIp(req);
+  const allowed = chatRateLimiter.check(clientIp);
+
+  if (!allowed) {
+    const retryAfter = chatRateLimiter.retryAfterSeconds(clientIp);
+    logger.warn({ ip: clientIp, retryAfter }, "Chat rate limit exceeded");
+
+    // Respond as if Marco is speaking — no 500, no crash
+    res.status(429).json({
+      reply: "Hai raggiunto il limite di messaggi per questa ora. Fai una pausa, goditi la città e scrivimi più tardi! 🍕",
+      propertyName: "",
+      rateLimited: true,
+    });
+    return;
+  }
+
   const params = SendPropertyChatParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
