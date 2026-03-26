@@ -686,7 +686,7 @@ export default function CeoPanel() {
             <Building className="w-8 h-8 text-primary" />
           </div>
           <h1 className="text-2xl font-serif font-bold text-foreground mb-2">Professional Host Suite</h1>
-          <p className="text-muted-foreground text-sm mb-8">Accesso riservato amministratori RomeGuest AI</p>
+          <p className="text-muted-foreground text-sm mb-8">Accesso riservato amministratori SmartGuest AI</p>
           <form onSubmit={handleLogin} className="flex flex-col gap-4">
             <div className="relative">
               <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
@@ -750,7 +750,7 @@ export default function CeoPanel() {
                 <Sparkles className="w-6 h-6" />
               </div>
               <div>
-                <h1 className="text-2xl font-serif font-bold text-foreground leading-tight">RomeGuest AI CEO</h1>
+                <h1 className="text-2xl font-serif font-bold text-foreground leading-tight">SmartGuest AI CEO</h1>
                 <p className="text-muted-foreground text-sm flex items-center gap-1.5 mt-0.5">
                   <Users className="w-3.5 h-3.5" /> Professional Host Suite
                 </p>

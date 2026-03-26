@@ -87,7 +87,7 @@ export default function ResetPassword() {
           <MessageSquare className="w-4 h-4 text-white" />
         </div>
         <span className="font-bold text-[15px] tracking-tight text-gray-800 group-hover:text-blue-600 transition-colors">
-          RomeGuest AI
+          SmartGuest AI
         </span>
       </Link>
 
@@ -241,7 +241,7 @@ export default function ResetPassword() {
       </motion.div>
 
       <p className="text-center text-[11px] text-gray-300 mt-6">
-        Powered by RomeGuest AI · Link monouso sicuro
+        Powered by SmartGuest AI · Link monouso sicuro
       </p>
     </div>
   );

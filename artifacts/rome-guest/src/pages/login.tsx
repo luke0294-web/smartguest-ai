@@ -58,7 +58,7 @@ export default function HostLogin() {
           <MessageSquare className="w-4 h-4 text-white" />
         </div>
         <span className="font-bold text-[15px] tracking-tight text-gray-800 group-hover:text-blue-600 transition-colors">
-          RomeGuest AI
+          SmartGuest AI
         </span>
       </Link>
 
@@ -105,7 +105,7 @@ export default function HostLogin() {
                 />
               </div>
               <p className="text-[11px] text-gray-400">
-                Trovi l'ID nel link che ti ha inviato il supporto RomeGuest.
+                Trovi l'ID nel link che ti ha inviato il supporto SmartGuest.
               </p>
             </div>
 
@@ -176,7 +176,7 @@ export default function HostLogin() {
       </motion.div>
 
       <p className="text-center text-[11px] text-gray-300 mt-6">
-        Powered by RomeGuest AI · Accesso sicuro
+        Powered by SmartGuest AI · Accesso sicuro
       </p>
     </div>
   );

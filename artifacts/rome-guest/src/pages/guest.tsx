@@ -274,7 +274,7 @@ export default function GuestChat() {
             </button>
           </form>
           <p className="text-center text-[10px] text-muted-foreground/50 mt-2.5 uppercase tracking-widest font-sans">
-            Powered by RomeGuest AI · Marco
+            Powered by SmartGuest AI · Marco
           </p>
         </div>
       </div>

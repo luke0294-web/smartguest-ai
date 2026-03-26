@@ -245,7 +245,7 @@ export default function Landing() {
             <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center">
               <MessageSquare className="w-3.5 h-3.5 text-white" />
             </div>
-            <span className="font-bold text-[15px] tracking-tight">RomeGuest AI</span>
+            <span className="font-bold text-[15px] tracking-tight">SmartGuest AI</span>
           </div>
           <div className="flex items-center gap-3">
             <Link
@@ -278,7 +278,7 @@ export default function Landing() {
             className="inline-flex items-center gap-2 bg-blue-600/10 text-blue-700 text-[12.5px] font-semibold px-3.5 py-1.5 rounded-full mb-6 tracking-wide uppercase"
           >
             <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse" />
-            Assistente AI per host Airbnb
+            Assistente AI per B&amp;B, Airbnb e Appartamenti
           </motion.div>
 
           <motion.h1
@@ -288,9 +288,9 @@ export default function Landing() {
             custom={1}
             className="text-4xl sm:text-5xl md:text-[3.5rem] font-extrabold tracking-tight text-gray-900 leading-[1.1] mb-5"
           >
-            Il Portiere Digitale&nbsp;
+            SmartGuest AI&nbsp;— Il Portiere Digitale&nbsp;
             <span className="text-blue-600">24/7</span>
-            <br className="hidden sm:block" /> per il tuo Airbnb
+            <br className="hidden sm:block" /> per il tuo B&amp;B o Appartamento
           </motion.h1>
 
           <motion.p
@@ -344,7 +344,7 @@ export default function Landing() {
               ))}
             </div>
             <span>
-              <strong className="text-gray-600">+120 host</strong> già usano RomeGuest AI
+              <strong className="text-gray-600">+120 host</strong> già usano SmartGuest AI
             </span>
           </motion.div>
         </div>
@@ -551,7 +551,7 @@ export default function Landing() {
             <div className="w-6 h-6 rounded-md bg-blue-600 flex items-center justify-center">
               <MessageSquare className="w-3 h-3 text-white" />
             </div>
-            <span className="text-[13px] font-semibold text-gray-700">RomeGuest AI</span>
+            <span className="text-[13px] font-semibold text-gray-700">SmartGuest AI</span>
           </div>
 
           <div className="flex items-center gap-5 text-[13px] text-gray-400">
@@ -565,7 +565,7 @@ export default function Landing() {
           </div>
 
           <p className="text-[12px] text-gray-300">
-            © {new Date().getFullYear()} RomeGuest AI. Tutti i diritti riservati.
+            © {new Date().getFullYear()} SmartGuest AI. Tutti i diritti riservati.
           </p>
         </div>
       </footer>

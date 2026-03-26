@@ -580,7 +580,7 @@ export default function HostDashboard() {
         </motion.div>
 
         <p className="text-center text-[11px] text-gray-300 pb-4">
-          Powered by RomeGuest AI · Solo tu puoi modificare i tuoi dati
+          Powered by SmartGuest AI · Solo tu puoi modificare i tuoi dati
         </p>
       </div>
     </div>

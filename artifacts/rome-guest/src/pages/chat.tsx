@@ -7,7 +7,7 @@ import type { ConversationMessage } from "@workspace/api-client-react/src/genera
 
 const WHATSAPP_NUMBER = "39XXXXXXXXXX";
 const WHATSAPP_MESSAGE = encodeURIComponent(
-  "Ciao, sono un ospite di RomeGuest AI e avrei bisogno di assistenza diretta"
+  "Ciao, sono un ospite di SmartGuest AI e avrei bisogno di assistenza diretta"
 );
 const WHATSAPP_URL = `https://wa.me/${WHATSAPP_NUMBER}?text=${WHATSAPP_MESSAGE}`;
 
@@ -97,7 +97,7 @@ export default function Chat() {
             </div>
             <div>
               <h1 className="font-sans text-[15px] font-semibold text-white leading-none tracking-tight">
-                RomeGuest AI
+                SmartGuest AI
               </h1>
               <p className="text-[11px] text-white/70 flex items-center gap-1 mt-0.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -234,7 +234,7 @@ export default function Chat() {
             </button>
           </form>
           <p className="text-center text-[10px] text-muted-foreground/50 mt-2.5 uppercase tracking-widest font-sans">
-            Powered by RomeGuest AI · Marco
+            Powered by SmartGuest AI · Marco
           </p>
         </div>
       </div>
