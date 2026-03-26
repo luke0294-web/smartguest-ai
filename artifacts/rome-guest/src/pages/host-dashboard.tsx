@@ -457,7 +457,7 @@ export default function HostDashboard() {
 
                 <div className="flex items-center justify-center gap-1 text-[10px] text-gray-300 pt-0.5">
                   <Sparkles className="w-2.5 h-2.5" />
-                  Powered by GPT-4o
+                  Powered by SmartGuest AI
                 </div>
               </div>
             </div>
