@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useLocation, Link } from "wouter";
 import { motion } from "framer-motion";
-import { MessageSquare, KeyRound, Home, Loader2, AlertCircle } from "lucide-react";
+import { MessageSquare, KeyRound, Home, Loader2, AlertCircle, HelpCircle } from "lucide-react";
 
 export default function HostLogin() {
   const [, navigate] = useLocation();
@@ -150,6 +150,17 @@ export default function HostLogin() {
                 "Accedi al Pannello"
               )}
             </button>
+
+            {/* Forgot password link */}
+            <div className="text-center pt-1">
+              <Link
+                href="/forgot-password"
+                className="inline-flex items-center gap-1.5 text-[13px] text-gray-400 hover:text-blue-600 transition-colors font-medium"
+              >
+                <HelpCircle className="w-3.5 h-3.5" />
+                Hai dimenticato la password o l'ID?
+              </Link>
+            </div>
           </form>
         </div>
 

@@ -8,6 +8,8 @@ import CeoPanel from "./pages/ceo";
 import Landing from "./pages/landing";
 import HostDashboard from "./pages/host-dashboard";
 import HostLogin from "./pages/login";
+import ForgotPassword from "./pages/forgot-password";
+import ResetPassword from "./pages/reset-password";
 
 // Create a client — no background refetching on reconnect or window focus
 // to prevent HMR reconnections from resetting in-progress form state
@@ -33,6 +35,8 @@ function Router() {
       </Route>
       <Route path="/guest/:slug" component={GuestChat} />
       <Route path="/host/:slug" component={HostDashboard} />
+      <Route path="/forgot-password" component={ForgotPassword} />
+      <Route path="/reset-password/:token" component={ResetPassword} />
       <Route component={NotFound} />
     </Switch>
   );

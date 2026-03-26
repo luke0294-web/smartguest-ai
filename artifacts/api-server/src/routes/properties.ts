@@ -136,7 +136,7 @@ router.put("/properties/:slug", async (req, res): Promise<void> => {
 // PUT /properties/:slug/full-edit — inline CEO edit: name, slug, hostPassword (CEO only)
 router.put("/properties/:slug/full-edit", async (req, res): Promise<void> => {
   const { slug } = req.params;
-  const { ceoPassword, name, newSlug, hostPassword } = req.body ?? {};
+  const { ceoPassword, name, newSlug, hostPassword, email } = req.body ?? {};
 
   if (ceoPassword !== CEO_PASSWORD) {
     res.status(401).json({ error: "Password CEO non corretta." });
@@ -154,7 +154,7 @@ router.put("/properties/:slug/full-edit", async (req, res): Promise<void> => {
     return;
   }
 
-  const updates: Partial<{ name: string; slug: string; hostPassword: string | null }> = {};
+  const updates: Partial<{ name: string; slug: string; hostPassword: string | null; email: string | null }> = {};
 
   if (name !== undefined && String(name).trim()) {
     updates.name = String(name).trim();
@@ -180,6 +180,11 @@ router.put("/properties/:slug/full-edit", async (req, res): Promise<void> => {
   if (hostPassword !== undefined) {
     const trimmed = String(hostPassword).trim();
     updates.hostPassword = trimmed || null;
+  }
+
+  if (email !== undefined) {
+    const trimmed = String(email).trim().toLowerCase();
+    updates.email = trimmed || null;
   }
 
   if (Object.keys(updates).length === 0) {

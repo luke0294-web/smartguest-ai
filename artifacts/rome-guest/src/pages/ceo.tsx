@@ -8,7 +8,8 @@ import { QRCodeSVG } from "qrcode.react";
 import {
   Building, Plus, Trash2, ExternalLink, KeyRound, Loader2, Save,
   Users, AlertCircle, Sparkles, QrCode, X, Download, Inbox,
-  UserCog, Copy, CheckCheck, Link2, Eye, EyeOff,
+  UserCog, Copy, CheckCheck, Link2, Eye, EyeOff, RefreshCw,
+  Mail, ShieldAlert,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -317,6 +318,7 @@ type InlineEditState = {
   name: string;
   slug: string;
   hostPassword: string;
+  email: string;
   saving: boolean;
   saved: boolean;
   error: string;
@@ -325,13 +327,16 @@ type InlineEditState = {
 export default function CeoPanel() {
   const [password, setPassword] = useState("");
   const [authAttempt, setAuthAttempt] = useState(false);
-  const [activeTab, setActiveTab] = useState<"properties" | "leads">("properties");
+  const [activeTab, setActiveTab] = useState<"properties" | "leads" | "resets">("properties");
   const [qrProperty, setQrProperty] = useState<{ name: string; slug: string } | null>(null);
   const [hostManageProp, setHostManageProp] = useState<{ name: string; slug: string; hostPassword?: string | null } | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [leadsLoading, setLeadsLoading] = useState(false);
+  const [resetRequests, setResetRequests] = useState<Array<{ slug: string; name: string; email: string | null; resetToken: string | null; resetRequestedAt: string | null }>>([]);
+  const [resetsLoading, setResetsLoading] = useState(false);
+  const [cancellingReset, setCancellingReset] = useState<string | null>(null);
   const [editingSlug, setEditingSlug] = useState<string | null>(null);
-  const [inlineEdit, setInlineEdit] = useState<InlineEditState>({ name: "", slug: "", hostPassword: "", saving: false, saved: false, error: "" });
+  const [inlineEdit, setInlineEdit] = useState<InlineEditState>({ name: "", slug: "", hostPassword: "", email: "", saving: false, saved: false, error: "" });
   const queryClient = useQueryClient();
 
   const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -391,6 +396,38 @@ export default function CeoPanel() {
     }
   }, [activeTab, authAttempt]);
 
+  const fetchResets = async () => {
+    if (!password) return;
+    setResetsLoading(true);
+    try {
+      const res = await fetch(`${baseUrl}/api/auth/resets?ceoPassword=${encodeURIComponent(password)}`);
+      const data = await res.json();
+      if (res.ok) setResetRequests(data);
+    } finally {
+      setResetsLoading(false);
+    }
+  };
+
+  const cancelReset = async (slug: string) => {
+    setCancellingReset(slug);
+    try {
+      await fetch(`${baseUrl}/api/auth/resets/${slug}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ceoPassword: password }),
+      });
+      setResetRequests((prev) => prev.filter((r) => r.slug !== slug));
+    } finally {
+      setCancellingReset(null);
+    }
+  };
+
+  useEffect(() => {
+    if (authAttempt && activeTab === "resets") {
+      fetchResets();
+    }
+  }, [activeTab, authAttempt]);
+
   const handleLogin = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
@@ -430,14 +467,14 @@ export default function CeoPanel() {
     }
   };
 
-  const startInlineEdit = (prop: { name: string; slug: string; hostPassword?: string | null }) => {
+  const startInlineEdit = (prop: { name: string; slug: string; hostPassword?: string | null; email?: string | null }) => {
     setEditingSlug(prop.slug);
-    setInlineEdit({ name: prop.name, slug: prop.slug, hostPassword: prop.hostPassword ?? "", saving: false, saved: false, error: "" });
+    setInlineEdit({ name: prop.name, slug: prop.slug, hostPassword: prop.hostPassword ?? "", email: prop.email ?? "", saving: false, saved: false, error: "" });
   };
 
   const cancelInlineEdit = () => {
     setEditingSlug(null);
-    setInlineEdit({ name: "", slug: "", hostPassword: "", saving: false, saved: false, error: "" });
+    setInlineEdit({ name: "", slug: "", hostPassword: "", email: "", saving: false, saved: false, error: "" });
   };
 
   const saveInlineEdit = async (originalSlug: string) => {
@@ -451,6 +488,7 @@ export default function CeoPanel() {
           name: inlineEdit.name,
           newSlug: inlineEdit.slug,
           hostPassword: inlineEdit.hostPassword,
+          email: inlineEdit.email,
         }),
       });
       const data = await res.json();
@@ -579,6 +617,22 @@ export default function CeoPanel() {
                 </span>
               )}
             </button>
+            <button
+              onClick={() => setActiveTab("resets")}
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all ${
+                activeTab === "resets"
+                  ? "bg-amber-500 text-white shadow-md shadow-amber-500/20"
+                  : "text-muted-foreground hover:bg-black/5"
+              }`}
+            >
+              <ShieldAlert className="w-4 h-4" />
+              Richieste Reset
+              {resetRequests.length > 0 && (
+                <span className={`ml-1 text-xs font-bold px-1.5 py-0.5 rounded-full ${activeTab === "resets" ? "bg-white/30" : "bg-amber-100 text-amber-700"}`}>
+                  {resetRequests.length}
+                </span>
+              )}
+            </button>
           </div>
 
           <AnimatePresence mode="wait">
@@ -617,7 +671,7 @@ export default function CeoPanel() {
                                 <X className="w-3.5 h-3.5 text-gray-500" />
                               </button>
                             </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                               <div className="space-y-1">
                                 <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Nome</label>
                                 <input
@@ -636,6 +690,18 @@ export default function CeoPanel() {
                                   onChange={(e) => setInlineEdit((prev) => ({ ...prev, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") }))}
                                   className="w-full bg-white border border-border px-3 py-2 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50 transition-all"
                                   placeholder="slug-appartamento"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                                  <Mail className="w-3 h-3" /> Email Host (per reset password)
+                                </label>
+                                <input
+                                  type="email"
+                                  value={inlineEdit.email}
+                                  onChange={(e) => setInlineEdit((prev) => ({ ...prev, email: e.target.value }))}
+                                  className="w-full bg-white border border-border px-3 py-2 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50 transition-all"
+                                  placeholder="host@email.com"
                                 />
                               </div>
                               <div className="space-y-1">
@@ -730,7 +796,7 @@ export default function CeoPanel() {
 
                             <div className="flex flex-wrap sm:flex-col items-start sm:items-stretch gap-2 shrink-0 border-t sm:border-t-0 sm:border-l border-border/50 pt-3 sm:pt-0 sm:pl-5">
                               <button
-                                onClick={() => startInlineEdit({ name: prop.name, slug: prop.slug, hostPassword: (prop as any).hostPassword })}
+                                onClick={() => startInlineEdit({ name: prop.name, slug: prop.slug, hostPassword: (prop as any).hostPassword, email: (prop as any).email })}
                                 className="flex-1 sm:flex-none px-3 py-2 bg-orange-50 text-orange-700 hover:bg-orange-100 font-medium rounded-xl transition-all flex items-center justify-center gap-1.5 text-[13px]"
                               >
                                 <Save className="w-3.5 h-3.5" />
@@ -909,6 +975,125 @@ export default function CeoPanel() {
                         </div>
                       </motion.div>
                     ))}
+                  </div>
+                )}
+              </motion.div>
+            )}
+
+            {/* ── TAB: RESETS ── */}
+            {activeTab === "resets" && (
+              <motion.div
+                key="resets"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="flex flex-col gap-4"
+              >
+                <div className="flex items-center justify-between px-1">
+                  <div>
+                    <h2 className="text-xl font-serif font-semibold">Richieste di Reset Password</h2>
+                    <p className="text-muted-foreground text-sm mt-0.5">
+                      Copia il link magico e invialo all'host via WhatsApp. Il link è <strong>monouso</strong>.
+                    </p>
+                  </div>
+                  <button
+                    onClick={fetchResets}
+                    disabled={resetsLoading}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-black/5 rounded-lg transition-colors"
+                  >
+                    {resetsLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><RefreshCw className="w-4 h-4" /> Aggiorna</>}
+                  </button>
+                </div>
+
+                {resetsLoading && (
+                  <div className="flex justify-center py-12">
+                    <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />
+                  </div>
+                )}
+
+                {!resetsLoading && resetRequests.length === 0 && (
+                  <div className="glass-panel p-12 rounded-3xl text-center flex flex-col items-center border-dashed">
+                    <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
+                      <ShieldAlert className="w-8 h-8 text-muted-foreground/50" />
+                    </div>
+                    <h3 className="text-lg font-bold text-foreground mb-1">Nessuna richiesta pendente</h3>
+                    <p className="text-muted-foreground text-sm">
+                      Quando un host richiede il reset della password, il link apparirà qui.
+                    </p>
+                  </div>
+                )}
+
+                {!resetsLoading && resetRequests.length > 0 && (
+                  <div className="flex flex-col gap-3">
+                    {resetRequests.map((req) => {
+                      const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+                      const magicLink = `${window.location.origin}${base}/reset-password/${req.resetToken}`;
+                      return (
+                        <motion.div
+                          key={req.slug}
+                          initial={{ opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="glass-panel p-5 rounded-2xl border border-amber-200 bg-amber-50/30"
+                        >
+                          <div className="flex flex-col gap-4">
+                            {/* Host info */}
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-[15px] flex-shrink-0">
+                                  {req.name[0]?.toUpperCase()}
+                                </div>
+                                <div>
+                                  <p className="font-bold text-foreground">{req.name}</p>
+                                  <p className="text-[12px] text-muted-foreground font-mono">{req.slug}</p>
+                                  {req.email && (
+                                    <p className="text-[12px] text-muted-foreground flex items-center gap-1 mt-0.5">
+                                      <Mail className="w-3 h-3" /> {req.email}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="text-right text-[11px] text-muted-foreground shrink-0">
+                                {req.resetRequestedAt && format(new Date(req.resetRequestedAt), "dd MMM · HH:mm")}
+                              </div>
+                            </div>
+
+                            {/* Magic link box */}
+                            <div className="space-y-1.5">
+                              <label className="text-[11px] font-semibold text-amber-700 uppercase tracking-wider">Link Magico (monouso — mandalo via WhatsApp)</label>
+                              <div className="flex items-center gap-2 bg-white border border-amber-200 rounded-xl px-3 py-2.5">
+                                <Link2 className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                                <span className="text-[12px] font-mono text-foreground truncate flex-1">{magicLink}</span>
+                                <button
+                                  onClick={() => navigator.clipboard.writeText(magicLink)}
+                                  className="text-amber-600 hover:text-amber-800 flex-shrink-0 p-1 rounded-lg hover:bg-amber-50 transition-colors"
+                                  title="Copia link"
+                                >
+                                  <Copy className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Actions */}
+                            <div className="flex gap-2 justify-end">
+                              <button
+                                onClick={() => navigator.clipboard.writeText(magicLink)}
+                                className="px-4 py-2 text-[13px] font-semibold rounded-xl bg-amber-500 text-white hover:bg-amber-600 transition-all flex items-center gap-1.5"
+                              >
+                                <Copy className="w-3.5 h-3.5" /> Copia Link
+                              </button>
+                              <button
+                                onClick={() => cancelReset(req.slug)}
+                                disabled={cancellingReset === req.slug}
+                                className="px-4 py-2 text-[13px] font-medium rounded-xl border border-border text-muted-foreground hover:bg-muted transition-all flex items-center gap-1.5 disabled:opacity-60"
+                              >
+                                {cancellingReset === req.slug ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <X className="w-3.5 h-3.5" />}
+                                Annulla
+                              </button>
+                            </div>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
                   </div>
                 )}
               </motion.div>

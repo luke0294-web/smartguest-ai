@@ -9,6 +9,9 @@ export const propertiesTable = pgTable("properties", {
   content: text("content").notNull().default(""),
   whatsappNumber: text("whatsapp_number"),
   hostPassword: text("host_password"),
+  email: text("email"),
+  resetToken: text("reset_token"),
+  resetRequestedAt: timestamp("reset_requested_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
