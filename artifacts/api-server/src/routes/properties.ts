@@ -133,6 +133,70 @@ router.put("/properties/:slug", async (req, res): Promise<void> => {
   res.json(UpdatePropertyResponse.parse(updated));
 });
 
+// PUT /properties/:slug/full-edit — inline CEO edit: name, slug, hostPassword (CEO only)
+router.put("/properties/:slug/full-edit", async (req, res): Promise<void> => {
+  const { slug } = req.params;
+  const { ceoPassword, name, newSlug, hostPassword } = req.body ?? {};
+
+  if (ceoPassword !== CEO_PASSWORD) {
+    res.status(401).json({ error: "Password CEO non corretta." });
+    return;
+  }
+
+  const [current] = await db
+    .select()
+    .from(propertiesTable)
+    .where(eq(propertiesTable.slug, slug))
+    .limit(1);
+
+  if (!current) {
+    res.status(404).json({ error: "Proprietà non trovata." });
+    return;
+  }
+
+  const updates: Partial<{ name: string; slug: string; hostPassword: string | null }> = {};
+
+  if (name !== undefined && String(name).trim()) {
+    updates.name = String(name).trim();
+  }
+
+  if (newSlug !== undefined) {
+    const trimmed = String(newSlug).trim().toLowerCase().replace(/[^a-z0-9-]/g, "");
+    if (trimmed && trimmed !== slug) {
+      // Check uniqueness
+      const [conflict] = await db
+        .select({ id: propertiesTable.id })
+        .from(propertiesTable)
+        .where(eq(propertiesTable.slug, trimmed))
+        .limit(1);
+      if (conflict) {
+        res.status(409).json({ error: `Lo slug "${trimmed}" è già usato da un altro appartamento.` });
+        return;
+      }
+      updates.slug = trimmed;
+    }
+  }
+
+  if (hostPassword !== undefined) {
+    const trimmed = String(hostPassword).trim();
+    updates.hostPassword = trimmed || null;
+  }
+
+  if (Object.keys(updates).length === 0) {
+    res.json(current);
+    return;
+  }
+
+  const [updated] = await db
+    .update(propertiesTable)
+    .set(updates)
+    .where(eq(propertiesTable.slug, slug))
+    .returning();
+
+  logger.info({ slug, updates: Object.keys(updates) }, "Property fully edited by CEO");
+  res.json(updated);
+});
+
 // DELETE /properties/:slug — delete (CEO only)
 router.delete("/properties/:slug", async (req, res): Promise<void> => {
   const params = DeletePropertyParams.safeParse(req.params);

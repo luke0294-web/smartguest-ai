@@ -313,6 +313,15 @@ function HostPasswordModal({
   );
 }
 
+type InlineEditState = {
+  name: string;
+  slug: string;
+  hostPassword: string;
+  saving: boolean;
+  saved: boolean;
+  error: string;
+};
+
 export default function CeoPanel() {
   const [password, setPassword] = useState("");
   const [authAttempt, setAuthAttempt] = useState(false);
@@ -321,6 +330,8 @@ export default function CeoPanel() {
   const [hostManageProp, setHostManageProp] = useState<{ name: string; slug: string; hostPassword?: string | null } | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [leadsLoading, setLeadsLoading] = useState(false);
+  const [editingSlug, setEditingSlug] = useState<string | null>(null);
+  const [inlineEdit, setInlineEdit] = useState<InlineEditState>({ name: "", slug: "", hostPassword: "", saving: false, saved: false, error: "" });
   const queryClient = useQueryClient();
 
   const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -416,6 +427,45 @@ export default function CeoPanel() {
           onError: () => alert("Errore durante l'eliminazione"),
         }
       );
+    }
+  };
+
+  const startInlineEdit = (prop: { name: string; slug: string; hostPassword?: string | null }) => {
+    setEditingSlug(prop.slug);
+    setInlineEdit({ name: prop.name, slug: prop.slug, hostPassword: prop.hostPassword ?? "", saving: false, saved: false, error: "" });
+  };
+
+  const cancelInlineEdit = () => {
+    setEditingSlug(null);
+    setInlineEdit({ name: "", slug: "", hostPassword: "", saving: false, saved: false, error: "" });
+  };
+
+  const saveInlineEdit = async (originalSlug: string) => {
+    setInlineEdit((prev) => ({ ...prev, saving: true, error: "", saved: false }));
+    try {
+      const res = await fetch(`${baseUrl}/api/properties/${originalSlug}/full-edit`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ceoPassword: password,
+          name: inlineEdit.name,
+          newSlug: inlineEdit.slug,
+          hostPassword: inlineEdit.hostPassword,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setInlineEdit((prev) => ({ ...prev, saving: false, error: data.error ?? "Errore sconosciuto." }));
+        return;
+      }
+      setInlineEdit((prev) => ({ ...prev, saving: false, saved: true, error: "" }));
+      queryClient.invalidateQueries({ queryKey: getListPropertiesQueryKey({ ceoPassword: password }) });
+      setTimeout(() => {
+        setEditingSlug(null);
+        setInlineEdit({ name: "", slug: "", hostPassword: "", saving: false, saved: false, error: "" });
+      }, 1800);
+    } catch {
+      setInlineEdit((prev) => ({ ...prev, saving: false, error: "Errore di rete. Riprova." }));
     }
   };
 
@@ -558,74 +608,158 @@ export default function CeoPanel() {
                         exit={{ opacity: 0, scale: 0.95 }}
                         className="glass-panel p-5 rounded-3xl hover:border-primary/30 transition-colors"
                       >
-                        <div className="flex flex-col sm:flex-row gap-4 justify-between">
-                          <div className="space-y-2 flex-1 min-w-0">
-                            <h3 className="text-[16px] font-bold text-foreground flex items-center gap-2 flex-wrap">
-                              {prop.name}
-                              <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold tracking-wide uppercase">
-                                ATTIVA
-                              </span>
-                            </h3>
-                            {/* ID Accesso - prominently shown */}
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">ID Accesso:</span>
-                              <span className="font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md text-[12px] border border-blue-100">
-                                {prop.slug}
-                              </span>
-                              {(prop as any).hostPassword ? (
-                                <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-100">
-                                  ✓ password impostata
-                                </span>
-                              ) : (
-                                <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-md border border-amber-100">
-                                  ⚠ no password
-                                </span>
-                              )}
+                        {editingSlug === prop.slug ? (
+                          /* ── EDIT MODE ── */
+                          <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[12px] font-bold text-primary uppercase tracking-wider">Modifica Proprietà</span>
+                              <button onClick={cancelInlineEdit} className="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors">
+                                <X className="w-3.5 h-3.5 text-gray-500" />
+                              </button>
                             </div>
-                            <div className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-muted-foreground">
-                              <span className="font-mono bg-black/5 px-2 py-0.5 rounded-md text-[12px]">
-                                /guest/{prop.slug}
-                              </span>
-                              {prop.whatsappNumber && (
-                                <span className="text-[12px]">WA: {prop.whatsappNumber}</span>
-                              )}
-                              <span className="text-[12px] opacity-60">
-                                {format(new Date(prop.createdAt), 'dd MMM yyyy')}
-                              </span>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                              <div className="space-y-1">
+                                <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Nome</label>
+                                <input
+                                  type="text"
+                                  value={inlineEdit.name}
+                                  onChange={(e) => setInlineEdit((prev) => ({ ...prev, name: e.target.value }))}
+                                  className="w-full bg-white border border-border px-3 py-2 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50 transition-all font-sans"
+                                  placeholder="Nome appartamento"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">ID Accesso (Slug)</label>
+                                <input
+                                  type="text"
+                                  value={inlineEdit.slug}
+                                  onChange={(e) => setInlineEdit((prev) => ({ ...prev, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") }))}
+                                  className="w-full bg-white border border-border px-3 py-2 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50 transition-all"
+                                  placeholder="slug-appartamento"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Password Host</label>
+                                <input
+                                  type="text"
+                                  value={inlineEdit.hostPassword}
+                                  onChange={(e) => setInlineEdit((prev) => ({ ...prev, hostPassword: e.target.value }))}
+                                  className="w-full bg-white border border-border px-3 py-2 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50 transition-all"
+                                  placeholder="password host"
+                                />
+                              </div>
                             </div>
-                          </div>
 
-                          <div className="flex flex-wrap sm:flex-col items-start sm:items-stretch gap-2 shrink-0 border-t sm:border-t-0 sm:border-l border-border/50 pt-3 sm:pt-0 sm:pl-5">
-                            <button
-                              onClick={() => setHostManageProp({ name: prop.name, slug: prop.slug, hostPassword: (prop as any).hostPassword })}
-                              className="flex-1 sm:flex-none px-3 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 font-medium rounded-xl transition-all flex items-center justify-center gap-1.5 text-[13px]"
-                            >
-                              <UserCog className="w-3.5 h-3.5" />
-                              Gestisci Host
-                            </button>
-                            <button
-                              onClick={() => setQrProperty({ name: prop.name, slug: prop.slug })}
-                              className="flex-1 sm:flex-none px-3 py-2 bg-violet-50 text-violet-700 hover:bg-violet-100 font-medium rounded-xl transition-all flex items-center justify-center gap-1.5 text-[13px]"
-                            >
-                              <QrCode className="w-3.5 h-3.5" />
-                              QR Code
-                            </button>
-                            <Link
-                              href={`/guest/${prop.slug}`}
-                              className="flex-1 sm:flex-none px-3 py-2 bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground font-medium rounded-xl transition-all flex items-center justify-center gap-1.5 text-[13px]"
-                            >
-                              Chat <ExternalLink className="w-3 h-3" />
-                            </Link>
-                            <button
-                              onClick={() => handleDelete(prop.slug)}
-                              disabled={isDeleting}
-                              className="flex-1 sm:flex-none px-3 py-2 text-destructive hover:bg-destructive hover:text-white font-medium rounded-xl transition-all flex items-center justify-center gap-1.5 text-[13px]"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                              Elimina
-                            </button>
+                            {inlineEdit.error && (
+                              <div className="flex items-center gap-2 bg-red-50 border border-red-100 text-red-600 text-[12px] px-3 py-2 rounded-xl">
+                                <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                                {inlineEdit.error}
+                              </div>
+                            )}
+
+                            {inlineEdit.saved && (
+                              <motion.div
+                                initial={{ opacity: 0, y: -4 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 text-[12px] px-3 py-2 rounded-xl font-medium"
+                              >
+                                <CheckCheck className="w-3.5 h-3.5 flex-shrink-0" />
+                                Aggiornato correttamente nel database!
+                              </motion.div>
+                            )}
+
+                            <div className="flex gap-2 justify-end">
+                              <button
+                                onClick={cancelInlineEdit}
+                                className="px-4 py-2 text-[13px] font-medium rounded-xl border border-border text-muted-foreground hover:bg-muted transition-all"
+                              >
+                                Annulla
+                              </button>
+                              <button
+                                onClick={() => saveInlineEdit(prop.slug)}
+                                disabled={inlineEdit.saving || inlineEdit.saved}
+                                className="px-5 py-2 text-[13px] font-semibold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-60 transition-all flex items-center gap-2"
+                              >
+                                {inlineEdit.saving ? (
+                                  <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Salvataggio…</>
+                                ) : inlineEdit.saved ? (
+                                  <><CheckCheck className="w-3.5 h-3.5" /> Salvato!</>
+                                ) : (
+                                  <><Save className="w-3.5 h-3.5" /> Aggiorna</>
+                                )}
+                              </button>
+                            </div>
                           </div>
-                        </div>
+                        ) : (
+                          /* ── VIEW MODE ── */
+                          <div className="flex flex-col sm:flex-row gap-4 justify-between">
+                            <div className="space-y-2 flex-1 min-w-0">
+                              <h3 className="text-[16px] font-bold text-foreground flex items-center gap-2 flex-wrap">
+                                {prop.name}
+                                <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold tracking-wide uppercase">
+                                  ATTIVA
+                                </span>
+                              </h3>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">ID Accesso:</span>
+                                <span className="font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md text-[12px] border border-blue-100">
+                                  {prop.slug}
+                                </span>
+                                {(prop as any).hostPassword ? (
+                                  <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-100">
+                                    ✓ password impostata
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-md border border-amber-100">
+                                    ⚠ no password
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-muted-foreground">
+                                <span className="font-mono bg-black/5 px-2 py-0.5 rounded-md text-[12px]">
+                                  /guest/{prop.slug}
+                                </span>
+                                {prop.whatsappNumber && (
+                                  <span className="text-[12px]">WA: {prop.whatsappNumber}</span>
+                                )}
+                                <span className="text-[12px] opacity-60">
+                                  {format(new Date(prop.createdAt), 'dd MMM yyyy')}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-wrap sm:flex-col items-start sm:items-stretch gap-2 shrink-0 border-t sm:border-t-0 sm:border-l border-border/50 pt-3 sm:pt-0 sm:pl-5">
+                              <button
+                                onClick={() => startInlineEdit({ name: prop.name, slug: prop.slug, hostPassword: (prop as any).hostPassword })}
+                                className="flex-1 sm:flex-none px-3 py-2 bg-orange-50 text-orange-700 hover:bg-orange-100 font-medium rounded-xl transition-all flex items-center justify-center gap-1.5 text-[13px]"
+                              >
+                                <Save className="w-3.5 h-3.5" />
+                                Modifica
+                              </button>
+                              <button
+                                onClick={() => setQrProperty({ name: prop.name, slug: prop.slug })}
+                                className="flex-1 sm:flex-none px-3 py-2 bg-violet-50 text-violet-700 hover:bg-violet-100 font-medium rounded-xl transition-all flex items-center justify-center gap-1.5 text-[13px]"
+                              >
+                                <QrCode className="w-3.5 h-3.5" />
+                                QR Code
+                              </button>
+                              <Link
+                                href={`/guest/${prop.slug}`}
+                                className="flex-1 sm:flex-none px-3 py-2 bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground font-medium rounded-xl transition-all flex items-center justify-center gap-1.5 text-[13px]"
+                              >
+                                Chat <ExternalLink className="w-3 h-3" />
+                              </Link>
+                              <button
+                                onClick={() => handleDelete(prop.slug)}
+                                disabled={isDeleting}
+                                className="flex-1 sm:flex-none px-3 py-2 text-destructive hover:bg-destructive hover:text-white font-medium rounded-xl transition-all flex items-center justify-center gap-1.5 text-[13px]"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                Elimina
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </motion.div>
                     ))}
                   </AnimatePresence>
