@@ -1,16 +1,128 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useParams, Link } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { Send, Home, Loader2, Sparkles, AlertCircle, KeyRound } from "lucide-react";
 import { useGetProperty, useSendPropertyChat } from "@workspace/api-client-react";
 import type { ConversationMessage } from "@workspace/api-client-react/src/generated/api.schemas";
 
-const QUICK_REPLIES = [
-  { label: "🔑 WiFi", question: "Qual è la password del WiFi?" },
-  { label: "🚌 Centro Città", question: "Come arrivo al centro città?" },
-  { label: "🗑️ Rifiuti", question: "Come funziona la raccolta differenziata?" },
-  { label: "🕒 Check-out", question: "A che ora è il check-out?" },
-];
+// ── UI Localization ─────────────────────────────────────────────────────────
+
+const TRANSLATIONS = {
+  it: {
+    placeholder: "Scrivi la tua domanda...",
+    send: "Invia",
+    typing: "Marco sta scrivendo",
+    onlineStatus: "Marco è online",
+    loading: "Caricamento assistente...",
+    notFound: "Proprietà non trovata",
+    notFoundDesc: "L'appartamento che stai cercando non esiste o il link non è corretto.",
+    goToPanel: "Vai al Pannello",
+    welcome: (name: string) => `Benvenuto a ${name}! Sono Marco, come posso aiutarti oggi? 👋`,
+    errorMsg: "Scusa, c'è stato un errore di connessione. Riprova tra poco.",
+    helpBtn: "Aiuto",
+    whatsappDefault: (name: string) => `Ciao, sono un ospite di ${name} e avrei bisogno di assistenza diretta`,
+    powered: "Powered by SmartGuest AI · Marco",
+    quickReplies: [
+      { label: "🔑 WiFi", question: "Qual è la password del WiFi?" },
+      { label: "🚌 Centro Città", question: "Come arrivo al centro città?" },
+      { label: "🗑️ Rifiuti", question: "Come funziona la raccolta differenziata?" },
+      { label: "🕒 Check-out", question: "A che ora è il check-out?" },
+    ],
+  },
+  en: {
+    placeholder: "Type your question here...",
+    send: "Send",
+    typing: "Marco is typing",
+    onlineStatus: "Marco is online",
+    loading: "Loading assistant...",
+    notFound: "Property not found",
+    notFoundDesc: "The accommodation you're looking for doesn't exist or the link is incorrect.",
+    goToPanel: "Go to Panel",
+    welcome: (name: string) => `Welcome to ${name}! I'm Marco, how can I help you today? 👋`,
+    errorMsg: "Sorry, there was a connection error. Please try again.",
+    helpBtn: "Help",
+    whatsappDefault: (name: string) => `Hello, I'm a guest at ${name} and I need direct assistance`,
+    powered: "Powered by SmartGuest AI · Marco",
+    quickReplies: [
+      { label: "🔑 WiFi", question: "What is the WiFi password?" },
+      { label: "🚌 City Centre", question: "How do I get to the city centre?" },
+      { label: "🗑️ Recycling", question: "How does the waste/recycling system work?" },
+      { label: "🕒 Check-out", question: "What time is check-out?" },
+    ],
+  },
+  fr: {
+    placeholder: "Écrivez votre question ici...",
+    send: "Envoyer",
+    typing: "Marco est en train d'écrire",
+    onlineStatus: "Marco est en ligne",
+    loading: "Chargement de l'assistant...",
+    notFound: "Propriété introuvable",
+    notFoundDesc: "Le logement que vous recherchez n'existe pas ou le lien est incorrect.",
+    goToPanel: "Panneau de contrôle",
+    welcome: (name: string) => `Bienvenue à ${name}! Je suis Marco, comment puis-je vous aider? 👋`,
+    errorMsg: "Désolé, une erreur de connexion s'est produite. Veuillez réessayer.",
+    helpBtn: "Aide",
+    whatsappDefault: (name: string) => `Bonjour, je suis un hôte de ${name} et j'ai besoin d'assistance directe`,
+    powered: "Powered by SmartGuest AI · Marco",
+    quickReplies: [
+      { label: "🔑 WiFi", question: "Quel est le mot de passe WiFi?" },
+      { label: "🚌 Centre-ville", question: "Comment rejoindre le centre-ville?" },
+      { label: "🗑️ Déchets", question: "Comment fonctionne le tri des déchets?" },
+      { label: "🕒 Check-out", question: "À quelle heure est le check-out?" },
+    ],
+  },
+  es: {
+    placeholder: "Escribe tu pregunta aquí...",
+    send: "Enviar",
+    typing: "Marco está escribiendo",
+    onlineStatus: "Marco está en línea",
+    loading: "Cargando asistente...",
+    notFound: "Propiedad no encontrada",
+    notFoundDesc: "El alojamiento que buscas no existe o el enlace es incorrecto.",
+    goToPanel: "Ir al Panel",
+    welcome: (name: string) => `¡Bienvenido a ${name}! Soy Marco, ¿cómo puedo ayudarte hoy? 👋`,
+    errorMsg: "Lo siento, hubo un error de conexión. Por favor, inténtalo de nuevo.",
+    helpBtn: "Ayuda",
+    whatsappDefault: (name: string) => `Hola, soy un huésped de ${name} y necesito asistencia directa`,
+    powered: "Powered by SmartGuest AI · Marco",
+    quickReplies: [
+      { label: "🔑 WiFi", question: "¿Cuál es la contraseña del WiFi?" },
+      { label: "🚌 Centro", question: "¿Cómo llego al centro de la ciudad?" },
+      { label: "🗑️ Basura", question: "¿Cómo funciona la recogida de basura?" },
+      { label: "🕒 Check-out", question: "¿A qué hora es el check-out?" },
+    ],
+  },
+  de: {
+    placeholder: "Ihre Frage hier eingeben...",
+    send: "Senden",
+    typing: "Marco schreibt",
+    onlineStatus: "Marco ist online",
+    loading: "Assistent wird geladen...",
+    notFound: "Unterkunft nicht gefunden",
+    notFoundDesc: "Die gesuchte Unterkunft existiert nicht oder der Link ist falsch.",
+    goToPanel: "Zum Panel",
+    welcome: (name: string) => `Willkommen in ${name}! Ich bin Marco, wie kann ich Ihnen helfen? 👋`,
+    errorMsg: "Entschuldigung, es gab einen Verbindungsfehler. Bitte versuchen Sie es erneut.",
+    helpBtn: "Hilfe",
+    whatsappDefault: (name: string) => `Hallo, ich bin ein Gast in ${name} und benötige direkte Hilfe`,
+    powered: "Powered by SmartGuest AI · Marco",
+    quickReplies: [
+      { label: "🔑 WLAN", question: "Was ist das WLAN-Passwort?" },
+      { label: "🚌 Innenstadt", question: "Wie komme ich ins Stadtzentrum?" },
+      { label: "🗑️ Müll", question: "Wie funktioniert die Mülltrennung?" },
+      { label: "🕒 Check-out", question: "Um wie viel Uhr ist der Check-out?" },
+    ],
+  },
+} as const;
+
+type Lang = keyof typeof TRANSLATIONS;
+
+function detectLang(): Lang {
+  const raw = (navigator.language || "en").slice(0, 2).toLowerCase();
+  return (raw in TRANSLATIONS ? raw : "en") as Lang;
+}
+
+// ── Component ───────────────────────────────────────────────────────────────
 
 export default function GuestChat() {
   const params = useParams<{ slug: string }>();
@@ -19,22 +131,24 @@ export default function GuestChat() {
   const { data: property, isLoading: isPropertyLoading, isError: isPropertyError } = useGetProperty(slug);
   const { mutate: sendMessage, isPending } = useSendPropertyChat();
 
+  const lang = useMemo(() => detectLang(), []);
+  const t = TRANSLATIONS[lang];
+
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [inputValue, setInputValue] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Initialize welcome message when property loads
   useEffect(() => {
     if (property && messages.length === 0) {
       setMessages([
         {
           role: "assistant",
-          content: `Benvenuto a ${property.name}! Sono Marco, come posso aiutarti oggi? 👋`,
+          content: t.welcome(property.name),
         },
       ]);
     }
-  }, [property, messages.length]);
+  }, [property, messages.length, t]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -74,11 +188,7 @@ export default function GuestChat() {
         onError: () => {
           setMessages((prev) => [
             ...prev,
-            {
-              role: "assistant",
-              content:
-                "Scusa, c'è stato un errore di connessione. Riprova tra poco.",
-            },
+            { role: "assistant", content: t.errorMsg },
           ]);
         },
       }
@@ -95,7 +205,7 @@ export default function GuestChat() {
       <div className="flex h-[100dvh] items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4 text-primary">
           <Loader2 className="w-8 h-8 animate-spin" />
-          <p className="font-medium animate-pulse">Caricamento assistente...</p>
+          <p className="font-medium animate-pulse">{t.loading}</p>
         </div>
       </div>
     );
@@ -108,29 +218,25 @@ export default function GuestChat() {
           <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center text-destructive mb-2">
             <AlertCircle className="w-8 h-8" />
           </div>
-          <h1 className="text-2xl font-serif font-bold text-foreground">Proprietà non trovata</h1>
-          <p className="text-muted-foreground">
-            L'appartamento che stai cercando non esiste o il link non è corretto.
-          </p>
+          <h1 className="text-2xl font-serif font-bold text-foreground">{t.notFound}</h1>
+          <p className="text-muted-foreground">{t.notFoundDesc}</p>
           <Link href="/ceo" className="mt-4 px-6 py-3 bg-primary text-primary-foreground rounded-xl font-medium shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all">
-            Vai al Pannello
+            {t.goToPanel}
           </Link>
         </div>
       </div>
     );
   }
 
-  const defaultWhatsappMessage = encodeURIComponent(
-    `Ciao, sono un ospite di ${property.name} e avrei bisogno di assistenza diretta`
-  );
+  const defaultWhatsappMessage = encodeURIComponent(t.whatsappDefault(property.name));
   const whatsappUrl = property.whatsappNumber
-    ? `https://wa.me/${property.whatsappNumber.replace(/[^0-9]/g, '')}?text=${defaultWhatsappMessage}`
+    ? `https://wa.me/${property.whatsappNumber.replace(/[^0-9]/g, "")}?text=${defaultWhatsappMessage}`
     : "#";
 
   return (
     <div className="flex flex-col h-[100dvh] max-w-2xl mx-auto md:py-6 md:px-4">
       <div className="flex flex-col h-full chat-container md:rounded-3xl overflow-hidden relative">
-        
+
         {/* ── Header ── */}
         <header className="px-5 py-3.5 flex items-center justify-between chat-header border-b border-white/10 sticky top-0 z-10">
           <div className="flex items-center gap-3">
@@ -143,7 +249,7 @@ export default function GuestChat() {
               </h1>
               <p className="text-[11px] text-white/70 flex items-center gap-1 mt-0.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                Marco è online
+                {t.onlineStatus}
               </p>
             </div>
           </div>
@@ -155,18 +261,18 @@ export default function GuestChat() {
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-white text-[12px] font-semibold px-3 py-1.5 rounded-full transition-all shadow-md shadow-emerald-900/30"
-                title="Contatta l'host su WhatsApp"
+                title={t.helpBtn}
               >
                 <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-current" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
                 </svg>
-                Aiuto
+                {t.helpBtn}
               </a>
             )}
             <Link
               href={`/host/${slug}`}
               className="p-2 text-white/40 hover:text-white/70 transition-colors rounded-full hover:bg-white/10"
-              title="Pannello Host"
+              title="Host Panel"
             >
               <KeyRound className="w-4 h-4" />
             </Link>
@@ -191,9 +297,7 @@ export default function GuestChat() {
                 )}
                 <div
                   className={`max-w-[80%] sm:max-w-[72%] px-4 py-3 text-[14.5px] leading-relaxed ${
-                    msg.role === "user"
-                      ? "user-bubble"
-                      : "assistant-bubble"
+                    msg.role === "user" ? "user-bubble" : "assistant-bubble"
                   }`}
                 >
                   {msg.role === "assistant" && idx === 0 && (
@@ -204,7 +308,7 @@ export default function GuestChat() {
               </motion.div>
             ))}
 
-            {/* Marco sta scrivendo... */}
+            {/* Typing indicator */}
             {isPending && (
               <motion.div
                 key="typing"
@@ -218,7 +322,7 @@ export default function GuestChat() {
                 </div>
                 <div className="assistant-bubble px-4 py-3 flex items-center gap-2">
                   <span className="text-[13px] text-muted-foreground font-sans italic">
-                    Marco sta scrivendo
+                    {t.typing}
                   </span>
                   <span className="flex gap-[3px] items-center">
                     <span className="w-1.5 h-1.5 rounded-full bg-primary/50 animate-bounce" style={{ animationDelay: "0ms", animationDuration: "0.9s" }} />
@@ -234,7 +338,7 @@ export default function GuestChat() {
 
         {/* ── Quick Replies ── */}
         <div className="px-4 pt-2 pb-1 flex gap-2 overflow-x-auto no-scrollbar">
-          {QUICK_REPLIES.map((qr) => (
+          {t.quickReplies.map((qr) => (
             <button
               key={qr.label}
               onClick={() => handleSend(qr.question)}
@@ -248,22 +352,20 @@ export default function GuestChat() {
 
         {/* ── Input ── */}
         <div className="p-4 pt-3 chat-input-area border-t border-black/5">
-          <form
-            onSubmit={handleSubmit}
-            className="relative flex items-center w-full"
-          >
+          <form onSubmit={handleSubmit} className="relative flex items-center w-full">
             <input
               ref={inputRef}
               type="text"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              placeholder="Scrivi la tua domanda..."
+              placeholder={t.placeholder}
               className="chat-input w-full px-5 py-3.5 pr-14 rounded-2xl text-[14.5px] font-sans focus:outline-none transition-all"
               disabled={isPending}
             />
             <button
               type="submit"
               disabled={!inputValue.trim() || isPending}
+              aria-label={t.send}
               className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 send-btn rounded-xl flex items-center justify-center transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-md"
             >
               {isPending ? (
@@ -274,7 +376,7 @@ export default function GuestChat() {
             </button>
           </form>
           <p className="text-center text-[10px] text-muted-foreground/50 mt-2.5 uppercase tracking-widest font-sans">
-            Powered by SmartGuest AI · Marco
+            {t.powered}
           </p>
         </div>
       </div>
