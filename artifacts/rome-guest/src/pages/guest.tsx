@@ -30,7 +30,7 @@ export default function GuestChat() {
       setMessages([
         {
           role: "assistant",
-          content: `Ciao! Sono Marco, l'assistente virtuale di ${property.name} 👋 Come posso aiutarti? Puoi chiedermi della password WiFi, dell'orario di check-out, o qualsiasi consiglio sull'appartamento e sulla città!`,
+          content: `Benvenuto a ${property.name}! Sono Marco, come posso aiutarti oggi? 👋`,
         },
       ]);
     }
