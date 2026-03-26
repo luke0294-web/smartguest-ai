@@ -5,6 +5,7 @@ export const leadsTable = pgTable("leads", {
   hostName: text("host_name").notNull(),
   email: text("email").notNull(),
   propertyName: text("property_name").notNull(),
+  status: text("status").notNull().default("Nuovo"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

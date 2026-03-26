@@ -9,7 +9,7 @@ import {
   Building, Plus, Trash2, ExternalLink, KeyRound, Loader2, Save,
   Users, AlertCircle, Sparkles, QrCode, X, Download, Inbox,
   UserCog, Copy, CheckCheck, Link2, Eye, EyeOff, RefreshCw,
-  Mail, ShieldAlert,
+  Mail, ShieldAlert, FileText, ChevronDown,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -30,8 +30,18 @@ interface Lead {
   hostName: string;
   email: string;
   propertyName: string;
+  status: string;
   createdAt: string;
 }
+
+const LEAD_STATUSES = ["Nuovo", "Contattato", "In Trattativa", "Chiuso", "Non Interessato"] as const;
+const STATUS_COLORS: Record<string, string> = {
+  "Nuovo": "bg-blue-100 text-blue-700 border-blue-200",
+  "Contattato": "bg-amber-100 text-amber-700 border-amber-200",
+  "In Trattativa": "bg-purple-100 text-purple-700 border-purple-200",
+  "Chiuso": "bg-green-100 text-green-700 border-green-200",
+  "Non Interessato": "bg-red-100 text-red-700 border-red-200",
+};
 
 function QrModal({ property, onClose }: { property: { name: string; slug: string }; onClose: () => void }) {
   const svgRef = useRef<HTMLDivElement>(null);
@@ -314,6 +324,125 @@ function HostPasswordModal({
   );
 }
 
+function ContentEditModal({
+  property,
+  ceoPassword,
+  onClose,
+  onSaved,
+}: {
+  property: { name: string; slug: string; content?: string | null };
+  ceoPassword: string;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+  const [text, setText] = useState(property.content ?? "");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSave = async () => {
+    setError("");
+    setSaved(false);
+    setSaving(true);
+    try {
+      const res = await fetch(`${base}/api/properties/${property.slug}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ceoPassword, content: text }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Errore nel salvataggio.");
+      setSaved(true);
+      onSaved();
+      setTimeout(() => setSaved(false), 3000);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ backgroundColor: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }}
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.92, y: 16 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.92, y: 16 }}
+        transition={{ duration: 0.22 }}
+        className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
+          <div>
+            <h3 className="font-bold text-gray-900 text-[16px] flex items-center gap-2">
+              <FileText className="w-4 h-4 text-emerald-600" />
+              Modifica Regole & Knowledge Base
+            </h3>
+            <p className="text-gray-400 text-[12px] mt-0.5 truncate max-w-[320px]">{property.name}</p>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors">
+            <X className="w-4 h-4 text-gray-500" />
+          </button>
+        </div>
+
+        {/* Textarea */}
+        <div className="flex-1 overflow-y-auto p-6">
+          <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2">
+            Regolamento, info WiFi, consigli, policy — tutto ciò che Marco deve sapere
+          </label>
+          <textarea
+            value={text}
+            onChange={(e) => { setText(e.target.value); setSaved(false); }}
+            placeholder="Inserisci qui il regolamento completo, info WiFi, istruzioni check-in/check-out, consigli locali..."
+            className="w-full h-72 resize-none border border-gray-200 rounded-2xl px-4 py-3 text-sm leading-relaxed text-gray-800 focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all font-sans"
+          />
+          <p className="text-[11px] text-gray-400 mt-1.5">{text.length} caratteri</p>
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 pb-6 pt-2 flex-shrink-0 flex flex-col gap-3">
+          {error && (
+            <div className="flex items-center gap-2 bg-red-50 border border-red-100 text-red-600 text-sm px-4 py-2.5 rounded-xl">
+              <AlertCircle className="w-4 h-4" /> {error}
+            </div>
+          )}
+          {saved && (
+            <motion.div
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm px-4 py-2.5 rounded-xl font-medium"
+            >
+              <CheckCheck className="w-4 h-4 flex-shrink-0" />
+              Knowledge base aggiornata correttamente!
+            </motion.div>
+          )}
+          <div className="flex gap-3">
+            <button
+              onClick={onClose}
+              className="flex-1 border border-gray-200 text-gray-600 font-medium py-3 rounded-2xl hover:bg-gray-50 transition-colors text-sm"
+            >
+              Annulla
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving || !text.trim()}
+              className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-2xl shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm"
+            >
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              {saving ? "Salvataggio..." : "Salva Regole"}
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 type InlineEditState = {
   name: string;
   slug: string;
@@ -337,6 +466,9 @@ export default function CeoPanel() {
   const [cancellingReset, setCancellingReset] = useState<string | null>(null);
   const [editingSlug, setEditingSlug] = useState<string | null>(null);
   const [inlineEdit, setInlineEdit] = useState<InlineEditState>({ name: "", slug: "", hostPassword: "", email: "", saving: false, saved: false, error: "" });
+  const [contentModal, setContentModal] = useState<{ name: string; slug: string; content?: string | null } | null>(null);
+  const [leadDeleting, setLeadDeleting] = useState<Record<number, boolean>>({});
+  const [leadStatusSaving, setLeadStatusSaving] = useState<Record<number, boolean>>({});
   const queryClient = useQueryClient();
 
   const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -427,6 +559,39 @@ export default function CeoPanel() {
       fetchResets();
     }
   }, [activeTab, authAttempt]);
+
+  const deleteLead = async (id: number) => {
+    if (!window.confirm("Sei sicuro? Il lead sarà eliminato definitivamente dal database.")) return;
+    setLeadDeleting((prev) => ({ ...prev, [id]: true }));
+    try {
+      const res = await fetch(`${baseUrl}/api/leads/${id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ceoPassword: password }),
+      });
+      if (res.ok) {
+        setLeads((prev) => prev.filter((l) => l.id !== id));
+      }
+    } finally {
+      setLeadDeleting((prev) => { const n = { ...prev }; delete n[id]; return n; });
+    }
+  };
+
+  const updateLeadStatus = async (id: number, status: string) => {
+    setLeadStatusSaving((prev) => ({ ...prev, [id]: true }));
+    try {
+      const res = await fetch(`${baseUrl}/api/leads/${id}/status`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ceoPassword: password, status }),
+      });
+      if (res.ok) {
+        setLeads((prev) => prev.map((l) => l.id === id ? { ...l, status } : l));
+      }
+    } finally {
+      setLeadStatusSaving((prev) => { const n = { ...prev }; delete n[id]; return n; });
+    }
+  };
 
   const handleLogin = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -558,9 +723,17 @@ export default function CeoPanel() {
             ceoPassword={password}
             onClose={() => setHostManageProp(null)}
             onSaved={(newPwd) => {
-              // Update local state so reopening shows the new password
               setHostManageProp((prev) => prev ? { ...prev, hostPassword: newPwd } : null);
-              // Refresh the full properties list so cards show updated status
+              queryClient.invalidateQueries({ queryKey: getListPropertiesQueryKey({ ceoPassword: password }) });
+            }}
+          />
+        )}
+        {contentModal && (
+          <ContentEditModal
+            property={contentModal}
+            ceoPassword={password}
+            onClose={() => setContentModal(null)}
+            onSaved={() => {
               queryClient.invalidateQueries({ queryKey: getListPropertiesQueryKey({ ceoPassword: password }) });
             }}
           />
@@ -803,6 +976,13 @@ export default function CeoPanel() {
                                 Modifica
                               </button>
                               <button
+                                onClick={() => setContentModal({ name: prop.name, slug: prop.slug, content: (prop as any).content })}
+                                className="flex-1 sm:flex-none px-3 py-2 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-medium rounded-xl transition-all flex items-center justify-center gap-1.5 text-[13px]"
+                              >
+                                <FileText className="w-3.5 h-3.5" />
+                                Regole
+                              </button>
+                              <button
                                 onClick={() => setQrProperty({ name: prop.name, slug: prop.slug })}
                                 className="flex-1 sm:flex-none px-3 py-2 bg-violet-50 text-violet-700 hover:bg-violet-100 font-medium rounded-xl transition-all flex items-center justify-center gap-1.5 text-[13px]"
                               >
@@ -951,30 +1131,66 @@ export default function CeoPanel() {
 
                 {!leadsLoading && leads.length > 0 && (
                   <div className="flex flex-col gap-3">
+                    <AnimatePresence initial={false}>
                     {leads.map((lead) => (
                       <motion.div
                         key={lead.id}
                         initial={{ opacity: 0, y: 6 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="glass-panel p-5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                        exit={{ opacity: 0, scale: 0.96 }}
+                        layout
+                        className="glass-panel p-4 sm:p-5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                       >
-                        <div className="flex items-center gap-4">
+                        {/* Left: avatar + info */}
+                        <div className="flex items-center gap-4 min-w-0">
                           <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-[15px] flex-shrink-0">
                             {lead.hostName[0]?.toUpperCase()}
                           </div>
-                          <div>
-                            <p className="font-bold text-foreground text-[15px]">{lead.hostName}</p>
-                            <p className="text-muted-foreground text-sm">{lead.email}</p>
+                          <div className="min-w-0">
+                            <p className="font-bold text-foreground text-[15px] truncate">{lead.hostName}</p>
+                            <p className="text-muted-foreground text-sm truncate">{lead.email}</p>
+                            <p className="text-muted-foreground text-[12px] mt-0.5">🏠 {lead.propertyName}</p>
                           </div>
                         </div>
-                        <div className="flex flex-col sm:items-end gap-1 pl-14 sm:pl-0">
-                          <span className="text-sm font-medium text-foreground">🏠 {lead.propertyName}</span>
-                          <span className="text-[12px] text-muted-foreground">
+
+                        {/* Right: date + status + delete */}
+                        <div className="flex flex-col sm:items-end gap-2 pl-14 sm:pl-0 flex-shrink-0">
+                          <span className="text-[11px] text-muted-foreground">
                             {format(new Date(lead.createdAt), "dd MMM yyyy · HH:mm")}
                           </span>
+
+                          {/* Status dropdown */}
+                          <div className="flex items-center gap-2">
+                            <div className="relative">
+                              <select
+                                value={lead.status ?? "Nuovo"}
+                                disabled={leadStatusSaving[lead.id]}
+                                onChange={(e) => updateLeadStatus(lead.id, e.target.value)}
+                                className={`appearance-none pl-2.5 pr-7 py-1.5 rounded-lg text-[12px] font-semibold border cursor-pointer focus:outline-none transition-all ${STATUS_COLORS[lead.status] ?? STATUS_COLORS["Nuovo"]} ${leadStatusSaving[lead.id] ? "opacity-50" : ""}`}
+                              >
+                                {LEAD_STATUSES.map((s) => (
+                                  <option key={s} value={s}>{s}</option>
+                                ))}
+                              </select>
+                              <ChevronDown className="w-3 h-3 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none opacity-60" />
+                            </div>
+
+                            {/* Delete button */}
+                            <button
+                              onClick={() => deleteLead(lead.id)}
+                              disabled={leadDeleting[lead.id]}
+                              title="Elimina lead"
+                              className="w-8 h-8 flex items-center justify-center rounded-lg bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {leadDeleting[lead.id]
+                                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                : <Trash2 className="w-3.5 h-3.5" />}
+                            </button>
+                          </div>
                         </div>
                       </motion.div>
                     ))}
+                    </AnimatePresence>
                   </div>
                 )}
               </motion.div>
