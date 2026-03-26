@@ -5,6 +5,7 @@ import propertiesRouter from "./properties";
 import leadsRouter from "./leads";
 import hostDashboardRouter from "./host-dashboard";
 import authRouter from "./auth";
+import aiRouter from "./ai";
 
 const router: IRouter = Router();
 
@@ -14,5 +15,6 @@ router.use(chatRouter);
 router.use(leadsRouter);
 router.use(hostDashboardRouter);
 router.use(authRouter);
+router.use(aiRouter);
 
 export default router;

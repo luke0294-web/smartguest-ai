@@ -1,12 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, Link } from "wouter";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import {
   Home, KeyRound, Loader2, Save, CheckCircle2, AlertCircle,
-  Wifi, MessageSquare, Phone, FileText,
+  Wifi, MessageSquare, Phone, FileText, Mic, MicOff, Camera,
+  Sparkles,
 } from "lucide-react";
 
 const loginSchema = z.object({
@@ -30,6 +31,14 @@ interface PropertyData {
   whatsappNumber: string | null;
 }
 
+type AiState =
+  | { type: "idle" }
+  | { type: "recording" }
+  | { type: "transcribing" }
+  | { type: "scanning" }
+  | { type: "success"; message: string }
+  | { type: "error"; message: string };
+
 export default function HostDashboard() {
   const params = useParams<{ slug: string }>();
   const slug = params?.slug ?? "";
@@ -40,6 +49,14 @@ export default function HostDashboard() {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
+  // AI state machine
+  const [aiState, setAiState] = useState<AiState>({ type: "idle" });
+
+  // Refs for recording
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
+
   const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
 
   const loginForm = useForm<LoginValues>({
@@ -48,6 +65,7 @@ export default function HostDashboard() {
 
   const updateForm = useForm<UpdateValues>({
     resolver: zodResolver(updateSchema),
+    defaultValues: { name: "", content: "", whatsappNumber: "" },
   });
 
   // Auto-login if credentials were stored by /login page
@@ -57,7 +75,6 @@ export default function HostDashboard() {
       const stored = sessionStorage.getItem(`host_auth_${slug}`);
       if (!stored) return;
       const { password, ts } = JSON.parse(stored) as { password: string; ts: number };
-      // Expire after 8 hours
       if (Date.now() - ts > 8 * 60 * 60 * 1000) {
         sessionStorage.removeItem(`host_auth_${slug}`);
         return;
@@ -96,7 +113,7 @@ export default function HostDashboard() {
     } finally {
       setIsLoggingIn(false);
     }
-  };
+  }
 
   const handleUpdate = async (data: UpdateValues) => {
     setSaveSuccess(false);
@@ -116,6 +133,105 @@ export default function HostDashboard() {
     }
   };
 
+  // ─── VOICE RECORDING ───────────────────────────────────────────────────────
+
+  const appendToContent = (text: string) => {
+    const current = updateForm.getValues("content") ?? "";
+    const separator = current.trim() ? "\n\n" : "";
+    updateForm.setValue("content", current + separator + text, { shouldValidate: true, shouldDirty: true });
+  };
+
+  const startRecording = async () => {
+    setAiState({ type: "recording" });
+    audioChunksRef.current = [];
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : MediaRecorder.isTypeSupported("audio/webm")
+        ? "audio/webm"
+        : "audio/ogg";
+
+      const recorder = new MediaRecorder(stream, { mimeType });
+      mediaRecorderRef.current = recorder;
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const blob = new Blob(audioChunksRef.current, { type: mimeType });
+        await sendAudioForTranscription(blob, mimeType);
+      };
+
+      recorder.start(250); // collect data every 250ms
+    } catch (err: any) {
+      setAiState({ type: "error", message: "Microfono non disponibile. Controlla i permessi del browser." });
+      setTimeout(() => setAiState({ type: "idle" }), 4000);
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+      setAiState({ type: "transcribing" });
+    }
+  };
+
+  const sendAudioForTranscription = async (blob: Blob, mimeType: string) => {
+    setAiState({ type: "transcribing" });
+    try {
+      const formData = new FormData();
+      const ext = mimeType.includes("ogg") ? "ogg" : mimeType.includes("mp4") ? "mp4" : "webm";
+      formData.append("audio", blob, `recording.${ext}`);
+
+      const res = await fetch(`${baseUrl}/api/ai/transcribe`, {
+        method: "POST",
+        body: formData,
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Errore nella trascrizione.");
+
+      appendToContent(json.text);
+      setAiState({ type: "success", message: "Testo vocale aggiunto!" });
+    } catch (err: any) {
+      setAiState({ type: "error", message: err.message });
+    } finally {
+      setTimeout(() => setAiState({ type: "idle" }), 3500);
+    }
+  };
+
+  // ─── IMAGE SCAN ─────────────────────────────────────────────────────────────
+
+  const handleImageSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // Reset input so same file can be re-selected
+    e.target.value = "";
+
+    setAiState({ type: "scanning" });
+    try {
+      const formData = new FormData();
+      formData.append("image", file);
+
+      const res = await fetch(`${baseUrl}/api/ai/vision`, {
+        method: "POST",
+        body: formData,
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Errore nell'analisi dell'immagine.");
+
+      appendToContent(json.text);
+      setAiState({ type: "success", message: "Informazioni estratte e aggiunte!" });
+    } catch (err: any) {
+      setAiState({ type: "error", message: err.message });
+    } finally {
+      setTimeout(() => setAiState({ type: "idle" }), 3500);
+    }
+  };
+
   // ── LOGIN SCREEN ──
   if (!property) {
     return (
@@ -125,7 +241,6 @@ export default function HostDashboard() {
           animate={{ opacity: 1, y: 0 }}
           className="bg-white rounded-3xl shadow-xl w-full max-w-md overflow-hidden"
         >
-          {/* Top bar */}
           <div className="h-1.5 bg-gradient-to-r from-blue-500 via-blue-600 to-blue-500" />
 
           <div className="p-8 text-center">
@@ -191,6 +306,8 @@ export default function HostDashboard() {
   }
 
   // ── DASHBOARD ──
+  const isAiBusy = aiState.type === "recording" || aiState.type === "transcribing" || aiState.type === "scanning";
+
   return (
     <div className="min-h-[100dvh] bg-gradient-to-br from-slate-50 to-blue-50 py-8 px-4">
       <div className="max-w-2xl mx-auto flex flex-col gap-6">
@@ -227,21 +344,23 @@ export default function HostDashboard() {
           </div>
         </motion.div>
 
-        {/* Success banner */}
-        {saveSuccess && (
-          <motion.div
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 text-emerald-700 px-5 py-3.5 rounded-2xl"
-          >
-            <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
-            <div>
-              <p className="font-semibold text-sm">Salvato con successo!</p>
-              <p className="text-xs opacity-80">Le modifiche sono ora visibili agli ospiti.</p>
-            </div>
-          </motion.div>
-        )}
+        {/* Save success banner */}
+        <AnimatePresence>
+          {saveSuccess && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 text-emerald-700 px-5 py-3.5 rounded-2xl"
+            >
+              <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+              <div>
+                <p className="font-semibold text-sm">Salvato con successo!</p>
+                <p className="text-xs opacity-80">Le modifiche sono ora visibili agli ospiti.</p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Edit form */}
         <motion.div
@@ -308,7 +427,128 @@ export default function HostDashboard() {
               {updateForm.formState.errors.content && (
                 <p className="text-xs text-red-500">{updateForm.formState.errors.content.message}</p>
               )}
-              <p className="text-[11px] text-gray-400">
+
+              {/* ── AI TOOLS ── */}
+              <div className="mt-1 flex flex-col gap-2">
+
+                {/* AI status banner */}
+                <AnimatePresence mode="wait">
+                  {aiState.type !== "idle" && (
+                    <motion.div
+                      key={aiState.type}
+                      initial={{ opacity: 0, y: -6, scale: 0.97 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -6, scale: 0.97 }}
+                      transition={{ duration: 0.2 }}
+                      className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium border ${
+                        aiState.type === "recording"
+                          ? "bg-red-50 border-red-200 text-red-700"
+                          : aiState.type === "transcribing"
+                          ? "bg-blue-50 border-blue-200 text-blue-700"
+                          : aiState.type === "scanning"
+                          ? "bg-violet-50 border-violet-200 text-violet-700"
+                          : aiState.type === "success"
+                          ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                          : "bg-red-50 border-red-200 text-red-700"
+                      }`}
+                    >
+                      {aiState.type === "recording" && (
+                        <>
+                          <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
+                          Registrazione in corso... Premi stop quando finisci.
+                        </>
+                      )}
+                      {aiState.type === "transcribing" && (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
+                          L'IA sta trascrivendo l'audio...
+                        </>
+                      )}
+                      {aiState.type === "scanning" && (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
+                          L'IA sta analizzando l'immagine...
+                        </>
+                      )}
+                      {aiState.type === "success" && (
+                        <>
+                          <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                          {aiState.message}
+                        </>
+                      )}
+                      {aiState.type === "error" && (
+                        <>
+                          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                          {aiState.message}
+                        </>
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* AI buttons row */}
+                <div className="flex gap-2">
+                  {/* Voice recording button */}
+                  {aiState.type === "recording" ? (
+                    <button
+                      type="button"
+                      onClick={stopRecording}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-red-500 hover:bg-red-600 text-white transition-all shadow-sm shadow-red-200 animate-pulse"
+                    >
+                      <MicOff className="w-4 h-4" />
+                      ⏹ Stop Registrazione
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={startRecording}
+                      disabled={isAiBusy}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white transition-all shadow-sm shadow-rose-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {aiState.type === "transcribing"
+                        ? <Loader2 className="w-4 h-4 animate-spin" />
+                        : <Mic className="w-4 h-4" />}
+                      🎤 Registra Vocale
+                    </button>
+                  )}
+
+                  {/* Image scan button */}
+                  <button
+                    type="button"
+                    onClick={() => imageInputRef.current?.click()}
+                    disabled={isAiBusy}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 text-white transition-all shadow-sm shadow-violet-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {aiState.type === "scanning"
+                      ? <Loader2 className="w-4 h-4 animate-spin" />
+                      : <Camera className="w-4 h-4" />}
+                    📷 Scansiona Foto
+                  </button>
+
+                  {/* Hidden file input */}
+                  <input
+                    ref={imageInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleImageSelected}
+                  />
+                </div>
+
+                {/* Helper text */}
+                <div className="flex gap-2 text-[10px] text-gray-400">
+                  <span className="flex-1 text-center">Parla per dettare il regolamento — il testo apparirà nella textarea.</span>
+                  <span className="flex-1 text-center">Scatta o carica la foto di un cartello WiFi o manuale — l'IA lo legge.</span>
+                </div>
+
+                {/* Powered by badge */}
+                <div className="flex items-center justify-center gap-1 text-[10px] text-gray-300 pt-0.5">
+                  <Sparkles className="w-2.5 h-2.5" />
+                  Powered by OpenAI Whisper & GPT-4o Vision — il testo sarà aggiunto alla textarea. Premi Salva per aggiornare il database.
+                </div>
+              </div>
+
+              <p className="text-[11px] text-gray-400 mt-1">
                 Scrivi tutto ciò che vuoi che Marco sappia. Più è dettagliato, meglio risponde agli ospiti.
               </p>
             </div>
