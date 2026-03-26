@@ -8,7 +8,7 @@ import { QRCodeSVG } from "qrcode.react";
 import {
   Building, Plus, Trash2, ExternalLink, KeyRound, Loader2, Save,
   Users, AlertCircle, Sparkles, QrCode, X, Download, Inbox,
-  UserCog, Copy, CheckCheck, Link2,
+  UserCog, Copy, CheckCheck, Link2, Eye, EyeOff,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -117,23 +117,32 @@ function HostPasswordModal({
   property,
   ceoPassword,
   onClose,
+  onSaved,
 }: {
   property: { name: string; slug: string; hostPassword?: string | null };
   ceoPassword: string;
   onClose: () => void;
+  onSaved: (newPassword: string) => void;
 }) {
   const [newPassword, setNewPassword] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [savedPassword, setSavedPassword] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew, setShowNew] = useState(false);
 
   const base = import.meta.env.BASE_URL.replace(/\/$/, "");
   const hostLink = `${window.location.origin}${base}/host/${property.slug}`;
 
+  // The displayed current password — updated locally after save
+  const currentPassword = savedPassword ?? property.hostPassword ?? null;
+
   const handleSave = async () => {
     if (!newPassword.trim()) return;
     setError("");
+    setSaved(false);
     setIsSaving(true);
     try {
       const res = await fetch(`${base}/api/properties/${property.slug}/host-password`, {
@@ -143,7 +152,9 @@ function HostPasswordModal({
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Errore nel salvataggio.");
+      setSavedPassword(newPassword.trim());
       setSaved(true);
+      onSaved(newPassword.trim());
       setNewPassword("");
     } catch (err: any) {
       setError(err.message);
@@ -185,12 +196,47 @@ function HostPasswordModal({
         </div>
 
         <div className="p-5 flex flex-col gap-4">
-          {/* Current status */}
-          <div className={`flex items-center gap-2.5 px-4 py-3 rounded-xl text-sm font-medium ${property.hostPassword ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
-            {property.hostPassword ? (
-              <><CheckCheck className="w-4 h-4" /> Password host già impostata</>
+
+          {/* ID Accesso */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+              ID Accesso (Slug)
+            </label>
+            <div className="flex items-center gap-2 bg-blue-50 rounded-xl px-3 py-2.5 border border-blue-100">
+              <p className="text-[13px] font-mono font-bold text-blue-700 flex-1">{property.slug}</p>
+              <button
+                onClick={() => { navigator.clipboard.writeText(property.slug); }}
+                className="p-1.5 rounded-lg text-blue-400 hover:text-blue-600 hover:bg-blue-100 transition-colors flex-shrink-0"
+                title="Copia ID"
+              >
+                <Copy className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Current password */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+              Password Attuale
+            </label>
+            {currentPassword ? (
+              <div className="flex items-center gap-2 bg-emerald-50 rounded-xl px-3 py-2.5 border border-emerald-100">
+                <p className="text-[13px] font-mono font-bold text-emerald-700 flex-1 break-all">
+                  {showCurrent ? currentPassword : "•".repeat(Math.min(currentPassword.length, 12))}
+                </p>
+                <button
+                  onClick={() => setShowCurrent(!showCurrent)}
+                  className="p-1.5 rounded-lg text-emerald-400 hover:text-emerald-600 hover:bg-emerald-100 transition-colors flex-shrink-0"
+                  title={showCurrent ? "Nascondi" : "Mostra"}
+                >
+                  {showCurrent ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                </button>
+              </div>
             ) : (
-              <><AlertCircle className="w-4 h-4" /> Nessuna password impostata</>
+              <div className="flex items-center gap-2 bg-amber-50 text-amber-700 px-3 py-2.5 rounded-xl border border-amber-100 text-sm">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                Nessuna password impostata
+              </div>
             )}
           </div>
 
@@ -208,26 +254,34 @@ function HostPasswordModal({
                 {copied ? <CheckCheck className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
               </button>
             </div>
-            <p className="text-[10px] text-gray-400">Invia questo link all'host. Dovrà usarlo con la password impostata qui sotto.</p>
           </div>
 
-          {/* Set password */}
+          {/* Set new password */}
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-semibold text-gray-700">
-              {property.hostPassword ? "Reimposta password host" : "Imposta password host"}
+              {currentPassword ? "Reimposta password host" : "Imposta password host"}
             </label>
             <div className="flex gap-2">
-              <input
-                type="text"
-                value={newPassword}
-                onChange={(e) => { setNewPassword(e.target.value); setSaved(false); }}
-                placeholder="es. casa2024"
-                className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all font-mono"
-              />
+              <div className="relative flex-1">
+                <input
+                  type={showNew ? "text" : "password"}
+                  value={newPassword}
+                  onChange={(e) => { setNewPassword(e.target.value); setSaved(false); setError(""); }}
+                  placeholder="Nuova password..."
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 pr-9 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all font-mono"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNew(!showNew)}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  {showNew ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                </button>
+              </div>
               <button
                 onClick={handleSave}
                 disabled={isSaving || !newPassword.trim()}
-                className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold transition-colors disabled:opacity-50 flex items-center gap-1.5 whitespace-nowrap"
               >
                 {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                 {isSaving ? "" : "Salva"}
@@ -235,13 +289,21 @@ function HostPasswordModal({
             </div>
           </div>
 
+          {/* Success */}
           {saved && (
-            <div className="flex items-center gap-2 bg-emerald-50 text-emerald-700 text-sm px-4 py-2.5 rounded-xl">
-              <CheckCheck className="w-4 h-4" /> Password aggiornata con successo!
-            </div>
+            <motion.div
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm px-4 py-3 rounded-xl font-medium"
+            >
+              <CheckCheck className="w-4 h-4 flex-shrink-0" />
+              Dati salvati correttamente nel database!
+            </motion.div>
           )}
+
+          {/* Error */}
           {error && (
-            <div className="flex items-center gap-2 bg-red-50 text-red-600 text-sm px-4 py-2.5 rounded-xl">
+            <div className="flex items-center gap-2 bg-red-50 border border-red-100 text-red-600 text-sm px-4 py-2.5 rounded-xl">
               <AlertCircle className="w-4 h-4" /> {error}
             </div>
           )}
@@ -407,6 +469,12 @@ export default function CeoPanel() {
             property={hostManageProp}
             ceoPassword={password}
             onClose={() => setHostManageProp(null)}
+            onSaved={(newPwd) => {
+              // Update local state so reopening shows the new password
+              setHostManageProp((prev) => prev ? { ...prev, hostPassword: newPwd } : null);
+              // Refresh the full properties list so cards show updated status
+              queryClient.invalidateQueries({ queryKey: getListPropertiesQueryKey({ ceoPassword: password }) });
+            }}
           />
         )}
       </AnimatePresence>
@@ -491,14 +559,30 @@ export default function CeoPanel() {
                         className="glass-panel p-5 rounded-3xl hover:border-primary/30 transition-colors"
                       >
                         <div className="flex flex-col sm:flex-row gap-4 justify-between">
-                          <div className="space-y-1.5 flex-1 min-w-0">
+                          <div className="space-y-2 flex-1 min-w-0">
                             <h3 className="text-[16px] font-bold text-foreground flex items-center gap-2 flex-wrap">
                               {prop.name}
                               <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold tracking-wide uppercase">
                                 ATTIVA
                               </span>
                             </h3>
-                            <div className="flex flex-wrap gap-x-3 gap-y-1.5 text-sm text-muted-foreground">
+                            {/* ID Accesso - prominently shown */}
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">ID Accesso:</span>
+                              <span className="font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md text-[12px] border border-blue-100">
+                                {prop.slug}
+                              </span>
+                              {(prop as any).hostPassword ? (
+                                <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-100">
+                                  ✓ password impostata
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-md border border-amber-100">
+                                  ⚠ no password
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-muted-foreground">
                               <span className="font-mono bg-black/5 px-2 py-0.5 rounded-md text-[12px]">
                                 /guest/{prop.slug}
                               </span>

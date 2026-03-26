@@ -8,7 +8,6 @@ import {
   GetPropertyParams,
   GetPropertyResponse,
   UpdatePropertyResponse,
-  ListPropertiesResponse,
   DeletePropertyParams,
   DeletePropertyBody,
 } from "@workspace/api-zod";
@@ -31,7 +30,8 @@ router.get("/properties", async (req, res): Promise<void> => {
     .from(propertiesTable)
     .orderBy(propertiesTable.createdAt);
 
-  res.json(ListPropertiesResponse.parse(rows));
+  // Return full rows to CEO (includes hostPassword) — not parsed through the public schema
+  res.json(rows);
 });
 
 // POST /properties — create (CEO only)
