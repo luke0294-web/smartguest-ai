@@ -1,16 +1,18 @@
 packages:
-  "framer-motion": "Smooth chat bubble animations and page transitions"
-  "@hookform/resolvers": "Zod validation for host configuration form"
-  "react-hook-form": "Form state management"
-  "zod": "Schema validation for forms"
-  "clsx": "Utility for constructing className strings conditionally"
-  "tailwind-merge": "Utility to merge tailwind classes safely"
+  "framer-motion": "For fluid UI animations in chat and dashboard"
+  "lucide-react": "For beautiful icons"
+  "clsx": "For utility class merging"
+  "tailwind-merge": "For merging tailwind classes"
+  "date-fns": "For formatting property creation dates"
+  "react-hook-form": "For robust form handling in CEO panel"
+  "@hookform/resolvers": "For Zod validation integration"
+  "zod": "For schema validation"
 
 images:
   - path: "artifacts/rome-guest/public/images/mediterranean-bg.png"
-    description: "Subtle, abstract warm mediterranean textured background in cream and light terracotta colors, elegant, minimal, luxurious, soft lighting"
+    description: "Soft, elegant, blurred gradient background in pale blue and cream tones, suggesting a luxury hospitality suite"
     aspect_ratio: "16:9"
 
 notes:
-  - Hooks from @workspace/api-client-react are used for data fetching and mutations
-  - Router is configured to use wouter
+  - Using generated hooks from @workspace/api-client-react
+  - Routing via Wouter with dynamic /guest/:slug paths

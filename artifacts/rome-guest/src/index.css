@@ -243,7 +243,7 @@
   transform: translateY(0);
 }
 
-/* ── Glassmorphism utility (used in host panel) ── */
+/* ── Glassmorphism utility ── */
 .glass-panel {
   background: hsl(0 0% 100% / 0.8);
   backdrop-filter: blur(20px) saturate(160%);

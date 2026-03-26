@@ -5,9 +5,14 @@
  * RomeGuest AI - Professional Host Suite API
  * OpenAPI spec version: 0.2.0
  */
-import type { ConversationMessageRole } from "./conversationMessageRole";
 
-export interface ConversationMessage {
-  role: ConversationMessageRole;
+export interface Property {
+  id: number;
+  slug: string;
+  name: string;
   content: string;
+  /** @nullable */
+  whatsappNumber: string | null;
+  createdAt: Date;
+  updatedAt: Date;
 }

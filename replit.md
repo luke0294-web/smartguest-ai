@@ -2,7 +2,7 @@
 
 ## Overview
 
-pnpm workspace monorepo using TypeScript. Hosts a full-stack AI-powered guest assistant for Airbnb hosts in Rome.
+pnpm workspace monorepo using TypeScript. Multi-property RAG-based AI chat platform for professional Airbnb hosts. Marco is the AI assistant that responds only from the host's knowledge base, always in the guest's language.
 
 ## Stack
 
@@ -15,30 +15,41 @@ pnpm workspace monorepo using TypeScript. Hosts a full-stack AI-powered guest as
 - **Validation**: Zod (`zod/v4`), `drizzle-zod`
 - **API codegen**: Orval (from OpenAPI spec)
 - **Build**: esbuild (CJS bundle)
-- **AI**: OpenAI GPT-4o-mini (RAG pattern)
-- **Frontend**: React + Vite, Tailwind CSS, Wouter routing
+- **AI**: OpenAI GPT-4o-mini (RAG pattern, anti-over-refusal, multilingual)
+- **Frontend**: React + Vite, Tailwind CSS, Wouter routing, Framer Motion
 
-## Application: RomeGuest AI
+## Application: RomeGuest AI — Professional Host Suite
 
-A RAG-based AI chat assistant for Airbnb hosts. Tourists ask questions about the apartment and get answers based solely on the host's provided knowledge base.
+A multi-property RAG-based AI chat platform. Hosts manage multiple properties from the CEO panel. Each property gets its own guest-facing chat URL.
+
+### Routes
+
+- `/` → redirect to `/ceo`
+- `/ceo` → Super-admin CEO panel (password: `fleming2026`)
+- `/admin` → redirect to `/ceo` (deprecated)
+- `/guest/:slug` → Tourist chat interface for a specific property
+- `*` → 404 not-found page
 
 ### Features
 
-1. **Tourist Chat** (`/`): Mobile-friendly chat interface where tourists ask questions. AI responds only from host-provided content.
-2. **Host Panel** (`/host`): Protected panel where the host enters apartment rules, WiFi password, tips etc. Password protected (`host123` default, configurable via `HOST_PASSWORD` env var).
-3. **AI Safety Rule**: If the question isn't in the host's text, AI politely says to contact the host.
+1. **CEO Panel** (`/ceo`): Password-protected dashboard to manage all properties. Create, edit, delete properties with slug, name, knowledge base content, and WhatsApp number.
+2. **Guest Chat** (`/guest/:slug`): Mobile-friendly chat. Marco responds only from property-specific content, always in guest's language. WhatsApp SOS button, 4 quick-reply buttons, typing animation.
+3. **AI Safety**: Anti-over-refusal — Marco proactively suggests from available info before refusing. Falls back to WhatsApp only when genuinely missing info.
 
 ### API Endpoints
 
-- `GET /api/host/knowledge` — Get the current host knowledge base
-- `PUT /api/host/knowledge` — Update host knowledge (requires `hostPassword`)
-- `POST /api/chat` — Send a message and get an AI response
+- `GET /api/properties?ceoPassword=...` — List all properties (CEO only)
+- `POST /api/properties` — Create property (CEO only, body: `ceoPassword`, `slug`, `name`, `content`, `whatsappNumber`)
+- `GET /api/properties/:slug` — Get one property (public)
+- `PUT /api/properties/:slug` — Update property (CEO only)
+- `DELETE /api/properties/:slug` — Delete property (CEO only)
+- `POST /api/properties/:slug/chat` — Send message to Marco for a property
 - `GET /api/healthz` — Health check
 
 ### Environment Variables
 
 - `OPENAI_API_KEY` — OpenAI API key (required)
-- `HOST_PASSWORD` — Password for host panel (default: `host123`)
+- `CEO_PASSWORD` — CEO panel password (default: `fleming2026`)
 - `DATABASE_URL` — PostgreSQL connection string (auto-provisioned by Replit)
 
 ## Structure
@@ -46,13 +57,24 @@ A RAG-based AI chat assistant for Airbnb hosts. Tourists ask questions about the
 ```text
 artifacts-monorepo/
 ├── artifacts/
-│   ├── api-server/         # Express API server with OpenAI integration
-│   └── rome-guest/         # React + Vite frontend
+│   ├── api-server/              # Express API server with OpenAI integration
+│   │   └── src/routes/
+│   │       ├── properties.ts    # CRUD for properties (CEO-authenticated)
+│   │       ├── chat.ts          # Marco AI chat per property slug
+│   │       ├── health.ts        # Health check
+│   │       └── index.ts         # Router aggregator
+│   └── rome-guest/              # React + Vite frontend
+│       └── src/pages/
+│           ├── guest.tsx        # Tourist chat interface (/guest/:slug)
+│           ├── ceo.tsx          # Super-admin CEO panel (/ceo)
+│           └── not-found.tsx    # 404 page
 ├── lib/
-│   ├── api-spec/           # OpenAPI spec + Orval codegen config
-│   ├── api-client-react/   # Generated React Query hooks
-│   ├── api-zod/            # Generated Zod schemas from OpenAPI
-│   └── db/                 # Drizzle ORM schema (host_knowledge table)
+│   ├── api-spec/                # OpenAPI spec + Orval codegen config
+│   ├── api-client-react/        # Generated React Query hooks
+│   ├── api-zod/                 # Generated Zod schemas from OpenAPI
+│   └── db/                      # Drizzle ORM schema
+│       └── src/schema/
+│           └── properties.ts    # properties table (id, slug, name, content, whatsappNumber, timestamps)
 ├── pnpm-workspace.yaml
 ├── tsconfig.base.json
 ├── tsconfig.json
@@ -71,21 +93,7 @@ Every package extends `tsconfig.base.json` which sets `composite: true`. The roo
 - `pnpm run build` — runs `typecheck` first, then recursively runs `build` in all packages
 - `pnpm run typecheck` — runs `tsc --build --emitDeclarationOnly` using project references
 
-## Packages
+## Database
 
-### `artifacts/api-server` (`@workspace/api-server`)
-
-Express 5 API server with OpenAI integration. Routes:
-- `src/routes/chat.ts` — RAG chat with GPT-4o-mini
-- `src/routes/host.ts` — Host knowledge base CRUD
-- `src/routes/health.ts` — Health check
-
-### `artifacts/rome-guest` (`@workspace/rome-guest`)
-
-React + Vite frontend. Pages:
-- `src/pages/chat.tsx` — Tourist chat interface
-- `src/pages/host.tsx` — Host panel
-
-### `lib/db` (`@workspace/db`)
-
-- `src/schema/knowledge.ts` — `host_knowledge` table (id, content, updatedAt)
+- Table: `properties` (id SERIAL, slug TEXT UNIQUE, name TEXT, content TEXT, whatsapp_number TEXT, created_at, updated_at)
+- Old table `host_knowledge` is superseded but may still exist in DB (not exported from schema)

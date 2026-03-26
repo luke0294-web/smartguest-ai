@@ -1,11 +1,12 @@
-import { Switch, Route, Router as WouterRouter } from "wouter";
+import { Switch, Route, Router as WouterRouter, Redirect } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
-import Chat from "./pages/chat";
-import HostPanel from "./pages/host";
+import GuestChat from "./pages/guest";
+import CeoPanel from "./pages/ceo";
 
+// Create a client
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -18,8 +19,14 @@ const queryClient = new QueryClient({
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Chat} />
-      <Route path="/admin" component={HostPanel} />
+      <Route path="/">
+        <Redirect to="/ceo" />
+      </Route>
+      <Route path="/ceo" component={CeoPanel} />
+      <Route path="/admin">
+        <Redirect to="/ceo" />
+      </Route>
+      <Route path="/guest/:slug" component={GuestChat} />
       <Route component={NotFound} />
     </Switch>
   );

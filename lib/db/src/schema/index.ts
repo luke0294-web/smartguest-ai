@@ -1,1 +1,1 @@
-export * from "./knowledge";
+export * from "./properties";

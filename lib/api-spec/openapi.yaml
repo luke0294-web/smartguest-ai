@@ -1,25 +1,25 @@
 openapi: 3.1.0
 info:
   title: Api
-  version: 0.1.0
-  description: RomeGuest AI API specification
+  version: 0.2.0
+  description: RomeGuest AI - Professional Host Suite API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: properties
+    description: Property management
   - name: chat
-    description: Tourist chat operations
-  - name: host
-    description: Host panel operations
+    description: Guest chat operations
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -28,12 +28,181 @@ paths:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
 
-  /chat:
+  /properties:
+    get:
+      operationId: listProperties
+      tags: [properties]
+      summary: List all properties (CEO only)
+      parameters:
+        - name: ceoPassword
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of properties
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Property"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
     post:
-      operationId: sendChatMessage
+      operationId: createProperty
+      tags: [properties]
+      summary: Create a new property (CEO only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePropertyRequest"
+      responses:
+        "201":
+          description: Property created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Property"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Slug already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /properties/{slug}:
+    get:
+      operationId: getProperty
+      tags: [properties]
+      summary: Get property by slug (public)
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Property details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Property"
+        "404":
+          description: Property not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      operationId: updateProperty
+      tags: [properties]
+      summary: Update property content
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePropertyRequest"
+      responses:
+        "200":
+          description: Property updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Property"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteProperty
+      tags: [properties]
+      summary: Delete a property (CEO only)
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ceoPassword:
+                  type: string
+              required:
+                - ceoPassword
+      responses:
+        "204":
+          description: Deleted
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /properties/{slug}/chat:
+    post:
+      operationId: sendPropertyChat
       tags: [chat]
-      summary: Send a chat message
-      description: Send a tourist question and get an AI response based on the host's knowledge base
+      summary: Send a chat message for a specific property
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
       requestBody:
         required: true
         content:
@@ -47,52 +216,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ChatMessageResponse"
-        "400":
-          description: Bad request
+        "404":
+          description: Property not found
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "500":
           description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /host/knowledge:
-    get:
-      operationId: getHostKnowledge
-      tags: [host]
-      summary: Get host knowledge base
-      description: Retrieve the current host knowledge base text
-      responses:
-        "200":
-          description: Current knowledge base
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/HostKnowledge"
-    put:
-      operationId: updateHostKnowledge
-      tags: [host]
-      summary: Update host knowledge base
-      description: Update the host's knowledge base with apartment rules, WiFi, tips, etc.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdateHostKnowledgeRequest"
-      responses:
-        "200":
-          description: Updated knowledge base
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/HostKnowledge"
-        "400":
-          description: Bad request
           content:
             application/json:
               schema:
@@ -108,17 +239,83 @@ components:
       required:
         - status
 
+    Property:
+      type: object
+      properties:
+        id:
+          type: integer
+        slug:
+          type: string
+        name:
+          type: string
+        content:
+          type: string
+        whatsappNumber:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - slug
+        - name
+        - content
+        - whatsappNumber
+        - createdAt
+        - updatedAt
+
+    CreatePropertyRequest:
+      type: object
+      properties:
+        ceoPassword:
+          type: string
+        slug:
+          type: string
+          description: Unique URL-friendly identifier (e.g. 'fleming-1')
+        name:
+          type: string
+          description: Human-readable property name
+        content:
+          type: string
+          description: House rules, WiFi info, tips, etc.
+        whatsappNumber:
+          type: string
+          description: Host WhatsApp number for SOS button
+      required:
+        - ceoPassword
+        - slug
+        - name
+        - content
+
+    UpdatePropertyRequest:
+      type: object
+      properties:
+        ceoPassword:
+          type: string
+          description: CEO password (if updating as admin)
+        hostPassword:
+          type: string
+          description: Property-specific host password
+        name:
+          type: string
+        content:
+          type: string
+        whatsappNumber:
+          type: string
+      required: []
+
     ChatMessageRequest:
       type: object
       properties:
         message:
           type: string
-          description: The tourist's question
         conversationHistory:
           type: array
           items:
             $ref: "#/components/schemas/ConversationMessage"
-          description: Previous messages in the conversation
       required:
         - message
 
@@ -127,9 +324,11 @@ components:
       properties:
         reply:
           type: string
-          description: The AI's response
+        propertyName:
+          type: string
       required:
         - reply
+        - propertyName
 
     ConversationMessage:
       type: object
@@ -142,35 +341,6 @@ components:
       required:
         - role
         - content
-
-    HostKnowledge:
-      type: object
-      properties:
-        id:
-          type: integer
-        content:
-          type: string
-          description: The host's knowledge base text
-        updatedAt:
-          type: string
-          format: date-time
-      required:
-        - id
-        - content
-        - updatedAt
-
-    UpdateHostKnowledgeRequest:
-      type: object
-      properties:
-        content:
-          type: string
-          description: The host's knowledge base text
-        hostPassword:
-          type: string
-          description: Password to access the host panel
-      required:
-        - content
-        - hostPassword
 
     ErrorResponse:
       type: object
