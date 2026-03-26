@@ -164,9 +164,9 @@ export default function GuestChat() {
               </a>
             )}
             <Link
-              href="/ceo"
+              href={`/host/${slug}`}
               className="p-2 text-white/40 hover:text-white/70 transition-colors rounded-full hover:bg-white/10"
-              title="Pannello Amministratore"
+              title="Pannello Host"
             >
               <KeyRound className="w-4 h-4" />
             </Link>
