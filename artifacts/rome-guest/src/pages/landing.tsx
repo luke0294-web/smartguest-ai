@@ -556,8 +556,8 @@ export default function Landing() {
 
           <div className="flex items-center gap-5 text-[13px] text-gray-400">
             <a href="#" className="hover:text-gray-700 transition-colors">Privacy Policy</a>
-            <a href="mailto:info@romeguest.ai" className="hover:text-gray-700 transition-colors">
-              info@romeguest.ai
+            <a href="mailto:info@smartguest.ai" className="hover:text-gray-700 transition-colors">
+              info@smartguest.ai
             </a>
             <Link href="/login" className="hover:text-gray-700 transition-colors">
               Host Login
