@@ -1,15 +1,18 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: RomeGuest AI API specification
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: chat
+    description: Tourist chat operations
+  - name: host
+    description: Host panel operations
 paths:
   /healthz:
     get:
@@ -24,6 +27,77 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /chat:
+    post:
+      operationId: sendChatMessage
+      tags: [chat]
+      summary: Send a chat message
+      description: Send a tourist question and get an AI response based on the host's knowledge base
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatMessageRequest"
+      responses:
+        "200":
+          description: AI response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatMessageResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /host/knowledge:
+    get:
+      operationId: getHostKnowledge
+      tags: [host]
+      summary: Get host knowledge base
+      description: Retrieve the current host knowledge base text
+      responses:
+        "200":
+          description: Current knowledge base
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HostKnowledge"
+    put:
+      operationId: updateHostKnowledge
+      tags: [host]
+      summary: Update host knowledge base
+      description: Update the host's knowledge base with apartment rules, WiFi, tips, etc.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateHostKnowledgeRequest"
+      responses:
+        "200":
+          description: Updated knowledge base
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HostKnowledge"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +108,74 @@ components:
       required:
         - status
 
+    ChatMessageRequest:
+      type: object
+      properties:
+        message:
+          type: string
+          description: The tourist's question
+        conversationHistory:
+          type: array
+          items:
+            $ref: "#/components/schemas/ConversationMessage"
+          description: Previous messages in the conversation
+      required:
+        - message
+
+    ChatMessageResponse:
+      type: object
+      properties:
+        reply:
+          type: string
+          description: The AI's response
+      required:
+        - reply
+
+    ConversationMessage:
+      type: object
+      properties:
+        role:
+          type: string
+          enum: [user, assistant]
+        content:
+          type: string
+      required:
+        - role
+        - content
+
+    HostKnowledge:
+      type: object
+      properties:
+        id:
+          type: integer
+        content:
+          type: string
+          description: The host's knowledge base text
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - content
+        - updatedAt
+
+    UpdateHostKnowledgeRequest:
+      type: object
+      properties:
+        content:
+          type: string
+          description: The host's knowledge base text
+        hostPassword:
+          type: string
+          description: Password to access the host panel
+      required:
+        - content
+        - hostPassword
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error

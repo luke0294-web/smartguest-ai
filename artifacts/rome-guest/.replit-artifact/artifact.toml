@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "RomeGuest AI"
+version = "1.0.0"
+id = "artifacts/rome-guest"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 25266
+
+[services.development]
+run = "pnpm --filter @workspace/rome-guest run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/rome-guest", "run", "build" ]
+publicDir = "artifacts/rome-guest/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25266"
+BASE_PATH = "/"

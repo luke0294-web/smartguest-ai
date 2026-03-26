@@ -1,0 +1,16 @@
+packages:
+  "framer-motion": "Smooth chat bubble animations and page transitions"
+  "@hookform/resolvers": "Zod validation for host configuration form"
+  "react-hook-form": "Form state management"
+  "zod": "Schema validation for forms"
+  "clsx": "Utility for constructing className strings conditionally"
+  "tailwind-merge": "Utility to merge tailwind classes safely"
+
+images:
+  - path: "artifacts/rome-guest/public/images/mediterranean-bg.png"
+    description: "Subtle, abstract warm mediterranean textured background in cream and light terracotta colors, elegant, minimal, luxurious, soft lighting"
+    aspect_ratio: "16:9"
+
+notes:
+  - Hooks from @workspace/api-client-react are used for data fetching and mutations
+  - Router is configured to use wouter
