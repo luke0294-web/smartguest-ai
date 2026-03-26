@@ -1,18 +1,29 @@
 import { useState, useEffect, useRef } from "react";
-import { useParams, Link } from "wouter";
+import { useParams, Link, useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import {
-  Home, KeyRound, Loader2, Save, CheckCircle2, AlertCircle,
+  Home, Loader2, Save, CheckCircle2, AlertCircle,
   Wifi, MessageSquare, Phone, FileText, Mic, MicOff, Camera,
-  Sparkles,
+  Sparkles, ArrowLeft,
 } from "lucide-react";
 
-const loginSchema = z.object({
-  hostPassword: z.string().min(1, "Inserisci la password"),
-});
+const HOST_SESSION_KEY = "host_session";
+const SESSION_TTL = 8 * 60 * 60 * 1000;
+
+interface Session { email: string; password: string; ts: number }
+
+function readSession(): Session | null {
+  try {
+    const raw = sessionStorage.getItem(HOST_SESSION_KEY);
+    if (!raw) return null;
+    const s = JSON.parse(raw) as Session;
+    if (Date.now() - s.ts > SESSION_TTL) { sessionStorage.removeItem(HOST_SESSION_KEY); return null; }
+    return s;
+  } catch { return null; }
+}
 
 const updateSchema = z.object({
   name: z.string().min(1, "Il nome è obbligatorio"),
@@ -20,15 +31,10 @@ const updateSchema = z.object({
   whatsappNumber: z.string().optional(),
 });
 
-type LoginValues = z.infer<typeof loginSchema>;
 type UpdateValues = z.infer<typeof updateSchema>;
 
 interface PropertyData {
-  id: number;
-  slug: string;
-  name: string;
-  content: string;
-  whatsappNumber: string | null;
+  id: number; slug: string; name: string; content: string; whatsappNumber: string | null;
 }
 
 type AiState =
@@ -41,67 +47,55 @@ type AiState =
 
 export default function HostDashboard() {
   const params = useParams<{ slug: string }>();
+  const [, navigate] = useLocation();
   const slug = params?.slug ?? "";
 
-  const [hostPassword, setHostPassword] = useState("");
+  const [session, setSession] = useState<Session | null>(null);
   const [property, setProperty] = useState<PropertyData | null>(null);
-  const [loginError, setLoginError] = useState("");
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [saveSuccess, setSaveSuccess] = useState(false);
-
-  // AI state machine
   const [aiState, setAiState] = useState<AiState>({ type: "idle" });
 
-  // Refs for recording
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
 
   const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
 
-  const loginForm = useForm<LoginValues>({
-    resolver: zodResolver(loginSchema),
-  });
-
   const updateForm = useForm<UpdateValues>({
     resolver: zodResolver(updateSchema),
     defaultValues: { name: "", content: "", whatsappNumber: "" },
   });
 
-  // Auto-login if credentials were stored by /login page
   useEffect(() => {
-    if (property || !slug) return;
-    try {
-      const stored = sessionStorage.getItem(`host_auth_${slug}`);
-      if (!stored) return;
-      const { password, ts } = JSON.parse(stored) as { password: string; ts: number };
-      if (Date.now() - ts > 8 * 60 * 60 * 1000) {
-        sessionStorage.removeItem(`host_auth_${slug}`);
-        return;
-      }
-      loginForm.setValue("hostPassword", password);
-      loginForm.handleSubmit(handleLoginFn)();
-    } catch {
-      // ignore parse errors
+    if (!slug) return;
+    const s = readSession();
+    if (!s) {
+      navigate(`/login`);
+      return;
     }
+    setSession(s);
+    loadProperty(s);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug]);
 
-  const handleLogin = async (data: LoginValues) => handleLoginFn(data);
-
-  async function handleLoginFn(data: LoginValues) {
-    setLoginError("");
-    setIsLoggingIn(true);
+  const loadProperty = async (s: Session) => {
+    setIsLoading(true);
+    setLoadError("");
     try {
       const res = await fetch(
-        `${baseUrl}/api/host/${slug}?hostPassword=${encodeURIComponent(data.hostPassword)}`
+        `${baseUrl}/api/host/${slug}?email=${encodeURIComponent(s.email)}&hostPassword=${encodeURIComponent(s.password)}`
       );
       const json = await res.json();
       if (!res.ok) {
-        setLoginError(json.error ?? "Accesso negato.");
+        if (res.status === 401 || res.status === 403) {
+          setLoadError(json.error ?? "Accesso non autorizzato.");
+        } else {
+          setLoadError(json.error ?? "Struttura non trovata.");
+        }
         return;
       }
-      setHostPassword(data.hostPassword);
       setProperty(json);
       updateForm.reset({
         name: json.name,
@@ -109,19 +103,24 @@ export default function HostDashboard() {
         whatsappNumber: json.whatsappNumber ?? "",
       });
     } catch {
-      setLoginError("Errore di connessione. Riprova.");
+      setLoadError("Errore di connessione. Riprova.");
     } finally {
-      setIsLoggingIn(false);
+      setIsLoading(false);
     }
-  }
+  };
 
   const handleUpdate = async (data: UpdateValues) => {
+    if (!session) return;
     setSaveSuccess(false);
     try {
       const res = await fetch(`${baseUrl}/api/host/${slug}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ hostPassword, ...data }),
+        body: JSON.stringify({
+          email: session.email,
+          hostPassword: session.password,
+          ...data,
+        }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Errore nel salvataggio.");
@@ -133,7 +132,7 @@ export default function HostDashboard() {
     }
   };
 
-  // ─── VOICE RECORDING ───────────────────────────────────────────────────────
+  // ─── AI TOOLS ───────────────────────────────────────────────────────────────
 
   const appendToContent = (text: string) => {
     const current = updateForm.getValues("content") ?? "";
@@ -144,30 +143,20 @@ export default function HostDashboard() {
   const startRecording = async () => {
     setAiState({ type: "recording" });
     audioChunksRef.current = [];
-
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
         ? "audio/webm;codecs=opus"
-        : MediaRecorder.isTypeSupported("audio/webm")
-        ? "audio/webm"
-        : "audio/ogg";
-
+        : MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/ogg";
       const recorder = new MediaRecorder(stream, { mimeType });
       mediaRecorderRef.current = recorder;
-
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) audioChunksRef.current.push(e.data);
-      };
-
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
       recorder.onstop = async () => {
         stream.getTracks().forEach((t) => t.stop());
-        const blob = new Blob(audioChunksRef.current, { type: mimeType });
-        await sendAudioForTranscription(blob, mimeType);
+        await sendAudioForTranscription(new Blob(audioChunksRef.current, { type: mimeType }), mimeType);
       };
-
-      recorder.start(250); // collect data every 250ms
-    } catch (err: any) {
+      recorder.start(250);
+    } catch {
       setAiState({ type: "error", message: "Microfono non disponibile. Controlla i permessi del browser." });
       setTimeout(() => setAiState({ type: "idle" }), 4000);
     }
@@ -186,14 +175,9 @@ export default function HostDashboard() {
       const formData = new FormData();
       const ext = mimeType.includes("ogg") ? "ogg" : mimeType.includes("mp4") ? "mp4" : "webm";
       formData.append("audio", blob, `recording.${ext}`);
-
-      const res = await fetch(`${baseUrl}/api/ai/transcribe`, {
-        method: "POST",
-        body: formData,
-      });
+      const res = await fetch(`${baseUrl}/api/ai/transcribe`, { method: "POST", body: formData });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Errore nella trascrizione.");
-
       appendToContent(json.text);
       setAiState({ type: "success", message: "Testo vocale aggiunto!" });
     } catch (err: any) {
@@ -203,26 +187,17 @@ export default function HostDashboard() {
     }
   };
 
-  // ─── IMAGE SCAN ─────────────────────────────────────────────────────────────
-
   const handleImageSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    // Reset input so same file can be re-selected
     e.target.value = "";
-
     setAiState({ type: "scanning" });
     try {
       const formData = new FormData();
       formData.append("image", file);
-
-      const res = await fetch(`${baseUrl}/api/ai/vision`, {
-        method: "POST",
-        body: formData,
-      });
+      const res = await fetch(`${baseUrl}/api/ai/vision`, { method: "POST", body: formData });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Errore nell'analisi dell'immagine.");
-
       appendToContent(json.text);
       setAiState({ type: "success", message: "Informazioni estratte e aggiunte!" });
     } catch (err: any) {
@@ -232,72 +207,44 @@ export default function HostDashboard() {
     }
   };
 
-  // ── LOGIN SCREEN ──
-  if (!property) {
+  // ── LOADING SCREEN ──
+  if (isLoading) {
+    return (
+      <div className="min-h-[100dvh] bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3 text-blue-600">
+          <Loader2 className="w-8 h-8 animate-spin" />
+          <p className="font-medium text-gray-500">Caricamento struttura...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ── ERROR SCREEN ──
+  if (loadError || !property) {
     return (
       <div className="min-h-[100dvh] bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-3xl shadow-xl w-full max-w-md overflow-hidden"
+          className="bg-white rounded-3xl shadow-xl w-full max-w-md p-8 text-center"
         >
-          <div className="h-1.5 bg-gradient-to-r from-blue-500 via-blue-600 to-blue-500" />
-
-          <div className="p-8 text-center">
-            <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-5">
-              <Home className="w-8 h-8 text-blue-600" />
-            </div>
-            <h1 className="text-2xl font-extrabold text-gray-900 mb-1">Pannello Host</h1>
-            <p className="text-gray-400 text-sm mb-1">
-              Gestione appartamento
-            </p>
-            <p className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-700 text-[12px] font-semibold px-3 py-1 rounded-full mb-8 font-mono">
-              /guest/{slug}
-            </p>
-
-            <form onSubmit={loginForm.handleSubmit(handleLogin)} className="flex flex-col gap-4 text-left">
-              <div>
-                <label className="text-sm font-semibold text-gray-700 mb-1.5 block">
-                  Password Host
-                </label>
-                <div className="relative">
-                  <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input
-                    type="password"
-                    placeholder="Inserisci la tua password"
-                    {...loginForm.register("hostPassword")}
-                    className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
-                  />
-                </div>
-                {loginForm.formState.errors.hostPassword && (
-                  <p className="text-xs text-red-500 mt-1">{loginForm.formState.errors.hostPassword.message}</p>
-                )}
-              </div>
-
-              {loginError && (
-                <div className="flex items-center gap-2 bg-red-50 text-red-600 text-sm px-4 py-3 rounded-xl">
-                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                  {loginError}
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={isLoggingIn}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
-              >
-                {isLoggingIn ? <Loader2 className="w-5 h-5 animate-spin" /> : "Accedi al Pannello"}
-              </button>
-            </form>
+          <div className="w-14 h-14 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <AlertCircle className="w-7 h-7 text-red-500" />
           </div>
-
-          <div className="border-t border-gray-100 px-8 py-4 flex items-center justify-between">
-            <Link href={`/guest/${slug}`} className="text-sm text-gray-400 hover:text-gray-600 transition-colors flex items-center gap-1.5">
-              <MessageSquare className="w-3.5 h-3.5" />
-              Vedi chat ospiti
+          <h2 className="font-bold text-gray-900 text-xl mb-2">Accesso negato</h2>
+          <p className="text-gray-400 text-sm mb-6">{loadError || "Struttura non trovata."}</p>
+          <div className="flex gap-3 justify-center">
+            <Link
+              href="/host/dashboard"
+              className="px-5 py-2.5 bg-blue-600 text-white font-semibold rounded-xl text-sm hover:bg-blue-700 transition-colors"
+            >
+              ← Dashboard
             </Link>
-            <Link href="/" className="text-sm text-gray-400 hover:text-gray-600 transition-colors">
-              Home
+            <Link
+              href="/login"
+              className="px-5 py-2.5 bg-gray-100 text-gray-600 font-medium rounded-xl text-sm hover:bg-gray-200 transition-colors"
+            >
+              Accedi
             </Link>
           </div>
         </motion.div>
@@ -335,12 +282,13 @@ export default function HostDashboard() {
               <MessageSquare className="w-3.5 h-3.5" />
               Chat
             </Link>
-            <button
-              onClick={() => { setProperty(null); setHostPassword(""); }}
-              className="text-sm text-gray-400 hover:text-gray-600 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors"
+            <Link
+              href="/host/dashboard"
+              className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-600 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors"
             >
-              Esci
-            </button>
+              <ArrowLeft className="w-3.5 h-3.5" />
+              Dashboard
+            </Link>
           </div>
         </motion.div>
 
@@ -430,8 +378,6 @@ export default function HostDashboard() {
 
               {/* ── AI TOOLS ── */}
               <div className="mt-1 flex flex-col gap-2">
-
-                {/* AI status banner */}
                 <AnimatePresence mode="wait">
                   {aiState.type !== "idle" && (
                     <motion.div
@@ -453,42 +399,25 @@ export default function HostDashboard() {
                       }`}
                     >
                       {aiState.type === "recording" && (
-                        <>
-                          <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
-                          Registrazione in corso... Premi stop quando finisci.
-                        </>
+                        <><span className="w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />Registrazione in corso... Premi stop quando finisci.</>
                       )}
                       {aiState.type === "transcribing" && (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
-                          L'IA sta trascrivendo l'audio...
-                        </>
+                        <><Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />L'IA sta trascrivendo l'audio...</>
                       )}
                       {aiState.type === "scanning" && (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
-                          L'IA sta analizzando l'immagine...
-                        </>
+                        <><Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />L'IA sta analizzando l'immagine...</>
                       )}
                       {aiState.type === "success" && (
-                        <>
-                          <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-                          {aiState.message}
-                        </>
+                        <><CheckCircle2 className="w-4 h-4 flex-shrink-0" />{aiState.message}</>
                       )}
                       {aiState.type === "error" && (
-                        <>
-                          <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                          {aiState.message}
-                        </>
+                        <><AlertCircle className="w-4 h-4 flex-shrink-0" />{aiState.message}</>
                       )}
                     </motion.div>
                   )}
                 </AnimatePresence>
 
-                {/* AI buttons row */}
                 <div className="flex gap-2">
-                  {/* Voice recording button */}
                   {aiState.type === "recording" ? (
                     <button
                       type="button"
@@ -505,82 +434,48 @@ export default function HostDashboard() {
                       disabled={isAiBusy}
                       className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white transition-all shadow-sm shadow-rose-200 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {aiState.type === "transcribing"
-                        ? <Loader2 className="w-4 h-4 animate-spin" />
-                        : <Mic className="w-4 h-4" />}
+                      {aiState.type === "transcribing" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mic className="w-4 h-4" />}
                       🎤 Registra Vocale
                     </button>
                   )}
-
-                  {/* Image scan button */}
                   <button
                     type="button"
                     onClick={() => imageInputRef.current?.click()}
                     disabled={isAiBusy}
                     className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 text-white transition-all shadow-sm shadow-violet-200 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {aiState.type === "scanning"
-                      ? <Loader2 className="w-4 h-4 animate-spin" />
-                      : <Camera className="w-4 h-4" />}
+                    {aiState.type === "scanning" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
                     📷 Scansiona Foto
                   </button>
-
-                  {/* Hidden file input */}
-                  <input
-                    ref={imageInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleImageSelected}
-                  />
+                  <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageSelected} />
                 </div>
 
-                {/* Helper text */}
                 <div className="flex gap-2 text-[10px] text-gray-400">
                   <span className="flex-1 text-center">Parla per dettare il regolamento — il testo apparirà nella textarea.</span>
                   <span className="flex-1 text-center">Scatta o carica la foto di un cartello WiFi o manuale — l'IA lo legge.</span>
                 </div>
 
-                {/* Powered by badge */}
                 <div className="flex items-center justify-center gap-1 text-[10px] text-gray-300 pt-0.5">
                   <Sparkles className="w-2.5 h-2.5" />
-                  Powered by OpenAI Whisper & GPT-4o Vision — il testo sarà aggiunto alla textarea. Premi Salva per aggiornare il database.
+                  Powered by GPT-4o
                 </div>
               </div>
-
-              <p className="text-[11px] text-gray-400 mt-1">
-                Scrivi tutto ciò che vuoi che Marco sappia. Più è dettagliato, meglio risponde agli ospiti.
-              </p>
             </div>
 
+            {/* Submit */}
             <button
               type="submit"
-              disabled={updateForm.formState.isSubmitting || saveSuccess}
-              className={`w-full active:scale-[0.99] text-white font-bold py-4 rounded-2xl transition-all flex items-center justify-center gap-2 shadow-lg disabled:opacity-70 ${
-                saveSuccess
-                  ? "bg-emerald-500 shadow-emerald-100"
-                  : "bg-blue-600 hover:bg-blue-700 shadow-blue-100"
-              }`}
+              disabled={!updateForm.formState.isDirty && !saveSuccess}
+              className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-6 rounded-xl transition-colors shadow-lg shadow-blue-100 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {updateForm.formState.isSubmitting ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : saveSuccess ? (
-                <>
-                  <CheckCircle2 className="w-5 h-5" />
-                  Salvato!
-                </>
-              ) : (
-                <>
-                  <Save className="w-4 h-4" />
-                  Salva Modifiche
-                </>
-              )}
+              <Save className="w-4 h-4" />
+              Salva Modifiche
             </button>
           </form>
         </motion.div>
 
-        <p className="text-center text-[11px] text-gray-300 pb-4">
-          Powered by SmartGuest AI · Solo tu puoi modificare i tuoi dati
+        <p className="text-center text-[11px] text-gray-300 uppercase tracking-widest">
+          Powered by SmartGuest AI
         </p>
       </div>
     </div>

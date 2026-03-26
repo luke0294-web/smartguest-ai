@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { useLocation, Link } from "wouter";
 import { motion } from "framer-motion";
-import { MessageSquare, KeyRound, Home, Loader2, AlertCircle, HelpCircle } from "lucide-react";
+import { MessageSquare, KeyRound, Mail, Loader2, AlertCircle, HelpCircle } from "lucide-react";
+
+const HOST_SESSION_KEY = "host_session";
 
 export default function HostLogin() {
   const [, navigate] = useLocation();
 
-  const [slug, setSlug] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
@@ -17,31 +19,34 @@ export default function HostLogin() {
     e.preventDefault();
     setError("");
 
-    const trimmedSlug = slug.trim().toLowerCase();
+    const trimmedEmail = email.trim().toLowerCase();
     const trimmedPassword = password.trim();
 
-    if (!trimmedSlug || !trimmedPassword) {
+    if (!trimmedEmail || !trimmedPassword) {
       setError("Compila tutti i campi.");
       return;
     }
 
     setIsLoading(true);
     try {
-      const res = await fetch(
-        `${baseUrl}/api/host/${encodeURIComponent(trimmedSlug)}?hostPassword=${encodeURIComponent(trimmedPassword)}`
-      );
+      const res = await fetch(`${baseUrl}/api/auth/host-login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: trimmedEmail, password: trimmedPassword }),
+      });
+
+      const json = await res.json();
 
       if (res.ok) {
-        // Store credentials in sessionStorage so /host/:slug can auto-login
         sessionStorage.setItem(
-          `host_auth_${trimmedSlug}`,
-          JSON.stringify({ password: trimmedPassword, ts: Date.now() })
+          HOST_SESSION_KEY,
+          JSON.stringify({ email: json.email, password: trimmedPassword, ts: Date.now() })
         );
-        navigate(`/host/${trimmedSlug}`);
+        navigate("/host/dashboard");
         return;
       }
 
-      setError("ID o Password non validi per questo appartamento.");
+      setError(json.error ?? "Email o password non corretti.");
     } catch {
       setError("Errore di connessione. Riprova tra qualche secondo.");
     } finally {
@@ -75,44 +80,42 @@ export default function HostLogin() {
           {/* Header */}
           <div className="text-center mb-8">
             <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <Home className="w-8 h-8 text-blue-600" />
+              <KeyRound className="w-8 h-8 text-blue-600" />
             </div>
             <h1 className="text-2xl font-extrabold text-gray-900 mb-1">Accesso Host</h1>
             <p className="text-gray-400 text-sm">
-              Inserisci le credenziali del tuo appartamento
+              Accedi per gestire tutte le tue strutture
             </p>
           </div>
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
 
-            {/* Slug field */}
+            {/* Email field */}
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-semibold text-gray-700">
-                ID Appartamento
+                Email Host
               </label>
               <div className="relative">
-                <Home className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
-                  type="text"
-                  value={slug}
-                  onChange={(e) => { setSlug(e.target.value); setError(""); }}
-                  placeholder="es. appartamento-roma-centro"
+                  type="email"
+                  value={email}
+                  onChange={(e) => { setEmail(e.target.value); setError(""); }}
+                  placeholder="la-tua@email.com"
+                  autoComplete="email"
                   autoCapitalize="none"
                   autoCorrect="off"
                   spellCheck={false}
-                  className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-sm font-mono focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all placeholder:font-sans placeholder:text-gray-400"
+                  className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all placeholder:text-gray-400"
                 />
               </div>
-              <p className="text-[11px] text-gray-400">
-                Trovi l'ID nel link che ti ha inviato il supporto SmartGuest.
-              </p>
             </div>
 
             {/* Password field */}
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-semibold text-gray-700">
-                Password Host
+                Password
               </label>
               <div className="relative">
                 <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -120,7 +123,8 @@ export default function HostLogin() {
                   type="password"
                   value={password}
                   onChange={(e) => { setPassword(e.target.value); setError(""); }}
-                  placeholder="La tua password personale"
+                  placeholder="La tua password"
+                  autoComplete="current-password"
                   className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
                 />
               </div>
@@ -147,7 +151,7 @@ export default function HostLogin() {
               {isLoading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
               ) : (
-                "Accedi al Pannello"
+                "Accedi alla Dashboard"
               )}
             </button>
 
@@ -158,7 +162,7 @@ export default function HostLogin() {
                 className="inline-flex items-center gap-1.5 text-[13px] text-gray-400 hover:text-blue-600 transition-colors font-medium"
               >
                 <HelpCircle className="w-3.5 h-3.5" />
-                Hai dimenticato la password o l'ID?
+                Hai dimenticato la password?
               </Link>
             </div>
           </form>

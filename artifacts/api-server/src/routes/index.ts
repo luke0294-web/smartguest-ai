@@ -6,6 +6,7 @@ import leadsRouter from "./leads";
 import hostDashboardRouter from "./host-dashboard";
 import authRouter from "./auth";
 import aiRouter from "./ai";
+import adminHostsRouter from "./admin-hosts";
 
 const router: IRouter = Router();
 
@@ -16,5 +17,6 @@ router.use(leadsRouter);
 router.use(hostDashboardRouter);
 router.use(authRouter);
 router.use(aiRouter);
+router.use(adminHostsRouter);
 
 export default router;

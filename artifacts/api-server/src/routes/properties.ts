@@ -43,6 +43,7 @@ router.post("/properties", async (req, res): Promise<void> => {
   }
 
   const { ceoPassword, slug, name, content, whatsappNumber } = parsed.data;
+  const ownerEmail = typeof req.body?.ownerEmail === "string" ? req.body.ownerEmail.trim().toLowerCase() || null : null;
 
   if (ceoPassword !== CEO_PASSWORD) {
     res.status(401).json({ error: "Password CEO non corretta." });
@@ -63,7 +64,7 @@ router.post("/properties", async (req, res): Promise<void> => {
 
   const [created] = await db
     .insert(propertiesTable)
-    .values({ slug, name, content: content ?? "", whatsappNumber: whatsappNumber ?? null })
+    .values({ slug, name, content: content ?? "", whatsappNumber: whatsappNumber ?? null, email: ownerEmail })
     .returning();
 
   logger.info({ slug, name }, "Property created");

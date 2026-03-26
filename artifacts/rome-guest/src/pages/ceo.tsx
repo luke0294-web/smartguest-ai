@@ -20,6 +20,7 @@ const createPropertySchema = z.object({
   name: z.string().min(1, "Il nome è obbligatorio"),
   slug: z.string().min(1, "Lo slug è obbligatorio").regex(/^[a-z0-9-]+$/, "Solo lettere minuscole, numeri e trattini"),
   whatsappNumber: z.string().optional(),
+  ownerEmail: z.string().email("Email non valida").optional().or(z.literal("")),
   content: z.string().min(1, "Il regolamento è obbligatorio"),
 });
 
@@ -456,7 +457,7 @@ type InlineEditState = {
 export default function CeoPanel() {
   const [password, setPassword] = useState("");
   const [authAttempt, setAuthAttempt] = useState(false);
-  const [activeTab, setActiveTab] = useState<"properties" | "leads" | "resets">("properties");
+  const [activeTab, setActiveTab] = useState<"properties" | "leads" | "resets" | "hosts">("properties");
   const [qrProperty, setQrProperty] = useState<{ name: string; slug: string } | null>(null);
   const [hostManageProp, setHostManageProp] = useState<{ name: string; slug: string; hostPassword?: string | null } | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -469,6 +470,13 @@ export default function CeoPanel() {
   const [contentModal, setContentModal] = useState<{ name: string; slug: string; content?: string | null } | null>(null);
   const [leadDeleting, setLeadDeleting] = useState<Record<number, boolean>>({});
   const [leadStatusSaving, setLeadStatusSaving] = useState<Record<number, boolean>>({});
+  const [hosts, setHosts] = useState<Array<{ id: number; email: string; createdAt: string }>>([]);
+  const [hostsLoading, setHostsLoading] = useState(false);
+  const [newHostEmail, setNewHostEmail] = useState("");
+  const [newHostPassword, setNewHostPassword] = useState("");
+  const [hostFormMsg, setHostFormMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const [hostFormSaving, setHostFormSaving] = useState(false);
+  const [hostDeleting, setHostDeleting] = useState<Record<string, boolean>>({});
   const queryClient = useQueryClient();
 
   const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -483,7 +491,8 @@ export default function CeoPanel() {
     }
   );
 
-  const { mutate: createProperty, isPending: isCreating } = useCreateProperty();
+  const { mutate: _createProperty } = useCreateProperty();
+  const [isCreating, setIsCreating] = useState(false);
   const { mutate: deleteProperty, isPending: isDeleting } = useDeleteProperty();
 
   const form = useForm<CreatePropertyValues>({
@@ -593,6 +602,60 @@ export default function CeoPanel() {
     }
   };
 
+  const fetchHosts = async () => {
+    if (!password) return;
+    setHostsLoading(true);
+    try {
+      const res = await fetch(`${baseUrl}/api/admin/hosts?ceoPassword=${encodeURIComponent(password)}`);
+      const data = await res.json();
+      if (res.ok) setHosts(data);
+    } finally {
+      setHostsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (authAttempt && activeTab === "hosts") fetchHosts();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, authAttempt]);
+
+  const saveHost = async () => {
+    if (!newHostEmail.trim() || !newHostPassword.trim()) {
+      setHostFormMsg({ type: "err", text: "Email e password sono obbligatori." });
+      return;
+    }
+    setHostFormSaving(true);
+    setHostFormMsg(null);
+    try {
+      const res = await fetch(`${baseUrl}/api/admin/hosts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ceoPassword: password, email: newHostEmail.trim(), hostPassword: newHostPassword.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setHostFormMsg({ type: "err", text: data.error ?? "Errore." }); return; }
+      setHostFormMsg({ type: "ok", text: data.action === "created" ? `Host ${data.email} creato!` : `Password di ${data.email} aggiornata!` });
+      setNewHostEmail(""); setNewHostPassword("");
+      fetchHosts();
+    } catch { setHostFormMsg({ type: "err", text: "Errore di rete." }); }
+    finally { setHostFormSaving(false); }
+  };
+
+  const deleteHost = async (email: string) => {
+    if (!window.confirm(`Sei sicuro di voler eliminare l'host ${email}?`)) return;
+    setHostDeleting((prev) => ({ ...prev, [email]: true }));
+    try {
+      await fetch(`${baseUrl}/api/admin/hosts/${encodeURIComponent(email)}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ceoPassword: password }),
+      });
+      setHosts((prev) => prev.filter((h) => h.email !== email));
+    } finally {
+      setHostDeleting((prev) => { const n = { ...prev }; delete n[email]; return n; });
+    }
+  };
+
   const handleLogin = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
@@ -603,19 +666,27 @@ export default function CeoPanel() {
     }
   };
 
-  const onSubmit = (data: CreatePropertyValues) => {
-    createProperty(
-      { data: { ceoPassword: password, ...data } },
-      {
-        onSuccess: () => {
-          form.reset();
-          queryClient.invalidateQueries({ queryKey: getListPropertiesQueryKey({ ceoPassword: password }) });
-        },
-        onError: (err: any) => {
-          alert(`Errore: ${err.response?.data?.error || 'Impossibile creare la proprietà'}`);
-        }
+  const onSubmit = async (data: CreatePropertyValues) => {
+    setIsCreating(true);
+    try {
+      const { ownerEmail, ...rest } = data;
+      const res = await fetch(`${baseUrl}/api/properties`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ceoPassword: password, ...rest, ownerEmail: ownerEmail || undefined }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        alert(`Errore: ${json.error || "Impossibile creare la proprietà"}`);
+        return;
       }
-    );
+      form.reset();
+      queryClient.invalidateQueries({ queryKey: getListPropertiesQueryKey({ ceoPassword: password }) });
+    } catch {
+      alert("Errore di rete. Riprova.");
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   const handleDelete = (slug: string) => {
@@ -803,6 +874,22 @@ export default function CeoPanel() {
               {resetRequests.length > 0 && (
                 <span className={`ml-1 text-xs font-bold px-1.5 py-0.5 rounded-full ${activeTab === "resets" ? "bg-white/30" : "bg-amber-100 text-amber-700"}`}>
                   {resetRequests.length}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTab("hosts")}
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all ${
+                activeTab === "hosts"
+                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-500/20"
+                  : "text-muted-foreground hover:bg-black/5"
+              }`}
+            >
+              <UserCog className="w-4 h-4" />
+              Host
+              {hosts.length > 0 && (
+                <span className={`ml-1 text-xs font-bold px-1.5 py-0.5 rounded-full ${activeTab === "hosts" ? "bg-white/30" : "bg-indigo-100 text-indigo-700"}`}>
+                  {hosts.length}
                 </span>
               )}
             </button>
@@ -1065,6 +1152,21 @@ export default function CeoPanel() {
                         </div>
 
                         <div className="space-y-1.5">
+                          <label className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                            <Mail className="w-3.5 h-3.5 text-indigo-500" /> Email Proprietario
+                            <span className="text-[10px] font-normal text-muted-foreground">(facoltativo)</span>
+                          </label>
+                          <input
+                            {...form.register("ownerEmail")}
+                            type="email"
+                            placeholder="host@email.com"
+                            className="w-full bg-background border border-border px-4 py-2.5 rounded-xl focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all font-sans text-sm"
+                          />
+                          {form.formState.errors.ownerEmail && <p className="text-xs text-destructive">{form.formState.errors.ownerEmail.message}</p>}
+                          <p className="text-[11px] text-muted-foreground">Lega questa struttura all'account host con questa email.</p>
+                        </div>
+
+                        <div className="space-y-1.5">
                           <label className="text-sm font-semibold text-foreground flex items-center justify-between">
                             Knowledge Base
                             <span className="text-[10px] font-normal text-muted-foreground uppercase tracking-wider">Regole e info</span>
@@ -1312,6 +1414,159 @@ export default function CeoPanel() {
                     })}
                   </div>
                 )}
+              </motion.div>
+            )}
+
+            {/* ── TAB: HOSTS ── */}
+            {activeTab === "hosts" && (
+              <motion.div
+                key="hosts"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="grid lg:grid-cols-12 gap-8 items-start"
+              >
+                {/* Left: hosts list */}
+                <div className="lg:col-span-7 flex flex-col gap-4">
+                  <div className="flex items-center justify-between px-1">
+                    <div>
+                      <h2 className="text-xl font-serif font-semibold">Host Registrati</h2>
+                      <p className="text-muted-foreground text-sm mt-0.5">
+                        Ogni host può accedere a tutte le strutture con la stessa email.
+                      </p>
+                    </div>
+                    <button
+                      onClick={fetchHosts}
+                      disabled={hostsLoading}
+                      className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-black/5 rounded-lg transition-colors"
+                    >
+                      {hostsLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><RefreshCw className="w-4 h-4" /> Aggiorna</>}
+                    </button>
+                  </div>
+
+                  {hostsLoading && (
+                    <div className="flex justify-center py-12">
+                      <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
+                    </div>
+                  )}
+
+                  {!hostsLoading && hosts.length === 0 && (
+                    <div className="glass-panel p-12 rounded-3xl text-center flex flex-col items-center border-dashed">
+                      <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
+                        <UserCog className="w-8 h-8 text-muted-foreground/50" />
+                      </div>
+                      <h3 className="text-lg font-bold text-foreground mb-1">Nessun host</h3>
+                      <p className="text-muted-foreground text-sm max-w-sm">
+                        Usa il form per creare il primo host. Dopo, assegna le strutture tramite il campo "Email Proprietario" nella sezione Proprietà.
+                      </p>
+                    </div>
+                  )}
+
+                  {!hostsLoading && hosts.length > 0 && (
+                    <div className="flex flex-col gap-3">
+                      {hosts.map((host) => (
+                        <motion.div
+                          key={host.email}
+                          initial={{ opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="glass-panel p-5 rounded-2xl"
+                        >
+                          <div className="flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                                <UserCog className="w-5 h-5 text-indigo-600" />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="font-bold text-foreground text-[14px] truncate">{host.email}</p>
+                                <p className="text-[11px] text-muted-foreground">
+                                  Creato: {format(new Date(host.createdAt), 'dd MMM yyyy HH:mm')}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <button
+                                onClick={() => { setNewHostEmail(host.email); setNewHostPassword(""); }}
+                                className="px-3 py-1.5 text-[12px] font-medium rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors flex items-center gap-1"
+                              >
+                                <KeyRound className="w-3 h-3" /> Password
+                              </button>
+                              <button
+                                onClick={() => deleteHost(host.email)}
+                                disabled={hostDeleting[host.email]}
+                                className="w-8 h-8 flex items-center justify-center rounded-lg bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition-all disabled:opacity-50"
+                              >
+                                {hostDeleting[host.email] ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                              </button>
+                            </div>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Right: add/update host form */}
+                <div className="lg:col-span-5 sticky top-8">
+                  <div className="glass-panel rounded-[2rem] overflow-hidden">
+                    <div className="bg-indigo-50 px-6 py-5 border-b border-border/50 flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center">
+                        <Plus className="w-5 h-5" />
+                      </div>
+                      <h2 className="text-lg font-serif font-bold">Aggiungi / Aggiorna Host</h2>
+                    </div>
+                    <div className="p-6 space-y-4">
+                      <div className="space-y-1.5">
+                        <label className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                          <Mail className="w-3.5 h-3.5 text-indigo-500" /> Email Host
+                        </label>
+                        <input
+                          type="email"
+                          value={newHostEmail}
+                          onChange={(e) => { setNewHostEmail(e.target.value); setHostFormMsg(null); }}
+                          placeholder="host@email.com"
+                          className="w-full bg-background border border-border px-4 py-2.5 rounded-xl focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all text-sm"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                          <KeyRound className="w-3.5 h-3.5 text-indigo-500" /> Password Host
+                        </label>
+                        <input
+                          type="text"
+                          value={newHostPassword}
+                          onChange={(e) => { setNewHostPassword(e.target.value); setHostFormMsg(null); }}
+                          placeholder="Nuova password"
+                          className="w-full bg-background border border-border px-4 py-2.5 rounded-xl focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all font-mono text-sm"
+                        />
+                      </div>
+
+                      {hostFormMsg && (
+                        <div className={`flex items-center gap-2 text-[12px] px-3 py-2.5 rounded-xl border ${
+                          hostFormMsg.type === "ok"
+                            ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                            : "bg-red-50 border-red-100 text-red-600"
+                        }`}>
+                          {hostFormMsg.type === "ok"
+                            ? <CheckCheck className="w-3.5 h-3.5 flex-shrink-0" />
+                            : <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />}
+                          {hostFormMsg.text}
+                        </div>
+                      )}
+
+                      <button
+                        onClick={saveHost}
+                        disabled={hostFormSaving}
+                        className="w-full bg-indigo-600 text-white font-medium py-3 rounded-xl shadow-md shadow-indigo-200 hover:bg-indigo-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
+                      >
+                        {hostFormSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4" /> Salva Host</>}
+                      </button>
+
+                      <p className="text-[11px] text-muted-foreground text-center">
+                        Se l'email esiste già, la password viene aggiornata. Assegna una struttura impostando "Email Proprietario" nella sezione Proprietà.
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </motion.div>
             )}
 

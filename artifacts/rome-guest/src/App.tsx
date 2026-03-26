@@ -7,19 +7,18 @@ import GuestChat from "./pages/guest";
 import CeoPanel from "./pages/ceo";
 import Landing from "./pages/landing";
 import HostDashboard from "./pages/host-dashboard";
+import HostProperties from "./pages/host-properties";
 import HostLogin from "./pages/login";
 import ForgotPassword from "./pages/forgot-password";
 import ResetPassword from "./pages/reset-password";
 
-// Create a client — no background refetching on reconnect or window focus
-// to prevent HMR reconnections from resetting in-progress form state
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: 1,
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
-      staleTime: 5 * 60 * 1000, // data stays fresh 5 minutes
+      staleTime: 5 * 60 * 1000,
     },
   },
 });
@@ -34,6 +33,7 @@ function Router() {
         <Redirect to="/ceo" />
       </Route>
       <Route path="/guest/:slug" component={GuestChat} />
+      <Route path="/host/dashboard" component={HostProperties} />
       <Route path="/host/:slug" component={HostDashboard} />
       <Route path="/forgot-password" component={ForgotPassword} />
       <Route path="/reset-password/:token" component={ResetPassword} />
