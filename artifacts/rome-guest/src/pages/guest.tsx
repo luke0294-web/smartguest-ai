@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useParams, Link } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { Send, Home, Loader2, Sparkles, AlertCircle, KeyRound } from "lucide-react";
@@ -6,6 +6,15 @@ import { useGetProperty, useSendPropertyChat } from "@workspace/api-client-react
 import type { ConversationMessage } from "@workspace/api-client-react/src/generated/api.schemas";
 
 // ── UI Localization ─────────────────────────────────────────────────────────
+
+const LANGUAGES = [
+  { code: "it", flag: "🇮🇹", label: "IT" },
+  { code: "en", flag: "🇬🇧", label: "EN" },
+  { code: "fr", flag: "🇫🇷", label: "FR" },
+  { code: "es", flag: "🇪🇸", label: "ES" },
+  { code: "de", flag: "🇩🇪", label: "DE" },
+  { code: "zh", flag: "🇨🇳", label: "ZH" },
+] as const;
 
 const TRANSLATIONS = {
   it: {
@@ -113,11 +122,37 @@ const TRANSLATIONS = {
       { label: "🕒 Check-out", question: "Um wie viel Uhr ist der Check-out?" },
     ],
   },
+  zh: {
+    placeholder: "在这里输入您的问题...",
+    send: "发送",
+    typing: "Marco 正在输入",
+    onlineStatus: "Marco 在线",
+    loading: "正在加载助手...",
+    notFound: "未找到房源",
+    notFoundDesc: "您正在寻找的住所不存在或链接不正确。",
+    goToPanel: "前往管理面板",
+    welcome: (name: string) => `欢迎来到 ${name}！我是 Marco，今天有什么可以帮助您的？👋`,
+    errorMsg: "抱歉，发生了连接错误，请稍后重试。",
+    helpBtn: "帮助",
+    whatsappDefault: (name: string) => `您好，我是 ${name} 的住客，需要直接帮助`,
+    powered: "Powered by SmartGuest AI · Marco",
+    quickReplies: [
+      { label: "🔑 WiFi", question: "WiFi密码是什么？" },
+      { label: "🚌 市中心", question: "如何前往市中心？" },
+      { label: "🗑️ 垃圾分类", question: "如何进行垃圾分类？" },
+      { label: "🕒 退房", question: "退房时间是几点？" },
+    ],
+  },
 } as const;
 
 type Lang = keyof typeof TRANSLATIONS;
+const STORAGE_KEY = "sg_guest_lang";
 
-function detectLang(): Lang {
+function resolveInitialLang(): Lang {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY) as Lang | null;
+    if (saved && saved in TRANSLATIONS) return saved;
+  } catch {}
   const raw = (navigator.language || "en").slice(0, 2).toLowerCase();
   return (raw in TRANSLATIONS ? raw : "en") as Lang;
 }
@@ -131,7 +166,7 @@ export default function GuestChat() {
   const { data: property, isLoading: isPropertyLoading, isError: isPropertyError } = useGetProperty(slug);
   const { mutate: sendMessage, isPending } = useSendPropertyChat();
 
-  const lang = useMemo(() => detectLang(), []);
+  const [lang, setLang] = useState<Lang>(resolveInitialLang);
   const t = TRANSLATIONS[lang];
 
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
@@ -139,16 +174,29 @@ export default function GuestChat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Initialize welcome message when property loads
   useEffect(() => {
     if (property && messages.length === 0) {
-      setMessages([
-        {
-          role: "assistant",
-          content: t.welcome(property.name),
-        },
-      ]);
+      setMessages([{ role: "assistant", content: t.welcome(property.name) }]);
     }
   }, [property, messages.length, t]);
+
+  // Persist language choice and update welcome message instantly
+  const handleLangChange = (newLang: Lang) => {
+    try { localStorage.setItem(STORAGE_KEY, newLang); } catch {}
+    setLang(newLang);
+    if (property) {
+      setMessages((prev) => {
+        if (prev.length > 0 && prev[0].role === "assistant") {
+          return [
+            { role: "assistant", content: TRANSLATIONS[newLang].welcome(property.name) },
+            ...prev.slice(1),
+          ];
+        }
+        return prev;
+      });
+    }
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -161,35 +209,20 @@ export default function GuestChat() {
   const handleSend = (text: string) => {
     const userMsg = text.trim();
     if (!userMsg || isPending || !slug) return;
-
     setInputValue("");
-
     const updatedMessages: ConversationMessage[] = [
       ...messages,
       { role: "user", content: userMsg },
     ];
     setMessages(updatedMessages);
-
     sendMessage(
-      {
-        slug,
-        data: {
-          message: userMsg,
-          conversationHistory: messages,
-        },
-      },
+      { slug, data: { message: userMsg, conversationHistory: messages } },
       {
         onSuccess: (data) => {
-          setMessages((prev) => [
-            ...prev,
-            { role: "assistant", content: data.reply },
-          ]);
+          setMessages((prev) => [...prev, { role: "assistant", content: data.reply }]);
         },
         onError: () => {
-          setMessages((prev) => [
-            ...prev,
-            { role: "assistant", content: t.errorMsg },
-          ]);
+          setMessages((prev) => [...prev, { role: "assistant", content: t.errorMsg }]);
         },
       }
     );
@@ -233,18 +266,21 @@ export default function GuestChat() {
     ? `https://wa.me/${property.whatsappNumber.replace(/[^0-9]/g, "")}?text=${defaultWhatsappMessage}`
     : "#";
 
+  const currentLangMeta = LANGUAGES.find((l) => l.code === lang)!;
+
   return (
     <div className="flex flex-col h-[100dvh] max-w-2xl mx-auto md:py-6 md:px-4">
       <div className="flex flex-col h-full chat-container md:rounded-3xl overflow-hidden relative">
 
         {/* ── Header ── */}
-        <header className="px-5 py-3.5 flex items-center justify-between chat-header border-b border-white/10 sticky top-0 z-10">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center shadow-inner">
+        <header className="px-4 py-3 flex items-center justify-between chat-header border-b border-white/10 sticky top-0 z-10">
+          {/* Left: property name + status */}
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center shadow-inner flex-shrink-0">
               <Home className="w-4 h-4 text-white" />
             </div>
-            <div className="max-w-[150px] sm:max-w-[200px]">
-              <h1 className="font-sans text-[15px] font-semibold text-white leading-none tracking-tight truncate">
+            <div className="min-w-0">
+              <h1 className="font-sans text-[15px] font-semibold text-white leading-none tracking-tight truncate max-w-[120px] sm:max-w-[180px]">
                 {property.name}
               </h1>
               <p className="text-[11px] text-white/70 flex items-center gap-1 mt-0.5">
@@ -254,7 +290,33 @@ export default function GuestChat() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          {/* Right: actions + lang selector */}
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            {/* Language selector */}
+            <div className="relative">
+              <select
+                value={lang}
+                onChange={(e) => handleLangChange(e.target.value as Lang)}
+                aria-label="Select language"
+                className="appearance-none bg-white/15 hover:bg-white/25 text-white text-[12px] font-semibold pl-2 pr-5 py-1.5 rounded-full cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-white/40 border border-white/20"
+                style={{ backgroundImage: "none" }}
+              >
+                {LANGUAGES.map((l) => (
+                  <option key={l.code} value={l.code} style={{ color: "#111", background: "#fff" }}>
+                    {l.flag} {l.label}
+                  </option>
+                ))}
+              </select>
+              {/* Chevron icon */}
+              <svg
+                className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 text-white/70"
+                viewBox="0 0 20 20" fill="currentColor"
+              >
+                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </div>
+
+            {/* WhatsApp button */}
             {property.whatsappNumber && (
               <a
                 href={whatsappUrl}
@@ -269,6 +331,8 @@ export default function GuestChat() {
                 {t.helpBtn}
               </a>
             )}
+
+            {/* Host panel link */}
             <Link
               href={`/host/${slug}`}
               className="p-2 text-white/40 hover:text-white/70 transition-colors rounded-full hover:bg-white/10"
