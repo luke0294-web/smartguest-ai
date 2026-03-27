@@ -55,6 +55,7 @@ export default function HostDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [aiState, setAiState] = useState<AiState>({ type: "idle" });
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -112,6 +113,7 @@ export default function HostDashboard() {
   const handleUpdate = async (data: UpdateValues) => {
     if (!session) return;
     setSaveSuccess(false);
+    setIsSaving(true);
     try {
       const res = await fetch(`${baseUrl}/api/host/${slug}`, {
         method: "PUT",
@@ -126,9 +128,11 @@ export default function HostDashboard() {
       if (!res.ok) throw new Error(json.error ?? "Errore nel salvataggio.");
       setProperty(json);
       setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 3500);
+      setTimeout(() => setSaveSuccess(false), 2500);
     } catch (err: any) {
       alert(err.message);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -465,11 +469,31 @@ export default function HostDashboard() {
             {/* Submit */}
             <button
               type="submit"
-              disabled={!updateForm.formState.isDirty && !saveSuccess}
-              className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-6 rounded-xl transition-colors shadow-lg shadow-blue-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={(!updateForm.formState.isDirty && !saveSuccess) || isSaving}
+              className={`flex items-center justify-center gap-2 font-bold py-3.5 px-6 rounded-xl transition-all shadow-lg disabled:cursor-not-allowed ${
+                isSaving
+                  ? "bg-gray-400 text-white shadow-gray-100 disabled:opacity-100"
+                  : saveSuccess
+                  ? "bg-green-500 hover:bg-green-600 text-white shadow-green-100"
+                  : "bg-blue-600 hover:bg-blue-700 text-white shadow-blue-100 disabled:opacity-50"
+              }`}
             >
-              <Save className="w-4 h-4" />
-              Salva Modifiche
+              {isSaving ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Salvataggio...
+                </>
+              ) : saveSuccess ? (
+                <>
+                  <CheckCircle2 className="w-4 h-4" />
+                  Salvato! ✅
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" />
+                  Salva Modifiche
+                </>
+              )}
             </button>
           </form>
         </motion.div>
