@@ -81,6 +81,12 @@ export default function HostDashboard() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug]);
 
+  useEffect(() => {
+    if (!saveSuccess) return;
+    const timer = setTimeout(() => setSaveSuccess(false), 2500);
+    return () => clearTimeout(timer);
+  }, [saveSuccess]);
+
   const loadProperty = async (s: Session) => {
     setIsLoading(true);
     setLoadError("");
@@ -128,7 +134,6 @@ export default function HostDashboard() {
       if (!res.ok) throw new Error(json.error ?? "Errore nel salvataggio.");
       setProperty(json);
       setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 2500);
     } catch (err: any) {
       alert(err.message);
     } finally {
@@ -274,7 +279,7 @@ export default function HostDashboard() {
               <Home className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="font-extrabold text-gray-900 text-[17px] leading-tight">{property.name}</h1>
+              <h1 className="font-extrabold text-gray-900 text-[17px] leading-tight">{property?.name || "Caricamento..."}</h1>
               <p className="text-gray-400 text-[12px] font-mono mt-0.5">/guest/{slug}</p>
             </div>
           </div>
