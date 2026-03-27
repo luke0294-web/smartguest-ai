@@ -113,21 +113,29 @@ export default function HostDashboard() {
     if (!session) return;
     setIsSaving(true);
     try {
-      const res = await fetch(`${baseUrl}/api/host/${slug}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: session.email,
-          hostPassword: session.password,
-          ...data,
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Errore nel salvataggio.");
-    } catch (err: any) {
-      alert(err?.message ?? "Errore nel salvataggio.");
+      try {
+        const res = await fetch(`${baseUrl}/api/host/${slug}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: session.email,
+            hostPassword: session.password,
+            ...data,
+          }),
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error ?? "Errore nel salvataggio.");
+      } catch (err: any) {
+        alert(err?.message ?? "Errore nel salvataggio.");
+      }
+    } catch (globalErr: any) {
+      console.error("handleUpdate error:", globalErr);
     } finally {
-      setIsSaving(false);
+      try {
+        setIsSaving(false);
+      } catch (e) {
+        console.error("setIsSaving error:", e);
+      }
     }
   };
 
@@ -262,38 +270,38 @@ export default function HostDashboard() {
   const isAiBusy = aiState.type === "recording" || aiState.type === "transcribing" || aiState.type === "scanning";
 
   return (
-    <div className="min-h-[100dvh] bg-gradient-to-br from-slate-50 to-blue-50 py-8 px-4">
-      <div className="max-w-2xl mx-auto flex flex-col gap-6">
+    <div className="min-h-[100dvh] bg-gradient-to-br from-slate-50 to-blue-50 py-8 px-4 overflow-x-hidden">
+      <div className="max-w-2xl mx-auto flex flex-col gap-6 w-full">
 
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-3xl shadow-sm border border-gray-100 px-6 py-5 flex items-center justify-between"
+          className="bg-white rounded-3xl shadow-sm border border-gray-100 px-4 sm:px-6 py-4 sm:py-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 overflow-hidden"
         >
-          <div className="flex items-center gap-4">
-            <div className="w-11 h-11 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-200">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            <div className="w-10 h-10 sm:w-11 sm:h-11 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-200 flex-shrink-0">
               <Home className="w-5 h-5 text-white" />
             </div>
-            <div>
-              <h1 className="font-extrabold text-gray-900 text-[17px] leading-tight">{property?.name || "Caricamento..."}</h1>
-              <p className="text-gray-400 text-[12px] font-mono mt-0.5">/guest/{slug}</p>
+            <div className="min-w-0">
+              <h1 className="font-extrabold text-gray-900 text-[15px] sm:text-[17px] leading-tight truncate">{property?.name || "Caricamento..."}</h1>
+              <p className="text-gray-400 text-[11px] sm:text-[12px] font-mono mt-0.5 truncate">/guest/{slug}</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-shrink-0">
             <Link
               href={`/guest/${slug}`}
-              className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 font-medium bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-xl transition-colors"
+              className="hidden sm:flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 font-medium bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-xl transition-colors"
             >
               <MessageSquare className="w-3.5 h-3.5" />
               Chat
             </Link>
             <Link
               href="/host/dashboard"
-              className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-600 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors"
+              className="flex items-center gap-1.5 text-xs sm:text-sm text-gray-400 hover:text-gray-600 px-2 sm:px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
-              Dashboard
+              <span className="hidden sm:inline">Dashboard</span>
             </Link>
           </div>
         </motion.div>
