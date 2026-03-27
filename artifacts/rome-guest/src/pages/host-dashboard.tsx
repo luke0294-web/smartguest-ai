@@ -472,7 +472,7 @@ export default function HostDashboard() {
               disabled={(!updateForm.formState.isDirty && !saveSuccess) || isSaving}
               className={`flex items-center justify-center gap-2 font-bold py-3.5 px-6 rounded-xl transition-all shadow-lg disabled:cursor-not-allowed ${
                 isSaving
-                  ? "bg-gray-400 text-white shadow-gray-100 disabled:opacity-100"
+                  ? "bg-gray-400 text-white shadow-gray-100"
                   : saveSuccess
                   ? "bg-green-500 hover:bg-green-600 text-white shadow-green-100"
                   : "bg-blue-600 hover:bg-blue-700 text-white shadow-blue-100 disabled:opacity-50"
