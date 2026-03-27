@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, Link, useLocation } from "wouter";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -374,44 +374,37 @@ export default function HostDashboard() {
 
               {/* ── AI TOOLS ── */}
               <div className="mt-1 flex flex-col gap-2">
-                <AnimatePresence mode="wait">
-                  {aiState.type !== "idle" && (
-                    <motion.div
-                      key={aiState.type}
-                      initial={{ opacity: 0, y: -6, scale: 0.97 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: -6, scale: 0.97 }}
-                      transition={{ duration: 0.2 }}
-                      className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium border ${
-                        aiState.type === "recording"
-                          ? "bg-red-50 border-red-200 text-red-700"
-                          : aiState.type === "transcribing"
-                          ? "bg-blue-50 border-blue-200 text-blue-700"
-                          : aiState.type === "scanning"
-                          ? "bg-violet-50 border-violet-200 text-violet-700"
-                          : aiState.type === "success"
-                          ? "bg-emerald-50 border-emerald-200 text-emerald-700"
-                          : "bg-red-50 border-red-200 text-red-700"
-                      }`}
-                    >
-                      {aiState.type === "recording" && (
-                        <><span className="w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />Registrazione in corso... Premi stop quando finisci.</>
-                      )}
-                      {aiState.type === "transcribing" && (
-                        <><Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />L'IA sta trascrivendo l'audio...</>
-                      )}
-                      {aiState.type === "scanning" && (
-                        <><Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />L'IA sta analizzando l'immagine...</>
-                      )}
-                      {aiState.type === "success" && (
-                        <><CheckCircle2 className="w-4 h-4 flex-shrink-0" />{aiState.message}</>
-                      )}
-                      {aiState.type === "error" && (
-                        <><AlertCircle className="w-4 h-4 flex-shrink-0" />{aiState.message}</>
-                      )}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                {aiState.type !== "idle" && (
+                  <div
+                    className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium border ${
+                      aiState.type === "recording"
+                        ? "bg-red-50 border-red-200 text-red-700"
+                        : aiState.type === "transcribing"
+                        ? "bg-blue-50 border-blue-200 text-blue-700"
+                        : aiState.type === "scanning"
+                        ? "bg-violet-50 border-violet-200 text-violet-700"
+                        : aiState.type === "success"
+                        ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                        : "bg-red-50 border-red-200 text-red-700"
+                    }`}
+                  >
+                    {aiState.type === "recording" && (
+                      <><span className="w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />Registrazione in corso... Premi stop quando finisci.</>
+                    )}
+                    {aiState.type === "transcribing" && (
+                      <><Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />L'IA sta trascrivendo l'audio...</>
+                    )}
+                    {aiState.type === "scanning" && (
+                      <><Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />L'IA sta analizzando l'immagine...</>
+                    )}
+                    {aiState.type === "success" && (
+                      <><CheckCircle2 className="w-4 h-4 flex-shrink-0" />{aiState.message}</>
+                    )}
+                    {aiState.type === "error" && (
+                      <><AlertCircle className="w-4 h-4 flex-shrink-0" />{aiState.message}</>
+                    )}
+                  </div>
+                )}
 
                 <div className="flex gap-2">
                   {aiState.type === "recording" ? (
