@@ -39,31 +39,27 @@ export default function HostPanel() {
   }, [knowledge, form]);
 
   const onSubmit = (data: HostFormValues) => {
-    // 1. Chiudiamo la tastiera per evitare che intralci
-    if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur();
-    }
-
-    // 2. Mandiamo i dati a salvare
+    // Mandiamo i dati a salvare
     updateKnowledge(
       { data },
       {
         onSuccess: () => {
-          // 3. LA MAGIA: I dati sono salvi! 
-          // Invece di provare a disegnare messaggini che fanno crashare l'iPhone,
-          // forziamo un riavvio istantaneo della pagina (esattamente quello che facevi tu a mano!)
-          window.location.reload();
+          // LA CURA PER CHROME:
+          // Invece di ricaricare subito, aspettiamo 1 secondo intero (1000 millisecondi).
+          // Questo dà a Chrome il tempo fisico di chiudere la tastiera e sistemare lo schermo.
+          setTimeout(() => {
+            window.location.href = window.location.pathname;
+          }, 1000);
         },
         onError: () => {
-          // Se per caso c'è un errore vero (es. password sbagliata), mostriamo un avviso semplice
-          alert("Errore di salvataggio: controlla la password o la connessione.");
+          alert("Errore di salvataggio. Riprova.");
         },
       }
     );
   };
 
   return (
-    <div className="min-h-[100dvh] flex flex-col md:py-12 md:px-6">
+      <div className="min-h-screen flex flex-col md:py-12 md:px-6">
         <div className="max-w-4xl w-full mx-auto flex flex-col gap-6">
         <div className="flex items-center justify-between mb-2 px-4 md:px-0">
           <Link href="/" className="inline-flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors py-2 px-4 -ml-4 rounded-full hover:bg-background/80">
@@ -86,7 +82,7 @@ export default function HostPanel() {
           </div>
 
           <div className="p-8">
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+              <div className="space-y-8">
               
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -142,7 +138,8 @@ export default function HostPanel() {
 
               <div className="pt-4">
                 <button
-                  type="submit"
+                  type="button"
+                  onClick={form.handleSubmit(onSubmit)}
                   disabled={isPending || isLoading}
                   className="w-full md:w-auto px-8 py-4 rounded-xl font-semibold bg-gradient-to-r from-primary to-primary/90 text-primary-foreground shadow-lg shadow-primary/25 hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
                 >
@@ -159,11 +156,10 @@ export default function HostPanel() {
                   )}
                 </button>
               </div>
-
-            </form>
+            </div>
           </div>
         </div>
-        </div>
-            </div>
-          );
-        }
+      </div>
+    </div>
+  );
+}
