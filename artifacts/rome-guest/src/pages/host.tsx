@@ -3,11 +3,8 @@ import { Link } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { motion } from "framer-motion";
-import { ArrowLeft, Save, Shield, FileText, CheckCircle2, AlertCircle, Loader2, KeyRound } from "lucide-react";
-import { useGetHostKnowledge, useUpdateHostKnowledge, getGetHostKnowledgeQueryKey } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
-import { useToast } from "@/hooks/use-toast";
+import { ArrowLeft, Save, Shield, FileText, Loader2, KeyRound } from "lucide-react";
+import { useGetProperty, useUpdateProperty } from "@workspace/api-client-react";
 
 const hostSchema = z.object({
   content: z.string().min(1, "Il testo delle informazioni è obbligatorio"),
@@ -17,10 +14,11 @@ const hostSchema = z.object({
 type HostFormValues = z.infer<typeof hostSchema>;
 
 export default function HostPanel() {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const { data: knowledge, isLoading } = useGetHostKnowledge();
-  const { mutate: updateKnowledge, isPending } = useUpdateHostKnowledge();
+  const { data: knowledge, isLoading } = useGetProperty("default");
+  const { mutate: _updateProperty, isPending } = useUpdateProperty();
+  const updateKnowledge = (vars: { data: HostFormValues }, options: Parameters<typeof _updateProperty>[1]) => {
+    _updateProperty({ slug: "default", data: vars.data }, options);
+  };
 
   const form = useForm<HostFormValues>({
     resolver: zodResolver(hostSchema),
@@ -41,26 +39,24 @@ export default function HostPanel() {
   }, [knowledge, form]);
 
   const onSubmit = (data: HostFormValues) => {
+    // 1. Chiudiamo la tastiera per evitare che intralci
+    if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
+    // 2. Mandiamo i dati a salvare
     updateKnowledge(
       { data },
       {
         onSuccess: () => {
-          toast({
-            title: "Informazioni aggiornate!",
-            description: "Il tuo assistente AI ora utilizzerà queste nuove informazioni.",
-            className: "bg-green-50 border-green-200 text-green-900 dark:bg-green-950 dark:border-green-800 dark:text-green-100",
-            icon: <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400" />,
-          });
-          queryClient.invalidateQueries({ queryKey: getGetHostKnowledgeQueryKey() });
-          form.setValue("hostPassword", ""); // Clear password after success
+          // 3. LA MAGIA: I dati sono salvi! 
+          // Invece di provare a disegnare messaggini che fanno crashare l'iPhone,
+          // forziamo un riavvio istantaneo della pagina (esattamente quello che facevi tu a mano!)
+          window.location.reload();
         },
-        onError: (error) => {
-          toast({
-            variant: "destructive",
-            title: "Errore di salvataggio",
-            description: error.response?.data?.error || "Password errata o problema di connessione.",
-            icon: <AlertCircle className="w-5 h-5" />,
-          });
+        onError: () => {
+          // Se per caso c'è un errore vero (es. password sbagliata), mostriamo un avviso semplice
+          alert("Errore di salvataggio: controlla la password o la connessione.");
         },
       }
     );
@@ -68,12 +64,7 @@ export default function HostPanel() {
 
   return (
     <div className="min-h-[100dvh] flex flex-col md:py-12 md:px-6">
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-        className="max-w-4xl w-full mx-auto flex flex-col gap-6"
-      >
+        <div className="max-w-4xl w-full mx-auto flex flex-col gap-6">
         <div className="flex items-center justify-between mb-2 px-4 md:px-0">
           <Link href="/" className="inline-flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors py-2 px-4 -ml-4 rounded-full hover:bg-background/80">
             <ArrowLeft className="w-4 h-4" />
@@ -172,7 +163,7 @@ export default function HostPanel() {
             </form>
           </div>
         </div>
-      </motion.div>
-    </div>
-  );
-}
+        </div>
+            </div>
+          );
+        }
