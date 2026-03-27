@@ -54,7 +54,6 @@ export default function HostDashboard() {
   const [property, setProperty] = useState<PropertyData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
-  const [saveSuccess, setSaveSuccess] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [aiState, setAiState] = useState<AiState>({ type: "idle" });
 
@@ -80,12 +79,6 @@ export default function HostDashboard() {
     loadProperty(s);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug]);
-
-  useEffect(() => {
-    if (!saveSuccess) return;
-    const timer = setTimeout(() => setSaveSuccess(false), 2500);
-    return () => clearTimeout(timer);
-  }, [saveSuccess]);
 
   const loadProperty = async (s: Session) => {
     setIsLoading(true);
@@ -118,7 +111,6 @@ export default function HostDashboard() {
 
   const handleUpdate = async (data: UpdateValues) => {
     if (!session) return;
-    setSaveSuccess(false);
     setIsSaving(true);
     try {
       const res = await fetch(`${baseUrl}/api/host/${slug}`, {
@@ -132,12 +124,6 @@ export default function HostDashboard() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Errore nel salvataggio.");
-      
-      // Safely update property and state
-      if (json && typeof json === "object") {
-        setProperty(json);
-      }
-      setSaveSuccess(true);
     } catch (err: any) {
       alert(err?.message ?? "Errore nel salvataggio.");
     } finally {
@@ -312,24 +298,6 @@ export default function HostDashboard() {
           </div>
         </motion.div>
 
-        {/* Save success banner */}
-        <AnimatePresence>
-          {saveSuccess && (
-            <motion.div
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 text-emerald-700 px-5 py-3.5 rounded-2xl"
-            >
-              <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
-              <div>
-                <p className="font-semibold text-sm">Salvato con successo!</p>
-                <p className="text-xs opacity-80">Le modifiche sono ora visibili agli ospiti.</p>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
         {/* Edit form */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
@@ -485,12 +453,10 @@ export default function HostDashboard() {
             {/* Submit */}
             <button
               type="submit"
-              disabled={(!updateForm.formState.isDirty && !saveSuccess) || isSaving}
+              disabled={!updateForm.formState.isDirty || isSaving}
               className={`flex items-center justify-center gap-2 font-bold py-3.5 px-6 rounded-xl transition-all shadow-lg disabled:cursor-not-allowed ${
                 isSaving
                   ? "bg-gray-400 text-white shadow-gray-100"
-                  : saveSuccess
-                  ? "bg-green-500 hover:bg-green-600 text-white shadow-green-100"
                   : "bg-blue-600 hover:bg-blue-700 text-white shadow-blue-100 disabled:opacity-50"
               }`}
             >
@@ -498,11 +464,6 @@ export default function HostDashboard() {
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
                   Salvataggio...
-                </>
-              ) : saveSuccess ? (
-                <>
-                  <CheckCircle2 className="w-4 h-4" />
-                  Salvato! ✅
                 </>
               ) : (
                 <>
