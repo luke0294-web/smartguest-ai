@@ -132,10 +132,14 @@ export default function HostDashboard() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Errore nel salvataggio.");
-      setProperty(json);
+      
+      // Safely update property and state
+      if (json && typeof json === "object") {
+        setProperty(json);
+      }
       setSaveSuccess(true);
     } catch (err: any) {
-      alert(err.message);
+      alert(err?.message ?? "Errore nel salvataggio.");
     } finally {
       setIsSaving(false);
     }
@@ -144,9 +148,16 @@ export default function HostDashboard() {
   // ─── AI TOOLS ───────────────────────────────────────────────────────────────
 
   const appendToContent = (text: string) => {
-    const current = updateForm.getValues("content") ?? "";
-    const separator = current.trim() ? "\n\n" : "";
-    updateForm.setValue("content", current + separator + text, { shouldValidate: true, shouldDirty: true });
+    try {
+      const current = updateForm.getValues?.("content") ?? "";
+      if (typeof current === "string") {
+        const separator = current.trim() ? "\n\n" : "";
+        updateForm.setValue?.("content", current + separator + text, { shouldValidate: true, shouldDirty: true });
+      }
+    } catch (err) {
+      // Silent fail on mobile if form methods are unavailable
+      console.error("Form append failed:", err);
+    }
   };
 
   const startRecording = async () => {
