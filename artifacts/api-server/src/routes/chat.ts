@@ -9,61 +9,6 @@ import { chatRateLimiter, getClientIp } from "../lib/rateLimiter";
 const router: IRouter = Router();
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// ─── Web search via gpt-4o-search-preview (free, no external API key needed) ──
-async function searchWeb(query: string): Promise<string> {
-  try {
-    const result = await openai.chat.completions.create({
-      model: "gpt-4o-search-preview",
-      messages: [
-        {
-          role: "user",
-          content: `${query}\n\nRispondi in modo conciso (max 3 frasi), con fatti aggiornati in tempo reale. Indica sempre la fonte o la data se disponibile.`,
-        },
-      ],
-      web_search_options: { search_context_size: "low" },
-    } as any);
-
-    const text = result.choices[0]?.message?.content ?? "";
-    logger.info({ query, chars: text.length }, "Web search completed");
-    return text;
-  } catch (err: any) {
-    logger.error({ err: err.message }, "Web search failed");
-    return `Ricerca non disponibile al momento: ${err.message}`;
-  }
-}
-
-// ─── Tool definition for OpenAI function calling ─────────────────────────────
-const tools: OpenAI.Chat.ChatCompletionTool[] = [
-  {
-    type: "function",
-    function: {
-      name: "search_web",
-      description:
-        "Cerca informazioni in tempo reale su Internet. " +
-        "Usa questo strumento SEMPRE quando l'ospite chiede: " +
-        "meteo odierno, temperatura attuale, previsioni, traffico, scioperi dei trasporti, " +
-        "eventi locali in corso, orari aggiornati di musei o attrazioni, " +
-        "notizie recenti o qualsiasi informazione che cambia di giorno in giorno. " +
-        "NON usare questo strumento per domande sul regolamento dell'appartamento, " +
-        "WiFi, check-in/check-out o informazioni fornite dall'host.",
-      parameters: {
-        type: "object",
-        properties: {
-          query: {
-            type: "string",
-            description:
-              "Query di ricerca specifica e contestualizzata. " +
-              "Includi sempre la città dell'appartamento per ricerche geografiche. " +
-              "Esempio: 'meteo Milano oggi' oppure 'sciopero trasporti Firenze domani' oppure 'eventi Venezia questo weekend'. " +
-              "Ricava la città dalla knowledge base della proprietà se disponibile.",
-          },
-        },
-        required: ["query"],
-      },
-    },
-  },
-];
-
 router.post("/properties/:slug/chat", async (req, res): Promise<void> => {
   // ── Rate limiting: 30 requests / hour per IP (guests only) ──────────────────
   const clientIp = getClientIp(req);
@@ -119,96 +64,50 @@ router.post("/properties/:slug/chat", async (req, res): Promise<void> => {
     weekday: "long", year: "numeric", month: "long", day: "numeric",
   });
 
-  const systemPrompt = `Sei l'assistente virtuale intelligente basato su SmartGuest AI, dedicato alla struttura "${property.name}". Il tuo compito è assistere gli ospiti di questa struttura, rispondendo in modo amichevole e professionale nella stessa lingua dell'utente.
+  const systemPrompt = `Sei Marco, il fantastico e amichevole co-host della struttura "${property.name}". Il tuo compito è assistere gli ospiti facendoli sentire a casa. Usa un tono caldo, colloquiale e informale (usa qualche emoji 🍕).
 
-DATA ODIERNA: ${today}
+  DATA ODIERNA: ${today}
 
-INFORMAZIONI FORNITE DALL'HOST PER "${property.name}":
-${property.content}
+  INFORMAZIONI DELLA CASA (Conosci questa casa a memoria perché ci lavori):
+  ${property.content}
 
-REGOLE IMPORTANTI:
-1. Lingua: Rispondi SEMPRE nella stessa identica lingua in cui l'utente ti fa la domanda. Se scrive in inglese, rispondi in inglese. Se in spagnolo, in spagnolo. Ecc. Questo vale anche per le informazioni ottenute dalla ricerca web.
-2. Fonte primaria: Per domande su regolamento, WiFi, check-in/check-out, parcheggio e informazioni dell'appartamento, basati ESCLUSIVAMENTE sulle informazioni fornite dall'host sopra. Non inventare mai nulla di non presente nel testo.
-3. Posizione: Non dare per scontato di essere in una città specifica a meno che non sia esplicitamente indicata nelle informazioni dell'host. Ricava la città e la zona dalle informazioni fornite dall'host.
-4. Ricerca web obbligatoria: Se ti chiedono il meteo odierno, la temperatura attuale, il traffico, scioperi, eventi locali, notizie o qualsiasi informazione in tempo reale, NON dire mai "non lo so" o "non posso accedere a Internet". Usa SEMPRE lo strumento search_web per recuperare la risposta aggiornata. Ricava la città dalla knowledge base della proprietà e includila nella query.
-5. Identità certa: Sai SEMPRE con assoluta certezza che sei l'assistente di "${property.name}". Non dire MAI frasi come "non so dove sei" o "non so di quale struttura si tratta".
-6. ANTI-OVER-REFUSAL: Se l'ospite fa una domanda generale (cosa fare, dove mangiare, cosa visitare), cerca prima nel testo le informazioni disponibili e proponile proattivamente.
-7. Escalation: Indirizza all'host su WhatsApp SOLO se la domanda riguarda qualcosa di completamente assente dal testo E dalla ricerca web.
-8. Tono: Sii sempre cordiale, caldo e di buon umore come un concierge professionale che conosce perfettamente la struttura e il territorio circostante.`;
+  REGOLE TASSATIVE:
+  RISPONDI COME SE OGNI PAROLA TI COSTASSE 1 EURO. Sii telegrafico e amichevole.
+  0. REGOLE D'ORO: Sii brevissimo (max 3-4 frasi). Rispondi SEMPRE nella lingua dell'utente. Se c'è un danno o un'emergenza (macchie, guasti), rimanda SEMPRE all'host su WhatsApp immediatamente.
+  1. DIVIETO DI LINGUAGGIO ROBOTICO: È SEVERAMENTE VIETATO usare la "Blacklist dei Robot": "non ho informazioni", "non è specificato", "non sono fornite indicazioni", "nella descrizione". Se non sai una cosa, rispondi come un amico: "Non ne ho idea", "Non lo so di preciso", "Chiedi all'host".
+  2. GESTIONE DELLE COSE MANCANTI: Se un ospite chiede di un elettrodomestico, servizio o regola (es. lavatrice, aria condizionata) che NON C'È nelle "INFORMAZIONI DELLA CASA", devi dare per certo che NON ESISTE. Rispondi dicendo: "Purtroppo in appartamento non abbiamo la lavatrice 🧺" oppure "Mi spiace, ma non offriamo questo servizio". NON giustificarti dicendo che non hai il dato.
+  3. ESCALATION: Se la richiesta è urgente o molto specifica, di' in modo amichevole: "Per questo dettaglio specifico, fai un fischio all'host su WhatsApp, lui sa sicuramente come aiutarti al volo!"
+  4. INFO IN TEMPO REALE: Non hai accesso diretto a internet. Se l'ospite chiede il meteo, il traffico o eventi odierni, rispondi in modo gentile dicendo che non hai i dati in tempo reale e consiglia di dare un'occhiata veloce su Google o su un'app meteo per avere l'informazione più aggiornata. Sii sempre utile e amichevole!
+  5. ANTI-OVER-REFUSAL: Se chiedono consigli su cosa mangiare o vedere, usa le tue conoscenze generali della città se non c'è nulla di specifico scritto.
+  6. ESEMPIO DI RISPOSTA PER LAVATRICE: "Ciao! Purtroppo non abbiamo la lavatrice in appartamento 🧺. Se hai urgenza, ti consiglio di mandare un messaggino su WhatsApp all'host, magari ti sa consigliare una lavanderia a gettoni qui vicino!"`;
 
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
     { role: "system", content: systemPrompt },
-    ...conversationHistory.map(m => ({
+    // 🔥 TRUCCO SALVA-SOLDI: Prende solo gli ultimi 6 messaggi (3 botta e risposta)
+    ...conversationHistory.slice(-6).map(m => ({
       role: m.role as "user" | "assistant",
       content: m.content,
     })),
     { role: "user", content: message },
   ];
 
-  // ── Round 1: Ask the model — it may call search_web ───────────────────────
-  const firstResponse = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages,
-    tools,
-    tool_choice: "auto",
-    max_tokens: 800,
-    temperature: 0.3,
-  });
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages,
+      max_tokens: 150,
+      temperature: 0.7,
+    });
 
-  const firstChoice = firstResponse.choices[0];
-  const assistantMessage = firstChoice.message;
+    const reply = response.choices[0]?.message?.content
+      ?? "Mi dispiace, si è verificato un errore. Contatta l'host.";
 
-  // ── If no tool call, return the direct answer ──────────────────────────────
-  if (firstChoice.finish_reason !== "tool_calls" || !assistantMessage.tool_calls?.length) {
-    const reply = assistantMessage.content ?? "Mi dispiace, si è verificato un errore. Contatta l'host.";
-    logger.info({ slug: params.data.slug, messageLength: message.length }, "Chat message processed (no tool call)");
+    logger.info({ slug: params.data.slug, messageLength: message.length }, "Chat message processed");
     res.json(SendPropertyChatResponse.parse({ reply, propertyName: property.name }));
-    return;
+  } catch (err) {
+    logger.error({ err, slug: params.data.slug }, "OpenAI API error");
+    res.status(500).json({ error: "Errore di connessione con l'assistente" });
   }
-
-  // ── Round 2: Execute tool calls, then get final response ──────────────────
-  const toolMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [];
-
-  for (const toolCall of assistantMessage.tool_calls) {
-    if (toolCall.function.name === "search_web") {
-      let query = "";
-      try {
-        const args = JSON.parse(toolCall.function.arguments);
-        query = args.query ?? message;
-      } catch {
-        query = message;
-      }
-
-      logger.info({ slug: params.data.slug, query }, "Executing web search for guest");
-      const searchResult = await searchWeb(query);
-
-      toolMessages.push({
-        role: "tool",
-        tool_call_id: toolCall.id,
-        content: searchResult,
-      });
-    }
-  }
-
-  // Build the follow-up message thread
-  const messagesWithToolResult: OpenAI.Chat.ChatCompletionMessageParam[] = [
-    ...messages,
-    { role: "assistant", content: assistantMessage.content, tool_calls: assistantMessage.tool_calls } as any,
-    ...toolMessages,
-  ];
-
-  const finalResponse = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: messagesWithToolResult,
-    max_tokens: 600,
-    temperature: 0.3,
-  });
-
-  const reply = finalResponse.choices[0]?.message?.content
-    ?? "Mi dispiace, si è verificato un errore. Contatta l'host.";
-
-  logger.info({ slug: params.data.slug, messageLength: message.length, usedWebSearch: true }, "Chat message processed (with web search)");
-  res.json(SendPropertyChatResponse.parse({ reply, propertyName: property.name }));
 });
 
 export default router;

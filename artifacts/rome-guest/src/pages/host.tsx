@@ -13,53 +13,66 @@ const hostSchema = z.object({
 
 type HostFormValues = z.infer<typeof hostSchema>;
 
-export default function HostPanel() {
-  const { data: knowledge, isLoading } = useGetProperty("default");
-  const { mutate: _updateProperty, isPending } = useUpdateProperty();
-  const updateKnowledge = (vars: { data: HostFormValues }, options: Parameters<typeof _updateProperty>[1]) => {
-    _updateProperty({ slug: "default", data: vars.data }, options);
-  };
+  export default function HostPanel() {
+    const { data: knowledge, isLoading } = useGetProperty("default");
+    const { mutate: _updateProperty, isPending } = useUpdateProperty();
 
-  const form = useForm<HostFormValues>({
-    resolver: zodResolver(hostSchema),
-    defaultValues: {
-      content: "",
-      hostPassword: "",
-    },
-  });
+    const updateKnowledge = (vars: { data: HostFormValues }, options: Parameters<typeof _updateProperty>[1]) => {
+      _updateProperty({ slug: "default", data: vars.data }, options);
+    };
 
-  // Update form when data loads
-  useEffect(() => {
-    if (knowledge?.content) {
-      form.reset({
-        content: knowledge.content,
-        hostPassword: "", // Don't prepopulate password for security
-      });
-    }
-  }, [knowledge, form]);
-
-  const onSubmit = (data: HostFormValues) => {
-    // Mandiamo i dati a salvare
-    updateKnowledge(
-      { data },
-      {
-        onSuccess: () => {
-          // LA CURA PER CHROME:
-          // Invece di ricaricare subito, aspettiamo 1 secondo intero (1000 millisecondi).
-          // Questo dà a Chrome il tempo fisico di chiudere la tastiera e sistemare lo schermo.
-          setTimeout(() => {
-            window.location.href = window.location.pathname;
-          }, 1000);
-        },
-        onError: () => {
-          alert("Errore di salvataggio. Riprova.");
-        },
+    const form = useForm<HostFormValues>({
+      resolver: zodResolver(hostSchema),
+      defaultValues: {
+        content: "",
+        hostPassword: "",
+      },
+    });
+    useEffect(() => {
+      try {
+        localStorage.clear();
+        sessionStorage.clear();
+        console.log("Memoria del browser ripulita con successo! 🧹");
+      } catch (e) {
+        console.error("Errore nella pulizia della memoria", e);
       }
-    );
-  };
+    }, []);
+    useEffect(() => {
+      if (knowledge?.content && !isPending && !form.formState.isDirty) {
+        form.reset({
+          content: knowledge.content,
+          hostPassword: "", 
+        });
+      }
+    }, [knowledge, form, isPending]); 
+    if (isLoading) {
+      return (
+        <div className="flex flex-col items-center justify-center min-h-screen">
+          <p className="text-lg font-semibold animate-pulse">Caricamento in corso...</p>
+        </div>
+      );
+    }
+
+    const onSubmit = (data: HostFormValues) => {
+      if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+      }
+
+      updateKnowledge(
+        { data },
+        {
+          onSuccess: () => {
+            alert("Dati salvati con successo! ✅");
+          },
+          onError: () => {
+            alert("Errore di salvataggio. Riprova. ❌");
+          },
+        }
+      );
+    };
 
   return (
-      <div className="min-h-screen flex flex-col md:py-12 md:px-6">
+    <div translate="no" className="min-h-screen flex flex-col md:py-12 md:px-6">
         <div className="max-w-4xl w-full mx-auto flex flex-col gap-6">
         <div className="flex items-center justify-between mb-2 px-4 md:px-0">
           <Link href="/" className="inline-flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors py-2 px-4 -ml-4 rounded-full hover:bg-background/80">
@@ -82,7 +95,7 @@ export default function HostPanel() {
           </div>
 
           <div className="p-8">
-              <div className="space-y-8">
+            <div className="space-y-8" autoComplete="off">
               
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -122,7 +135,8 @@ export default function HostPanel() {
                   
                   <input
                     id="hostPassword"
-                    type="password"
+                    type="text"
+                    autoComplete="off" 
                     {...form.register("hostPassword")}
                     placeholder="Inserisci password host..."
                     className="w-full bg-background border-2 border-border/60 text-foreground px-5 py-3.5 rounded-xl focus:outline-none focus:border-primary/50 focus:ring-4 focus:ring-primary/10 transition-all"
@@ -137,23 +151,14 @@ export default function HostPanel() {
               </div>
 
               <div className="pt-4">
-                <button
+<button
                   type="button"
                   onClick={form.handleSubmit(onSubmit)}
                   disabled={isPending || isLoading}
                   className="w-full md:w-auto px-8 py-4 rounded-xl font-semibold bg-gradient-to-r from-primary to-primary/90 text-primary-foreground shadow-lg shadow-primary/25 hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
                 >
-                  {isPending ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      Salvataggio in corso...
-                    </>
-                  ) : (
-                    <>
-                      <Save className="w-5 h-5" />
-                      Salva Configurazioni
-                    </>
-                  )}
+                  <Save className="w-5 h-5" />
+                  Salva Configurazioni
                 </button>
               </div>
             </div>

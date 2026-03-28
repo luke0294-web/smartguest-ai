@@ -235,41 +235,49 @@ export default function Landing() {
   return (
     <div className="min-h-screen bg-white font-sans antialiased text-gray-900 overflow-x-hidden">
       <AnimatePresence>
-        {showModal && <RegistrationModal onClose={() => setShowModal(false)} />}
+        {showModal && <RegistrationModal key="modal" onClose={() => setShowModal(false)} />}
       </AnimatePresence>
 
       {/* ── Nav ── */}
       <nav className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-gray-100">
-        <div className="max-w-6xl mx-auto px-5 h-14 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-3 sm:px-5 h-14 flex items-center justify-between">
+
+          {/* Logo */}
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center">
-              <MessageSquare className="w-3.5 h-3.5 text-white" />
+            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-blue-600 flex flex-shrink-0 items-center justify-center">
+              <MessageSquare className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-white" />
             </div>
-            <span className="font-bold text-[15px] tracking-tight">SmartGuest AI</span>
+            <span className="font-bold text-[13px] sm:text-[15px] tracking-tight">
+              SmartGuest AI
+            </span>
           </div>
-          <div className="flex items-center gap-3">
+
+          {/* Bottoni (Accedi e Inizia) */}
+          <div className="flex items-center gap-1 sm:gap-3">
             <Link
               href="/login"
-              className="hidden sm:inline text-sm text-gray-500 hover:text-gray-800 transition-colors px-3 py-1.5"
+              className="text-[13px] sm:text-sm font-semibold text-gray-600 hover:text-gray-900 transition-colors px-2 py-1.5"
             >
               Accedi
             </Link>
             <button
               onClick={() => setShowModal(true)}
-              className="text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl transition-colors shadow-sm shadow-blue-200"
+              className="text-[13px] sm:text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl transition-colors shadow-sm shadow-blue-200 whitespace-nowrap"
             >
-              Inizia gratis
+              <span className="sm:hidden">Inizia</span>
+              <span className="hidden sm:inline">Inizia gratis</span>
             </button>
           </div>
+
         </div>
       </nav>
 
       {/* ── Hero ── */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-blue-50/60 to-white pt-20 pb-24 px-5">
+      <section className="relative overflow-hidden bg-gradient-to-b from-blue-50/60 to-white pt-8 pb-24 px-5">
         <div className="pointer-events-none absolute -top-32 -right-32 w-[480px] h-[480px] rounded-full bg-blue-100/60 blur-3xl" />
         <div className="pointer-events-none absolute top-40 -left-24 w-[320px] h-[320px] rounded-full bg-emerald-100/50 blur-3xl" />
 
-        <div className="relative max-w-3xl mx-auto text-center">
+        <div className="relative max-w-5xl mx-auto text-center px-4">
           <motion.div
             variants={fadeUp}
             initial="hidden"
@@ -278,7 +286,7 @@ export default function Landing() {
             className="inline-flex items-center gap-2 bg-blue-600/10 text-blue-700 text-[12.5px] font-semibold px-3.5 py-1.5 rounded-full mb-6 tracking-wide uppercase"
           >
             <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse" />
-            Assistente AI per B&amp;B, Airbnb e Appartamenti
+            Assistente AI per B&amp;B e Appartamenti
           </motion.div>
 
           <motion.h1
@@ -286,11 +294,11 @@ export default function Landing() {
             initial="hidden"
             animate="visible"
             custom={1}
-            className="text-4xl sm:text-5xl md:text-[3.5rem] font-extrabold tracking-tight text-gray-900 leading-[1.1] mb-5"
+            className="text-3xl sm:text-5xl md:text-6xl font-extrabold tracking-tight text-gray-900 leading-[1.15] mb-6"
           >
-            SmartGuest AI&nbsp;— Il Portiere Digitale&nbsp;
+            SmartGuest AI&nbsp; Il&nbsp;Portiere&nbsp;Digitale&nbsp;
             <span className="text-blue-600">24/7</span>
-            <br className="hidden sm:block" /> per il tuo B&amp;B o Appartamento
+            <span className="block sm:inline"> per il tuo B&B</span>
           </motion.h1>
 
           <motion.p
@@ -298,10 +306,10 @@ export default function Landing() {
             initial="hidden"
             animate="visible"
             custom={2}
-            className="text-lg text-gray-500 max-w-xl mx-auto leading-relaxed mb-10"
+            className="text-base sm:text-lg text-gray-500 max-w-xl mx-auto leading-relaxed mb-10"
           >
             Risparmia ore di tempo, elimina le chiamate notturne per il Wi-Fi e
-            offri ai tuoi ospiti un'esperienza a 5 stelle in ogni lingua.
+            offri ai tuoi ospiti un'esperienza a 5 stelle in ogni&nbsp;lingua.
           </motion.p>
 
           <motion.div
@@ -398,7 +406,9 @@ export default function Landing() {
             <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900 mb-3">
               Tutto quello che ti serve
             </h2>
-            <p className="text-gray-400 text-lg">Configurato in 5 minuti, operativo per sempre.</p>
+            <p className="text-gray-400 text-base sm:text-lg">
+              Configurato in 5 minuti, operativo per&nbsp;sempre.
+            </p>
           </motion.div>
 
           <div className="grid sm:grid-cols-3 gap-6">
@@ -483,7 +493,9 @@ export default function Landing() {
             <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900 mb-3">
               Prezzi chiari
             </h2>
-            <p className="text-gray-400 text-lg">Nessuna sorpresa. Cancella quando vuoi.</p>
+            <p className="text-gray-400 text-base sm:text-lg">
+              Nessuna sorpresa. Cancella quando&nbsp;vuoi.
+            </p>
           </motion.div>
 
           <motion.div
@@ -554,7 +566,7 @@ export default function Landing() {
             <span className="text-[13px] font-semibold text-gray-700">SmartGuest AI</span>
           </div>
 
-          <div className="flex items-center gap-5 text-[13px] text-gray-400">
+          <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-5 text-[13px] text-gray-400">
             <Link href="/privacy" className="hover:text-gray-700 transition-colors">Privacy Policy</Link>
             <a href="mailto:hello.smartguest@gmail.com" className="hover:text-gray-700 transition-colors">
               hello.smartguest@gmail.com
