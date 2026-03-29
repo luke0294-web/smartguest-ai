@@ -192,6 +192,7 @@ function QrModal({ property, onClose }: { property: { name: string; slug: string
           email: email.trim(),
           propertyName: property.name,
           pdfBase64,
+          chatLink: chatUrl,
         }),
       });
 

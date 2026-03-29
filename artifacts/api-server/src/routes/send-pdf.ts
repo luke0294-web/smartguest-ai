@@ -8,6 +8,7 @@ interface SendPdfBody {
   email?: string;
   propertyName?: string;
   pdfBase64?: string;
+  chatLink?: string;
 }
 
 const transporter = nodemailer.createTransport({
@@ -30,7 +31,7 @@ const transporter = nodemailer.createTransport({
  *   EMAIL_SMTP_HOST, EMAIL_SMTP_PORT, EMAIL_USER, EMAIL_PASS, EMAIL_FROM_NAME
  */
 router.post("/send-pdf", async (req: Request<{}, {}, SendPdfBody>, res: Response): Promise<void> => {
-  const { email, propertyName, pdfBase64 } = req.body;
+  const { email, propertyName, pdfBase64, chatLink } = req.body;
 
   if (!email?.trim()) {
     res.status(400).json({ error: "Email obbligatoria." });
@@ -59,27 +60,17 @@ router.post("/send-pdf", async (req: Request<{}, {}, SendPdfBody>, res: Response
       from: `"${fromName}" <${fromAddress}>`,
       to: email.trim(),
       subject: "Il tuo Cartello QR SmartGuest AI è pronto! 🖨️",
-      text: `Ciao!\n\nIn allegato trovi il cartello da tavolo con il QR Code della tua struttura "${propertyName}", pronto da stampare.\n\nIl team di SmartGuest AI`,
       html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #374151;">
-          <div style="background: #2563eb; padding: 24px; border-radius: 12px 12px 0 0; text-align: center;">
-            <h1 style="color: white; margin: 0; font-size: 20px;">SmartGuest AI</h1>
-            <p style="color: rgba(255,255,255,0.8); margin: 6px 0 0; font-size: 14px;">Il tuo Portiere Digitale 24/7</p>
-          </div>
-          <div style="padding: 32px; background: #f9fafb; border-radius: 0 0 12px 12px;">
-            <p style="margin: 0 0 12px; font-size: 15px;">Ciao!</p>
-            <p style="margin: 0 0 20px; font-size: 15px; line-height: 1.6;">
-              In allegato trovi il <strong>Cartello da Tavolo</strong> con il QR Code della tua struttura
-              <strong>"${propertyName}"</strong>, pronto da stampare e posizionare in camera.
-            </p>
-            <p style="margin: 0 0 8px; font-size: 14px; color: #6b7280;">
-              Gli ospiti potranno inquadrarlo per accedere istantaneamente a tutte le informazioni.
-            </p>
-            <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
-            <p style="margin: 0; font-size: 13px; color: #9ca3af; text-align: center;">
-              Il team di SmartGuest AI
-            </p>
-          </div>
+        <div style="font-family: sans-serif; color: #333; line-height: 1.5;">
+          <h2 style="color: #1d4ed8;">Il tuo Cartello Digitale è pronto! 🖨️</h2>
+          <p>Ciao,</p>
+          <p>In allegato trovi il cartello da tavolo in formato PDF con il QR Code della tua struttura. Puoi stamparlo o inserirlo in una cornice.</p>
+          <p>Inoltre, ecco il <strong>link diretto</strong> al tuo Assistente Virtuale. Puoi copiarlo e inviarlo ai tuoi ospiti via WhatsApp o Airbnb prima del loro arrivo:</p>
+          <p style="background-color: #f3f4f6; padding: 10px; border-radius: 5px;">
+            <a href="${chatLink ?? ""}" style="color: #2563eb; text-decoration: none;"><strong>${chatLink ?? ""}</strong></a>
+          </p>
+          <br>
+          <p>Buon lavoro,<br><strong>Il team di SmartGuest AI</strong></p>
         </div>
       `,
       attachments: [
