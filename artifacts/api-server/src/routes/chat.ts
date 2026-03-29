@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import OpenAI from "openai";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 // 👇 MODIFICA 1: Abbiamo aggiunto chatLogsTable qui 👇
 import { db, propertiesTable, chatLogsTable } from "@workspace/db";
 import {
@@ -198,5 +198,40 @@ router.get("/super-diario/:slug", async (req, res): Promise<void> => {
     res.status(500).json({ error: "Impossibile caricare il diario di Marco." });
   }
 });
+router.patch("/super-diario/:slug/resolve/:id", async (req, res): Promise<void> => {
+  try {
+    const { slug, id } = req.params;
+    const logId = parseInt(id, 10);
+
+    if (isNaN(logId)) {
+      res.status(400).json({ error: "ID non valido." });
+      return;
+    }
+
+    // Verifica che il messaggio appartenga a questa property
+    const [log] = await db
+      .select()
+      .from(chatLogsTable)
+      .where(and(eq(chatLogsTable.id, logId), eq(chatLogsTable.propertySlug, slug)))
+      .limit(1);
+
+    if (!log) {
+      res.status(404).json({ error: "Messaggio non trovato." });
+      return;
+    }
+
+    // Marca come risolto
+    await db
+      .update(chatLogsTable)
+      .set({ resolved: true })
+      .where(eq(chatLogsTable.id, logId));
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Errore nel marcamento della chat:", err);
+    res.status(500).json({ error: "Impossibile aggiornare il diario." });
+  }
+});
+
 router.get("/ciao", (req, res) => res.send("Il server mi sente!"));
 export default router;

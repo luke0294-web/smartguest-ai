@@ -56,6 +56,7 @@ export default function HostDashboard() {
   const [loadError, setLoadError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [aiState, setAiState] = useState<AiState>({ type: "idle" });
+  const [pendingCount, setPendingCount] = useState(0);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -77,8 +78,30 @@ export default function HostDashboard() {
     }
     setSession(s);
     loadProperty(s);
+    loadPendingCount();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug]);
+
+  const loadPendingCount = async () => {
+    try {
+      const res = await fetch(`${baseUrl}/api/super-diario/${slug}`);
+      if (!res.ok) return;
+      const logs = await res.json();
+      const failurePatterns = [
+        "mi dispiace", "mi spiace", "sono spiacente",
+        "non ho questa informazione", "non lo so", "non ne ho idea",
+        "i am sorry", "i'm sorry", "i apologize",
+        "don't have", "no information about",
+        "je suis désolé", "je m'excuse",
+      ];
+      const pending = logs.filter((log: any) => 
+        !log.resolved && failurePatterns.some(p => log.marcoReply.toLowerCase().includes(p))
+      );
+      setPendingCount(pending.length);
+    } catch (err) {
+      // Silently fail
+    }
+  };
 
   const loadProperty = async (s: Session) => {
     setIsLoading(true);
@@ -298,10 +321,15 @@ export default function HostDashboard() {
             </Link>
             <Link
               href={`/diario/${slug}`}
-              className="flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-700 font-medium bg-indigo-50 hover:bg-indigo-100 px-3 py-2 rounded-xl transition-colors"
+              className="relative flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-700 font-medium bg-indigo-50 hover:bg-indigo-100 px-3 py-2 rounded-xl transition-colors"
             >
               <BookOpen className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Diario</span>
+              {pendingCount > 0 && (
+                <span className="absolute top-0 right-0 translate-x-1/2 -translate-y-1/2 bg-red-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                  {pendingCount > 99 ? "99+" : pendingCount}
+                </span>
+              )}
             </Link>
             <Link
               href="/host/dashboard"
