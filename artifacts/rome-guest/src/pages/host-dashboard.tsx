@@ -303,50 +303,28 @@ export default function HostDashboard() {
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-3xl shadow-sm border border-gray-100 px-4 sm:px-6 py-4 sm:py-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 overflow-hidden"
+          className="bg-white rounded-3xl shadow-sm border border-gray-100 px-4 sm:px-6 py-4 flex items-center justify-between"
         >
           <div className="flex items-center gap-3 min-w-0 flex-1">
             <div className="w-10 h-10 sm:w-11 sm:h-11 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-200 flex-shrink-0">
               <Home className="w-5 h-5 text-white" />
             </div>
             <div className="min-w-0">
-              <h1 className="font-extrabold text-gray-900 text-[15px] sm:text-[17px] leading-tight truncate">{property?.name || "Caricamento..."}</h1>
-              <p className="text-gray-400 text-[11px] sm:text-[12px] font-mono mt-0.5 truncate">/guest/{slug}</p>
+              <h1 className="font-extrabold text-gray-900 text-sm sm:text-base leading-tight truncate">{property?.name || "Caricamento..."}</h1>
             </div>
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex items-center gap-3 flex-shrink-0">
             <Link
               href={`/guest/${slug}`}
-              className="flex sm:hidden items-center gap-1.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 px-3 py-2 rounded-xl transition-colors shadow-sm shadow-blue-200"
+              className="text-xs sm:text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-colors shadow-sm shadow-blue-200"
             >
-              <MessageSquare className="w-3.5 h-3.5" />
               Vai alla Chat
             </Link>
             <Link
-              href={`/guest/${slug}`}
-              className="hidden sm:flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 font-medium bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-xl transition-colors"
-            >
-              <MessageSquare className="w-3.5 h-3.5" />
-              Chat
-            </Link>
-            <Link
-              href={`/diario/${slug}`}
-              className="relative flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-700 font-medium bg-indigo-50 hover:bg-indigo-100 px-3 py-2 rounded-xl transition-colors"
-            >
-              <BookOpen className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Diario</span>
-              {pendingCount > 0 && (
-                <span className="absolute top-0 right-0 translate-x-1/2 -translate-y-1/2 bg-red-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
-                  {pendingCount > 99 ? "99+" : pendingCount}
-                </span>
-              )}
-            </Link>
-            <Link
               href="/host/dashboard"
-              className="flex items-center gap-1.5 text-xs sm:text-sm text-gray-400 hover:text-gray-600 px-2 sm:px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors"
+              className="text-xs sm:text-sm font-medium text-gray-600 hover:text-gray-800 transition-colors"
             >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Dashboard</span>
+              ← Dashboard
             </Link>
           </div>
         </motion.div>
