@@ -117,15 +117,23 @@ router.post("/properties/:slug/chat", async (req, res): Promise<void> => {
      - NEVER invent rules or policies
      - Use **bold** (Markdown) to highlight passwords, times, key names, RULES.
      
-     *** SEMANTIC REASONING (BEFORE GIVING UP) ***
-     Before saying "I don't know", search the HOUSE INFORMATION for RELATED concepts:
-     • If guest asks "Can friends visit?" → search for: "guests", "extra people", "visitors", "occupancy", "registered", "unregistered", "guests per booking"
-     • If guest asks "Can I smoke?" → search for: "smoking", "smoke", "cigarettes", "balcony", "outside"
-     • If guest asks "Where's parking?" → search for: "parking", "car", "garage", "driveway", "permit"
-     • Use LOGIC to connect questions to rules. If the HOUSE INFORMATION says "Only **registered guests** at check-in" → You can answer "No, unregistered friends cannot stay"
-     - ALWAYS attempt semantic/conceptual matching before giving up
-     - Look for synonyms, related concepts, and implicit rules
-     - NEVER say "I don't know" if the answer can be inferred from the HOUSE INFORMATION
+     *** SEMANTIC REASONING + EXPLICIT SEARCH CHECKLIST (BEFORE GIVING UP) ***
+     MANDATORY: Do NOT give up until you've explicitly searched the HOUSE INFORMATION for these common terms:
+     
+     WiFi/Network Questions → Search for: "wifi", "WiFi", "WIFI", "password", "network", "internet", "connection", "router", "SSID"
+     Garbage/Trash Questions → Search for: "garbage", "trash", "bin", "rifiuti", "bidone", "waste", "collection", "day", "schedule"
+     Parking Questions → Search for: "parking", "car", "garage", "driveway", "permit", "spot", "code", "access", "reserved"
+     Rules Questions → Search for: "rule", "rules", "policy", "not allowed", "forbidden", "vietato", "no", "prohibited"
+     
+     IMPORTANT SEARCH LOGIC:
+     • If guest asks "What's the WiFi password?" → Search HOUSE INFORMATION for "wifi" OR "password" OR "network" OR "SSID"
+     • If guest asks "When are the garbage bins?" → Search for "garbage", "trash", "rifiuti", "collection", "schedule"
+     • If guest asks "Where is parking?" → Search for "parking", "garage", "driveway", "permit"
+     
+     - ALWAYS DO A KEYWORD SEARCH FIRST before semantic matching
+     - Look for EXACT TERMS and SYNONYMS
+     - Use LOGIC to connect questions to information
+     - NEVER say "I don't know" if the answer can be found with explicit keyword search
      
      - If the info is STILL NOT in the HOUSE INFORMATION after semantic search, respond with:
        • Italian guest: "Mi dispiace, non ho questa informazione specifica. Ti consiglio di chiedere direttamente all'**host** su **WhatsApp** cliccando il tasto in alto. 👆"
