@@ -161,8 +161,16 @@ export default function Chat() {
                     <Sparkles className="w-3.5 h-3.5 text-primary mb-1.5 opacity-60" />
                   )}
                   {msg.role === "assistant" ? (
-                    <div className="prose prose-sm max-w-none font-sans leading-relaxed [&_strong]:font-bold [&_p]:m-0 [&_p+p]:mt-1.5">
-                      <ReactMarkdown>{msg.content}</ReactMarkdown>
+                    <div className="font-sans leading-relaxed">
+                      <ReactMarkdown
+                        components={{
+                          strong: ({ node, ...props }) => (
+                            <strong className="font-bold text-gray-900" {...props} />
+                          ),
+                        }}
+                      >
+                        {msg.content}
+                      </ReactMarkdown>
                     </div>
                   ) : (
                     <p className="whitespace-pre-wrap font-sans">{msg.content}</p>
