@@ -51,7 +51,6 @@ router.post("/send-pdf", async (req: Request<{}, {}, SendPdfBody>, res: Response
   const fromAddress = process.env.EMAIL_USER ?? "hello.smartguest@gmail.com";
 
   const base64Data = pdfBase64.includes(",") ? pdfBase64.split(",")[1] : pdfBase64;
-  const pdfBuffer = Buffer.from(base64Data, "base64");
 
   try {
     logger.info({ email, propertyName }, "📧 Invio email con PDF in corso...");
@@ -86,7 +85,8 @@ router.post("/send-pdf", async (req: Request<{}, {}, SendPdfBody>, res: Response
       attachments: [
         {
           filename: `Cartello_QR_${propertyName.replace(/\s+/g, "_")}.pdf`,
-          content: pdfBuffer,
+          content: base64Data,
+          encoding: "base64",
           contentType: "application/pdf",
         },
       ],
@@ -100,9 +100,11 @@ router.post("/send-pdf", async (req: Request<{}, {}, SendPdfBody>, res: Response
       email,
     });
   } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : "Errore sconosciuto nel server email";
+    console.error("Errore Nodemailer:", err);
     logger.error({ err, email }, "❌ Errore durante l'invio dell'email");
     res.status(500).json({
-      error: "Impossibile inviare l'email. Controlla la connessione e riprova.",
+      error: errorMessage,
     });
   }
 });
