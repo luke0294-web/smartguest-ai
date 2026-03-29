@@ -12,6 +12,7 @@ import HostLogin from "./pages/login";
 import ForgotPassword from "./pages/forgot-password";
 import ResetPassword from "./pages/reset-password";
 import PrivacyPolicy from "./pages/privacy";
+import DiarioDiBordo from "./pages/diario";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -36,6 +37,7 @@ function Router() {
       <Route path="/guest/:slug" component={GuestChat} />
       <Route path="/host/dashboard" component={HostProperties} />
       <Route path="/host/:slug" component={HostDashboard} />
+      <Route path="/diario/:slug" component={DiarioDiBordo} />
       <Route path="/forgot-password" component={ForgotPassword} />
       <Route path="/reset-password/:token" component={ResetPassword} />
       <Route path="/privacy" component={PrivacyPolicy} />

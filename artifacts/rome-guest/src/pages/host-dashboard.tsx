@@ -7,7 +7,7 @@ import { z } from "zod";
 import {
   Home, Loader2, Save, CheckCircle2, AlertCircle,
   Wifi, MessageSquare, Phone, FileText, Mic, MicOff, Camera,
-  Sparkles, ArrowLeft,
+  Sparkles, ArrowLeft, BookOpen,
 } from "lucide-react";
 
 const HOST_SESSION_KEY = "host_session";
@@ -295,6 +295,13 @@ export default function HostDashboard() {
             >
               <MessageSquare className="w-3.5 h-3.5" />
               Chat
+            </Link>
+            <Link
+              href={`/diario/${slug}`}
+              className="flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-700 font-medium bg-indigo-50 hover:bg-indigo-100 px-3 py-2 rounded-xl transition-colors"
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Diario</span>
             </Link>
             <Link
               href="/host/dashboard"

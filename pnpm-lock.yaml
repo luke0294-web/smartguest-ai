@@ -160,10 +160,13 @@ importers:
       drizzle-orm:
         specifier: 'catalog:'
         version: 0.45.1(@types/pg@8.18.0)(pg@8.20.0)
+    devDependencies:
+      drizzle-kit:
+        specifier: ^0.31.9
+        version: 0.31.9
       pg:
         specifier: ^8.20.0
         version: 8.20.0
-    devDependencies:
       prettier:
         specifier: ^3.8.1
         version: 3.8.1

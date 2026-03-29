@@ -6,6 +6,10 @@ id = "artifacts/api-server"
 [[artifacts]]
 id = "artifacts/mockup-sandbox"
 
+# 🟢 COMANDO RUN DEFINITIVO
+# Questo accende tutto il workspace ignorando il pezzo rotto
+run = "PORT=8080 BASE_PATH=/ pnpm -r --filter '!@workspace/mockup-sandbox' run dev"
+
 [deployment]
 router = "application"
 deploymentTarget = "autoscale"
@@ -27,8 +31,4 @@ timeoutMs = 20000
 
 [nix]
 channel = "stable-25_05"
-
-[[ports]]
-localPort = 4983
-externalPort = 80
-exposeLocalhost = true
+packages = ["psmisc"]
