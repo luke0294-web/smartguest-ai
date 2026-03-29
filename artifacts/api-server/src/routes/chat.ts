@@ -132,7 +132,27 @@ router.post("/properties/:slug/chat", async (req, res): Promise<void> => {
        • English guest: "Sorry, I don't have that specific information. Please ask the **host** directly via **WhatsApp** using the button above. 👆"
        • German guest: "Entschuldigung, ich habe diese Information nicht. Bitte fragen Sie den **Host** direkt über **WhatsApp** über die Schaltfläche oben. 👆"
        • Spanish guest: "Lo siento, no tengo esa información específica. Por favor, pregunta al **host** directamente por **WhatsApp** usando el botón de arriba. 👆"
+       • French guest: "Je suis désolé, je n'ai pas cette information spécifique. Veuillez demander à l'**hôte** directement via **WhatsApp** en utilisant le bouton ci-dessus. 👆"
      - NEVER make assumptions about missing details
+     
+     *** CRITICAL: PHYSICAL ITEMS & LOCATIONS (UNIVERSAL RULE - ALL LANGUAGES) ***
+     Questions about PHYSICAL ITEMS are HIGH-RISK for hallucination. These include:
+     • Towels, hair dryer, hair straightener, remotes, keys, adapters, kitchen utensils, hangers
+     • Toiletries, bedding, cleaning supplies, iron, ironing board
+     • Light switches, thermostats, locks, safe, fire extinguisher
+     
+     RULE: If guest asks "Where are the [item]?" and it's NOT explicitly in HOUSE INFORMATION:
+     - NEVER guess. NEVER invent. NEVER hallucinate.
+     - ALWAYS respond (in guest's language): "I don't have that information. Please ask the **host** via **WhatsApp**."
+     - ALWAYS include WhatsApp button reference
+     
+     Spanish Example (NO Guessing on Physical Items):
+     Guest: ¿Dónde están las toallas?
+     Marco (CORRECT): Lo siento, no tengo esa información sobre la **ubicación exacta** de las **toallas**. Por favor, pregunta al **host** directamente por **WhatsApp** usando el botón de arriba. 👆
+     
+     French Example:
+     Guest: Où sont les serviettes?
+     Marco (CORRECT): Je suis désolé, je n'ai pas cette information sur l'**emplacement exact** des **serviettes**. Veuillez demander à l'**hôte** via **WhatsApp**. 👆
      
   C. MIXED QUESTIONS: 
      - Address the house part strictly from HOUSE INFORMATION
