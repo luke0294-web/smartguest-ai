@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, Link, useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { useForm } from "react-hook-form";
@@ -69,6 +69,36 @@ export default function HostDashboard() {
     defaultValues: { name: "", content: "", whatsappNumber: "" },
   });
 
+  // Stabile via useCallback — non ricrea la funzione ad ogni render, evitando re-render del form
+  const loadPendingCount = useCallback(async () => {
+    try {
+      if (!slug) return;
+      const res = await fetch(`${baseUrl}/api/super-diario/${slug}`);
+      if (!res.ok) return;
+      const logs = await res.json() as any[];
+      const negativeIndicators = [
+        "sorry", "dispiace", "desolé", "désolé", "leid", "siento",
+        "i apologize", "scusami", "scusa", "mi scusi", "entschuldigung",
+        "don't have", "non ho", "no tengo", "dont have", "n'ai pas", "keine",
+        "not available", "not specified", "no information", "nessuna informazione",
+        "don't know", "non lo so", "no sé", "je ne sais pas", "no sabemos",
+        "non abbiamo", "we don't have", "unfortunately", "purtroppo", "leider",
+        "ask the host", "contatta il proprietario", "ask the owner", "contact host",
+        "call the host", "chiama il proprietario", "whatsapp",
+        "accidenti", "caught me unprepared", "mando subito", "alerting the host",
+      ];
+      const count = logs.filter((log: any) => {
+        if (log.resolved) return false;
+        const lower = (log.marcoReply ?? "").toLowerCase();
+        return negativeIndicators.some(p => lower.includes(p));
+      }).length;
+      // Aggiorna lo state solo se il valore è effettivamente cambiato, evitando re-render inutili
+      setPendingCount(prev => (prev === count ? prev : count));
+    } catch {
+      // Silently fail — non bloccare l'UI
+    }
+  }, [slug, baseUrl]);
+
   useEffect(() => {
     if (!slug) return;
     const s = readSession();
@@ -79,63 +109,11 @@ export default function HostDashboard() {
     setSession(s);
     loadProperty(s);
     loadPendingCount();
-    
-    // Aggiorna il conteggio ogni 5 secondi
-    const interval = setInterval(loadPendingCount, 5000);
+    // Aggiorna il conteggio ogni 15 secondi — più lento riduce i re-render durante la digitazione
+    const interval = setInterval(loadPendingCount, 15000);
     return () => clearInterval(interval);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug]);
-
-  const loadPendingCount = async () => {
-    try {
-      const res = await fetch(`${baseUrl}/api/super-diario/${slug}`);
-      if (!res.ok) return;
-      const logs = await res.json() as any[];
-      
-      // Importa la funzione una volta (oppure usa la logica inline per evitare import circolare)
-      const detectNeedsAttention = (reply: string): boolean => {
-        const text = reply.toLowerCase()
-          .replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, "")
-          .replace(/[!?.,'";:\-()[\]{}]/g, "")
-          .replace(/\s+/g, " ")
-          .trim();
-
-        const negativeIndicators = [
-          "sorry", "dispiace", "desolé", "désolé", "leid", "siento", "lo siento",
-          "i apologize", "scusami", "scusa", "mi scusi", "entschuldigung", "excuse",
-          "don't have", "non ho", "no tengo", "dont have", "n'ai pas", "keine",
-          "non ho questa", "no tengo esa", "nicht vorhanden", "not available",
-          "not specified", "no information", "nessuna informazione",
-          "don't know", "non lo so", "no sé", "no lo sé", "je ne sais pas",
-          "weiß nicht", "non saprei", "no sabemos", "i don't know",
-          "non abbiamo", "we don't have", "no contamos", "we haven't",
-          "unfortunately", "purtroppo", "desgraciadamente", "leider",
-          "ask the host", "contatta il proprietario", "contatta l'host", "preguntar al anfitrión",
-          "preguntale al anfitrion", "ask the owner", "contact host", "contact the host",
-          "call the host", "call the owner", "chiama il proprietario", "whatsapp",
-        ];
-
-        const hasIndicator = negativeIndicators.some(ind => text.includes(ind));
-        if (hasIndicator) return true;
-
-        if (reply.length < 60) {
-          const starters = ["sorry", "mi dispiace", "dispiace", "scusa", "scusami"];
-          if (starters.some(s => text.startsWith(s))) return true;
-        }
-
-        if (text.includes("i") && text.includes("sorry")) return true;
-        return false;
-      };
-
-      const pending = logs.filter((log) => {
-        const resolved = log.resolved ?? false;
-        return !resolved && detectNeedsAttention(log.marcoReply);
-      });
-      setPendingCount(pending.length);
-    } catch (err) {
-      // Silently fail
-    }
-  };
 
   const loadProperty = async (s: Session) => {
     setIsLoading(true);
@@ -170,45 +148,34 @@ export default function HostDashboard() {
     if (!session) return;
     setIsSaving(true);
     try {
-      try {
-        const res = await fetch(`${baseUrl}/api/host/${slug}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email: session.email,
-            hostPassword: session.password,
-            ...data,
-          }),
-        });
-        const json = await res.json();
-        if (!res.ok) throw new Error(json.error ?? "Errore nel salvataggio.");
-      } catch (err: any) {
-        alert(err?.message ?? "Errore nel salvataggio.");
-      }
-    } catch (globalErr: any) {
-      console.error("handleUpdate error:", globalErr);
+      const res = await fetch(`${baseUrl}/api/host/${slug}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: session.email,
+          hostPassword: session.password,
+          ...data,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Errore nel salvataggio.");
+      // Resetta isDirty dopo il salvataggio — senza reset(), isDirty rimane true
+      // e il ciclo di rendering si confonde su cosa ha già salvato
+      updateForm.reset(data);
+    } catch (err: any) {
+      alert(err?.message ?? "Errore nel salvataggio.");
     } finally {
-      try {
-        setIsSaving(false);
-      } catch (e) {
-        console.error("setIsSaving error:", e);
-      }
+      setIsSaving(false);
     }
   };
 
   // ─── AI TOOLS ───────────────────────────────────────────────────────────────
 
   const appendToContent = (text: string) => {
-    try {
-      const current = updateForm.getValues?.("content") ?? "";
-      if (typeof current === "string") {
-        const separator = current.trim() ? "\n\n" : "";
-        updateForm.setValue?.("content", current + separator + text, { shouldValidate: true, shouldDirty: true });
-      }
-    } catch (err) {
-      // Silent fail on mobile if form methods are unavailable
-      console.error("Form append failed:", err);
-    }
+    // NON usare shouldValidate: true — farebbe girare Zod ad ogni append e bloccherebbe l'UI
+    const current = updateForm.getValues("content") ?? "";
+    const separator = current.trim() ? "\n\n" : "";
+    updateForm.setValue("content", current + separator + text, { shouldDirty: true });
   };
 
   const startRecording = async () => {
