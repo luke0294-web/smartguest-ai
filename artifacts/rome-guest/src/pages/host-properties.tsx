@@ -3,7 +3,7 @@ import { useLocation, Link } from "wouter";
 import { motion } from "framer-motion";
 import {
   Building, MessageSquare, Settings, LogOut, Loader2,
-  AlertCircle, Home, ArrowRight, KeyRound,
+  AlertCircle, Home, ArrowRight, KeyRound, BookOpen,
 } from "lucide-react";
 
 const HOST_SESSION_KEY = "host_session";
@@ -183,10 +183,17 @@ export default function HostProperties() {
                 <div className="flex gap-2 mt-auto pt-2 border-t border-gray-50">
                   <Link
                     href={`/guest/${prop.slug}`}
-                    className="flex-1 flex items-center justify-center gap-1.5 text-[13px] font-medium text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 py-2.5 rounded-xl transition-colors"
+                    className="flex items-center justify-center gap-1.5 text-[13px] font-medium text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 py-2.5 px-3 rounded-xl transition-colors"
+                    title="Vai alla chat ospiti"
                   >
                     <MessageSquare className="w-3.5 h-3.5" />
-                    Chat
+                  </Link>
+                  <Link
+                    href={`/diario/${prop.slug}`}
+                    className="flex items-center justify-center gap-1.5 text-[13px] font-medium text-amber-700 hover:text-amber-800 bg-amber-50 hover:bg-amber-100 py-2.5 px-3 rounded-xl transition-colors"
+                    title="Diario di Bordo"
+                  >
+                    <BookOpen className="w-3.5 h-3.5" />
                   </Link>
                   <Link
                     href={`/host/${prop.slug}`}
