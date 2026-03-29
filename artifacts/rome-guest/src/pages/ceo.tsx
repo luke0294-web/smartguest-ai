@@ -47,6 +47,8 @@ const STATUS_COLORS: Record<string, string> = {
 
 function QrModal({ property, onClose }: { property: { name: string; slug: string }; onClose: () => void }) {
   const svgRef = useRef<HTMLDivElement>(null);
+  const [isCopied, setIsCopied] = useState(false);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const base = import.meta.env.BASE_URL.replace(/\/$/, "");
   const chatUrl = `${window.location.origin}${base}/guest/${property.slug}`;
 
@@ -112,6 +114,32 @@ function QrModal({ property, onClose }: { property: { name: string; slug: string
     doc.save("Cartello_Benvenuto_SmartGuest.pdf");
   };
 
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(chatUrl);
+      setIsCopied(true);
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+      copyTimerRef.current = setTimeout(() => setIsCopied(false), 3000);
+    } catch (err) {
+      // Fallback per browser datati o modalità anonima
+      const textarea = document.createElement("textarea");
+      textarea.value = chatUrl;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+        document.execCommand("copy");
+        setIsCopied(true);
+        if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+        copyTimerRef.current = setTimeout(() => setIsCopied(false), 3000);
+      } catch {
+        console.error("Copia fallita");
+      }
+      document.body.removeChild(textarea);
+    }
+  };
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -164,10 +192,14 @@ function QrModal({ property, onClose }: { property: { name: string; slug: string
           </button>
 
           <button
-            onClick={() => navigator.clipboard.writeText(chatUrl)}
-            className="w-full flex items-center justify-center gap-2 border border-gray-200 hover:border-gray-300 text-gray-600 font-medium text-sm py-3 rounded-2xl transition-colors"
+            onClick={handleCopyLink}
+            className={`w-full flex items-center justify-center gap-2 font-medium text-sm py-3 rounded-2xl transition-all ${
+              isCopied
+                ? "border border-emerald-300 bg-emerald-50 text-emerald-700"
+                : "border border-gray-200 hover:border-gray-300 text-gray-600"
+            }`}
           >
-            Copia link
+            {isCopied ? "Copiato! ✅" : "Copia link"}
           </button>
         </div>
       </motion.div>
