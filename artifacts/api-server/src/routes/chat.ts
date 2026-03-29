@@ -15,7 +15,6 @@ import { categorizeMessage, isHostFallbackResponse } from "../lib/categorizeMess
 const router: IRouter = Router();
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// ── CHAT ─────────────────────────────────────────────────────────────────────
 router.post("/properties/:slug/chat", async (req, res): Promise<void> => {
   const clientIp = getClientIp(req);
   const allowed = chatRateLimiter.check(clientIp);
@@ -191,7 +190,6 @@ router.post("/properties/:slug/chat", async (req, res): Promise<void> => {
   }
 });
 
-// ── DIARIO DI BORDO ───────────────────────────────────────────────────────────
 router.get("/super-diario/:slug", async (req, res): Promise<void> => {
   try {
     const logs = await db
