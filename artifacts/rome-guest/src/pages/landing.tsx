@@ -432,7 +432,7 @@ export default function Landing() {
             initial="hidden"
             animate="visible"
             custom={4}
-            className="mt-10 flex items-center justify-center gap-2 text-sm text-gray-400"
+            className="mt-10 flex flex-wrap justify-center items-center gap-2 text-xs sm:text-sm text-gray-400"
           >
             <div className="flex -space-x-1.5">
               {["G", "L", "S", "M"].map((l, i) => (
@@ -444,7 +444,7 @@ export default function Landing() {
                 </div>
               ))}
             </div>
-            <span>
+            <span className="whitespace-nowrap">
               <strong className="text-gray-600">+120 host</strong> già usano SmartGuest AI
             </span>
           </motion.div>
