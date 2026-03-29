@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useParams, Link } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { Send, Home, Loader2, Sparkles, AlertCircle, KeyRound } from "lucide-react";
+import ReactMarkdown from "react-markdown";
 import { useGetProperty, useSendPropertyChat } from "@workspace/api-client-react";
 import type { ConversationMessage } from "@workspace/api-client-react/src/generated/api.schemas";
 
@@ -478,7 +479,20 @@ export default function GuestChat() {
                   {msg.role === "assistant" && idx === 0 && (
                     <Sparkles className="w-3.5 h-3.5 text-primary mb-1.5 opacity-60" />
                   )}
-                  <p className="whitespace-pre-wrap font-sans">{msg.content}</p>
+                  {msg.role === "assistant" ? (
+                    <div className="markdown-content font-sans break-words text-sm sm:text-base">
+                      <ReactMarkdown
+                        components={{
+                          strong: ({ node, ...props }) => <b className="font-extrabold text-black" {...props} />,
+                          p: ({ node, ...props }) => <p className="mb-2 last:mb-0" {...props} />,
+                        }}
+                      >
+                        {msg.content}
+                      </ReactMarkdown>
+                    </div>
+                  ) : (
+                    <p className="whitespace-pre-wrap font-sans">{msg.content}</p>
+                  )}
                 </div>
               </motion.div>
             ))}
