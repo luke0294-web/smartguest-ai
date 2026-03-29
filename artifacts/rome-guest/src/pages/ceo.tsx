@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "wouter";
-import { QRCodeSVG } from "qrcode.react";
+import { QRCodeCanvas } from "qrcode.react";
 import {
   Building, Plus, Trash2, ExternalLink, KeyRound, Loader2, Save,
   Users, AlertCircle, Sparkles, QrCode, X, Download, Inbox,
@@ -50,16 +50,13 @@ function QrModal({ property, onClose }: { property: { name: string; slug: string
   const chatUrl = `${window.location.origin}${base}/guest/${property.slug}`;
 
   const handleDownload = () => {
-    const svg = svgRef.current?.querySelector("svg");
-    if (!svg) return;
-    const serialized = new XMLSerializer().serializeToString(svg);
-    const blob = new Blob([serialized], { type: "image/svg+xml" });
-    const url = URL.createObjectURL(blob);
+    const canvas = svgRef.current?.querySelector("canvas");
+    if (!canvas) return;
+    const url = canvas.toDataURL("image/png");
     const a = document.createElement("a");
     a.href = url;
-    a.download = `qr-${property.slug}.svg`;
+    a.download = `qr-${property.slug}.png`;
     a.click();
-    URL.revokeObjectURL(url);
   };
 
   return (
@@ -89,12 +86,12 @@ function QrModal({ property, onClose }: { property: { name: string; slug: string
         </div>
 
         <div className="flex flex-col items-center gap-5 p-6">
-          <div ref={svgRef} className="p-3 bg-white border border-gray-200 rounded-2xl shadow-sm">
-            <QRCodeSVG
+          <div ref={svgRef} className="flex justify-center p-3 bg-white border border-gray-200 rounded-2xl shadow-sm">
+            <QRCodeCanvas
               value={chatUrl}
               size={200}
               bgColor="#ffffff"
-              fgColor="#1d4ed8"
+              fgColor="#111827"
               level="M"
               marginSize={1}
             />
@@ -110,7 +107,7 @@ function QrModal({ property, onClose }: { property: { name: string; slug: string
             className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm py-3 rounded-2xl transition-colors"
           >
             <Download className="w-4 h-4" />
-            Scarica QR Code (SVG)
+            Scarica QR Code
           </button>
 
           <button

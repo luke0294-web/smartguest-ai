@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Link } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { Send, KeyRound, Home, Loader2, Sparkles } from "lucide-react";
+import ReactMarkdown from "react-markdown";
 import { useSendChatMessage } from "@workspace/api-client-react";
 import type { ConversationMessage } from "@workspace/api-client-react/src/generated/api.schemas";
 
@@ -159,7 +160,13 @@ export default function Chat() {
                   {msg.role === "assistant" && idx === 0 && (
                     <Sparkles className="w-3.5 h-3.5 text-primary mb-1.5 opacity-60" />
                   )}
-                  <p className="whitespace-pre-wrap font-sans">{msg.content}</p>
+                  {msg.role === "assistant" ? (
+                    <div className="prose prose-sm max-w-none font-sans leading-relaxed [&_strong]:font-bold [&_p]:m-0 [&_p+p]:mt-1.5">
+                      <ReactMarkdown>{msg.content}</ReactMarkdown>
+                    </div>
+                  ) : (
+                    <p className="whitespace-pre-wrap font-sans">{msg.content}</p>
+                  )}
                 </div>
               </motion.div>
             ))}

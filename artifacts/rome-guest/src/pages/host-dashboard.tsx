@@ -55,6 +55,8 @@ export default function HostDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [aiState, setAiState] = useState<AiState>({ type: "idle" });
   const [pendingCount, setPendingCount] = useState(0);
 
@@ -76,16 +78,14 @@ export default function HostDashboard() {
       const res = await fetch(`${baseUrl}/api/super-diario/${slug}`);
       if (!res.ok) return;
       const logs = await res.json() as any[];
+      // Frase canonica di fallback di Marco — quando la usa, needs_attention: true
       const negativeIndicators = [
-        "sorry", "dispiace", "desolé", "désolé", "leid", "siento",
-        "i apologize", "scusami", "scusa", "mi scusi", "entschuldigung",
-        "don't have", "non ho", "no tengo", "dont have", "n'ai pas", "keine",
-        "not available", "not specified", "no information", "nessuna informazione",
-        "don't know", "non lo so", "no sé", "je ne sais pas", "no sabemos",
-        "non abbiamo", "we don't have", "unfortunately", "purtroppo", "leider",
-        "ask the host", "contatta il proprietario", "ask the owner", "contact host",
-        "call the host", "chiama il proprietario", "whatsapp",
-        "accidenti", "caught me unprepared", "mando subito", "alerting the host",
+        "non ho questa info",           // frase canonica nuova
+        "tasto whatsapp",               // parte canonica nuova
+        "accidenti, mi cogli impreparato", // legacy
+        "caught me unprepared",          // legacy
+        "mando subito un promemoria all'host", // legacy
+        "no tengo esa información a mano",    // legacy
       ];
       const count = logs.filter((log: any) => {
         if (log.resolved) return false;
@@ -159,9 +159,11 @@ export default function HostDashboard() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Errore nel salvataggio.");
-      // Resetta isDirty dopo il salvataggio — senza reset(), isDirty rimane true
-      // e il ciclo di rendering si confonde su cosa ha già salvato
       updateForm.reset(data);
+      // Spunta verde per 3 secondi
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+      setIsSaved(true);
+      savedTimerRef.current = setTimeout(() => setIsSaved(false), 3000);
     } catch (err: any) {
       alert(err?.message ?? "Errore nel salvataggio.");
     } finally {
@@ -313,6 +315,13 @@ export default function HostDashboard() {
             </div>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
+            <Link
+              href={`/guest/${slug}`}
+              className="flex sm:hidden items-center gap-1.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 px-3 py-2 rounded-xl transition-colors shadow-sm shadow-blue-200"
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              Vai alla Chat
+            </Link>
             <Link
               href={`/guest/${slug}`}
               className="hidden sm:flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 font-medium bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-xl transition-colors"
@@ -490,10 +499,12 @@ export default function HostDashboard() {
             {/* Submit */}
             <button
               type="submit"
-              disabled={!updateForm.formState.isDirty || isSaving}
+              disabled={(!updateForm.formState.isDirty && !isSaved) || isSaving}
               className={`flex items-center justify-center gap-2 font-bold py-3.5 px-6 rounded-xl transition-all shadow-lg disabled:cursor-not-allowed ${
                 isSaving
                   ? "bg-gray-400 text-white shadow-gray-100"
+                  : isSaved
+                  ? "bg-emerald-500 text-white shadow-emerald-100 cursor-default"
                   : "bg-blue-600 hover:bg-blue-700 text-white shadow-blue-100 disabled:opacity-50"
               }`}
             >
@@ -501,6 +512,11 @@ export default function HostDashboard() {
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
                   Salvataggio...
+                </>
+              ) : isSaved ? (
+                <>
+                  <CheckCircle2 className="w-4 h-4" />
+                  Salvato!
                 </>
               ) : (
                 <>
