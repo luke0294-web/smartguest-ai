@@ -11,6 +11,7 @@ import {
 import { logger } from "../lib/logger";
 import { chatRateLimiter, getClientIp } from "../lib/rateLimiter";
 import { detectNeedsAttention } from "../lib/detectNeedsAttention";
+import { categorizeMessage, isHostFallbackResponse } from "../lib/categorizeMessage";
 
 const router: IRouter = Router();
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -87,19 +88,28 @@ router.post("/properties/:slug/chat", async (req, res): Promise<void> => {
 
   CURRENT DATE: ${today}
 
-    HOUSE INFORMATION (Your ONLY source of truth):
+    HOUSE INFORMATION (Your ONLY source of truth for apartment-related questions):
     ${property.content}
+
+    HYBRID LOGIC:
+    A. TOURISM & CULTURE (Verona tips, restaurants, history, monuments):
+       - Use your general knowledge to give friendly, helpful advice
+       - Be enthusiastic! You're from Verona 🏛️
+       
+    B. HOUSE MANAGEMENT (apartment, wifi, check-in/out, amenities, rules):
+       - ONLY reference the HOUSE INFORMATION above
+       - If the info is NOT in the manual, respond: "Mi dispiace, non ho istruzioni specifiche per questo nel manuale. Ho inviato una segnalazione al mio host che ti risponderà il prima possibile."
+       - NEVER make up apartment details
+       
+    C. MIXED QUESTIONS: 
+       - Address the house part strictly from the manual
+       - Use general knowledge for the tourism part
 
     STRICT OPERATIONAL RULES:
     1. CONCISENESS: Every word costs you 1 Euro. Be extremely telegraphic. Max 3 short sentences.
     2. LANGUAGE MATCH: You MUST respond in the SAME LANGUAGE as the guest's message. 
-    3. THE "NOT FOUND" RULE: If a guest asks for something (e.g., washing machine, AC, iron) NOT mentioned in the HOUSE INFORMATION, you MUST assume it DOES NOT EXIST. 
-       - Answer: "I'm sorry, we don't have that in the apartment." 
-       - NEVER hallucinate locations. NEVER say "I don't have that information."
-    4. HUMAN LANGUAGE: Avoid robotic phrases. Instead of "not specified," use "I'm not sure," "Good question, I don't think so," or "Ask the host."
-    5. ESCALATION: For emergencies, damage, or complex requests, immediately tell the guest to contact the host on WhatsApp.
-    6. REAL-TIME DATA: You don't have internet. For weather or traffic, suggest checking Google or a weather app.
-    7. LOCAL TIPS: If asked for restaurant or sightseeing advice not in the text, use your general knowledge to give a friendly suggestion.
+    3. ESCALATION: For emergencies, damage, or complex requests, immediately tell the guest to contact the host on WhatsApp.
+    4. REAL-TIME DATA: You don't have internet. For weather or traffic, suggest checking Google or a weather app.
   `;
 
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
@@ -136,14 +146,31 @@ router.post("/properties/:slug/chat", async (req, res): Promise<void> => {
       response.choices[0]?.message?.content ??
       "Mi dispiace, si è verificato un errore. Contatta l'host.";
 
-    // 👇 MODIFICA 2: INIZIO SALVATAGGIO NEL DB 👇
+    // 👇 MODIFICA 2: INIZIO SALVATAGGIO NEL DB CON LOGICA IBRIDA 👇
     try {
+      const category = categorizeMessage(message);
+      const isHostFallback = isHostFallbackResponse(reply);
+      
+      // Logica di marcatura:
+      // - Turismo: resolved: true (no badge)
+      // - Fallimento sicuro (messaggio host): resolved: false (need user action)
+      // - Altro: rilevazione automatica
+      let resolved = false;
+      if (category === "tourism") {
+        resolved = true; // Turismo è sempre risolto (general knowledge)
+      } else if (isHostFallback) {
+        resolved = false; // Host fallback needs attention
+      } else {
+        resolved = !detectNeedsAttention(reply); // Usa la logica universale
+      }
+      
       await db.insert(chatLogsTable).values({
         propertySlug: params.data.slug,
         guestMessage: message,
         marcoReply: reply,
+        resolved,
       });
-      console.log("Chat salvata nel DB con successo! 📝");
+      console.log(`Chat salvata nel DB con successo! 📝 [categoria: ${category}, resolved: ${resolved}]`);
     } catch (dbError) {
       console.error("Errore nel salvataggio della chat:", dbError);
     }
