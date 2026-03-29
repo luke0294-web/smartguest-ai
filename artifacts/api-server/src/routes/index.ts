@@ -7,6 +7,7 @@ import hostDashboardRouter from "./host-dashboard";
 import authRouter from "./auth";
 import aiRouter from "./ai";
 import adminHostsRouter from "./admin-hosts";
+import sendPdfRouter from "./send-pdf";
 
 const router: IRouter = Router();
 
@@ -18,5 +19,6 @@ router.use(hostDashboardRouter);
 router.use(authRouter);
 router.use(aiRouter);
 router.use(adminHostsRouter);
+router.use(sendPdfRouter);
 
 export default router;

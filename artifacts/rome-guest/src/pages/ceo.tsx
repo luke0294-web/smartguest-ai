@@ -49,6 +49,10 @@ function QrModal({ property, onClose }: { property: { name: string; slug: string
   const svgRef = useRef<HTMLDivElement>(null);
   const [isCopied, setIsCopied] = useState(false);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [email, setEmail] = useState("");
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
+  const emailTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const base = import.meta.env.BASE_URL.replace(/\/$/, "");
   const chatUrl = `${window.location.origin}${base}/guest/${property.slug}`;
 
@@ -131,6 +135,39 @@ function QrModal({ property, onClose }: { property: { name: string; slug: string
     }
   };
 
+  const handleSendEmail = async () => {
+    if (!email.trim()) return;
+    
+    setIsSendingEmail(true);
+    try {
+      const canvas = svgRef.current?.querySelector("canvas");
+      if (!canvas) return;
+      const qrDataUrl = canvas.toDataURL("image/png");
+      
+      const response = await fetch(`${import.meta.env.BASE_URL.replace(/\/$/, "")}/api/send-pdf`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: email.trim(),
+          propertyName: property.name,
+          qrDataUrl,
+        }),
+      });
+      
+      if (!response.ok) throw new Error("Errore nell'invio");
+      
+      setEmailSent(true);
+      if (emailTimerRef.current) clearTimeout(emailTimerRef.current);
+      emailTimerRef.current = setTimeout(() => setEmailSent(false), 3000);
+      setEmail("");
+    } catch (err) {
+      console.error("Errore invio email:", err);
+      alert("Errore nell'invio. Riprova.");
+    } finally {
+      setIsSendingEmail(false);
+    }
+  };
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -192,6 +229,43 @@ function QrModal({ property, onClose }: { property: { name: string; slug: string
           >
             {isCopied ? "Copiato! ✅" : "Copia link"}
           </button>
+
+          <div className="w-full border-t border-gray-100 pt-4">
+            <label className="text-[12px] font-semibold text-gray-700 mb-2 block">
+              Invia Cartello via Email
+            </label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="email@example.com"
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-blue-400 mb-2"
+              disabled={isSendingEmail}
+            />
+            <button
+              onClick={handleSendEmail}
+              disabled={!email.trim() || isSendingEmail}
+              className={`w-full flex items-center justify-center gap-2 font-semibold text-sm py-2.5 rounded-2xl transition-all ${
+                emailSent
+                  ? "bg-emerald-500 text-white"
+                  : "bg-violet-600 hover:bg-violet-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+              }`}
+            >
+              {isSendingEmail ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Invio in corso...
+                </>
+              ) : emailSent ? (
+                <>
+                  <CheckCheck className="w-4 h-4" />
+                  Inviato! ✅
+                </>
+              ) : (
+                "Invia PDF via Email"
+              )}
+            </button>
+          </div>
         </div>
       </motion.div>
     </div>
