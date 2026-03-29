@@ -483,8 +483,8 @@ export default function GuestChat() {
                     <div className="markdown-content font-sans break-words text-sm sm:text-base">
                       <ReactMarkdown
                         components={{
-                          strong: ({ node, ...props }) => <b className="font-extrabold text-black" {...props} />,
-                          p: ({ node, ...props }) => <p className="mb-2 last:mb-0" {...props} />,
+                          strong: ({ node, children, ...props }) => <b className="font-extrabold text-black" {...props}>{children}</b>,
+                          p: ({ node, children, ...props }) => <p className="mb-2 last:mb-0" {...props}>{children}</p>,
                         }}
                       >
                         {msg.content}

@@ -164,8 +164,8 @@ export default function Chat() {
                     <div className="font-sans leading-relaxed">
                       <ReactMarkdown
                         components={{
-                          strong: ({ node, ...props }) => (
-                            <strong className="font-bold text-gray-900" {...props} />
+                          strong: ({ node, children, ...props }) => (
+                            <strong className="font-bold text-gray-900" {...props}>{children}</strong>
                           ),
                         }}
                       >
