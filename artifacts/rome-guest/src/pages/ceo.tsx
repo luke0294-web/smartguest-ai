@@ -63,45 +63,36 @@ function QrModal({ property, onClose }: { property: { name: string; slug: string
     const pageW = 210;
     const pageH = 297;
 
-    // Riquadro centrale (15cm x ~18.5cm) con bordo grigio sottile — guida di ritaglio
-    const boxW = 150;
-    const boxH = 185;
-    const boxX = (pageW - boxW) / 2;       // 30mm
-    const boxY = (pageH - boxH) / 2 - 10;  // ~51mm, leggermente sopra al centro
-
-    doc.setDrawColor(200, 200, 200);
-    doc.setLineWidth(0.3);
-    doc.roundedRect(boxX, boxY, boxW, boxH, 3, 3, "S");
-
     // ── Titolo "Benvenuti a [nome]" ────────────────────────────────────────────
     doc.setFont("helvetica", "bold");
     doc.setFontSize(18);
     doc.setTextColor(17, 24, 39);
     const title = `Benvenuti a ${property.name}`;
-    const splitTitle = doc.splitTextToSize(title, boxW - 20);
-    doc.text(splitTitle, pageW / 2, boxY + 20, { align: "center" });
+    const splitTitle = doc.splitTextToSize(title, 170);
+    const startY = 60;
+    doc.text(splitTitle, pageW / 2, startY, { align: "center" });
 
     // ── Sottotitolo ────────────────────────────────────────────────────────────
     const titleHeight = splitTitle.length * 7;
     doc.setFont("helvetica", "normal");
     doc.setFontSize(11);
     doc.setTextColor(107, 114, 128);
-    doc.text("Il tuo Assistente Virtuale 24/7", pageW / 2, boxY + 20 + titleHeight + 4, { align: "center" });
+    doc.text("Il tuo Assistente Virtuale 24/7", pageW / 2, startY + titleHeight + 4, { align: "center" });
 
     // ── QR Code centrato (100x100mm) ───────────────────────────────────────────
     const qrSize = 100;
     const qrX = (pageW - qrSize) / 2;
-    const qrY = boxY + 20 + titleHeight + 14;
+    const qrY = startY + titleHeight + 18;
     doc.addImage(qrDataUrl, "PNG", qrX, qrY, qrSize, qrSize);
 
-    // ── Testo in basso nel riquadro ────────────────────────────────────────────
+    // ── Testo in basso ────────────────────────────────────────────────────────
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
     doc.setTextColor(55, 65, 81);
     doc.text(
       "Inquadra per: Wi-Fi \u2022 Regole \u2022 Consigli \u2022 WhatsApp",
       pageW / 2,
-      boxY + boxH - 12,
+      qrY + qrSize + 16,
       { align: "center" },
     );
 
