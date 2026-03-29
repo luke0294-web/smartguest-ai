@@ -10,9 +10,11 @@ import {
   ArrowRight,
   MessageSquare,
   Shield,
+  Phone,
   X,
   Loader2,
   PartyPopper,
+  ChevronDown,
 } from "lucide-react";
 
 const fadeUp = {
@@ -45,6 +47,13 @@ const FEATURES = [
     bg: "bg-violet-50",
     title: "Dashboard Host",
     desc: "Gestisci tutti i tuoi appartamenti da un unico pannello super-admin. Aggiorna le info in pochi secondi.",
+  },
+  {
+    icon: Shield,
+    color: "text-orange-600",
+    bg: "bg-orange-50",
+    title: "Filtro Anti-Stress WhatsApp",
+    desc: "Marco risolve in autonomia il 90% delle richieste. Per le vere urgenze, l'ospite viene reindirizzato al tuo WhatsApp con un solo click.",
   },
 ];
 
@@ -229,6 +238,90 @@ function RegistrationModal({ onClose }: { onClose: () => void }) {
   );
 }
 
+const FAQ_ITEMS = [
+  {
+    q: "Devo scaricare un'app o farla scaricare agli ospiti?",
+    a: "No, nessun download richiesto! I tuoi ospiti accedono a Marco semplicemente inquadrando un QR Code o cliccando un link dal loro browser.",
+  },
+  {
+    q: "Cosa succede se l'IA non conosce la risposta?",
+    a: "Nessun problema. Marco si scuserà gentilmente e mostrerà all'ospite un comodo tasto per scriverti direttamente su WhatsApp, avvisandoti in silenzio.",
+  },
+  {
+    q: "Posso gestire più appartamenti con un solo account?",
+    a: "Certamente. Dal pannello Host puoi aggiungere tutte le tue strutture. Ognuna avrà il suo regolamento dedicato e il suo QR Code specifico.",
+  },
+];
+
+function FaqSection() {
+  const [openIndex, setOpenIndex] = useState<number | null>(null);
+
+  return (
+    <section className="py-20 px-5 bg-gray-50">
+      <div className="max-w-3xl mx-auto">
+        <motion.div
+          variants={fadeUp}
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true }}
+          className="text-center mb-12"
+        >
+          <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900 mb-3">
+            Domande Frequenti
+          </h2>
+          <p className="text-gray-400 text-base sm:text-lg">
+            Hai dubbi? Ecco le risposte più comuni.
+          </p>
+        </motion.div>
+
+        <div className="flex flex-col gap-3">
+          {FAQ_ITEMS.map((item, i) => (
+            <motion.div
+              key={i}
+              variants={fadeUp}
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true }}
+              custom={i * 0.4}
+              className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"
+            >
+              <button
+                onClick={() => setOpenIndex(openIndex === i ? null : i)}
+                className="w-full flex items-center justify-between gap-4 px-6 py-5 text-left hover:bg-gray-50 transition-colors"
+              >
+                <span className="font-semibold text-[15px] text-gray-900">
+                  {item.q}
+                </span>
+                <ChevronDown
+                  className={`w-5 h-5 text-gray-400 flex-shrink-0 transition-transform duration-300 ${
+                    openIndex === i ? "rotate-180" : ""
+                  }`}
+                />
+              </button>
+              <AnimatePresence initial={false}>
+                {openIndex === i && (
+                  <motion.div
+                    key="content"
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.28, ease: "easeInOut" }}
+                    className="overflow-hidden"
+                  >
+                    <p className="px-6 pb-5 text-[14px] text-gray-500 leading-relaxed">
+                      {item.a}
+                    </p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function Landing() {
   const [showModal, setShowModal] = useState(false);
 
@@ -296,7 +389,7 @@ export default function Landing() {
             custom={1}
             className="text-3xl sm:text-5xl md:text-6xl font-extrabold tracking-tight text-gray-900 leading-[1.15] mb-6"
           >
-            SmartGuest AI&nbsp; Il&nbsp;Portiere&nbsp;Digitale&nbsp;
+            Il&nbsp;Portiere&nbsp;Digitale&nbsp;
             <span className="text-blue-600">24/7</span>
             <span className="block sm:inline"> per il tuo B&B</span>
           </motion.h1>
@@ -411,7 +504,7 @@ export default function Landing() {
             </p>
           </motion.div>
 
-          <div className="grid sm:grid-cols-3 gap-6">
+          <div className="grid sm:grid-cols-2 gap-6">
             {FEATURES.map((f, i) => (
               <motion.div
                 key={f.title}
@@ -479,6 +572,9 @@ export default function Landing() {
           </div>
         </div>
       </section>
+
+      {/* ── FAQ ── */}
+      <FaqSection />
 
       {/* ── Pricing ── */}
       <section id="pricing" className="py-24 px-5 bg-white">
