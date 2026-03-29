@@ -91,18 +91,45 @@ export default function HostDashboard() {
       const res = await fetch(`${baseUrl}/api/super-diario/${slug}`);
       if (!res.ok) return;
       const logs = await res.json() as any[];
-      const failurePatterns = [
-        "mi dispiace", "mi spiace", "sono spiacente",
-        "non ho questa informazione", "non lo so", "non ne ho idea",
-        "i am sorry", "i'm sorry", "i apologize",
-        "don't have", "no information about",
-        "je suis désolé", "je m'excuse",
-        "lo siento", "lo sentimos", "disculpa",
-        "no tengo esa información", "no tengo información sobre",
-      ];
+      
+      // Importa la funzione una volta (oppure usa la logica inline per evitare import circolare)
+      const detectNeedsAttention = (reply: string): boolean => {
+        const text = reply.toLowerCase()
+          .replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, "")
+          .replace(/[!?.,'";:\-()[\]{}]/g, "")
+          .replace(/\s+/g, " ")
+          .trim();
+
+        const negativeIndicators = [
+          "sorry", "dispiace", "desolé", "désolé", "leid", "siento", "lo siento",
+          "i apologize", "scusami", "scusa", "mi scusi", "entschuldigung", "excuse",
+          "don't have", "non ho", "no tengo", "dont have", "n'ai pas", "keine",
+          "non ho questa", "no tengo esa", "nicht vorhanden", "not available",
+          "not specified", "no information", "nessuna informazione",
+          "don't know", "non lo so", "no sé", "no lo sé", "je ne sais pas",
+          "weiß nicht", "non saprei", "no sabemos", "i don't know",
+          "non abbiamo", "we don't have", "no contamos", "we haven't",
+          "unfortunately", "purtroppo", "desgraciadamente", "leider",
+          "ask the host", "contatta il proprietario", "contatta l'host", "preguntar al anfitrión",
+          "preguntale al anfitrion", "ask the owner", "contact host", "contact the host",
+          "call the host", "call the owner", "chiama il proprietario", "whatsapp",
+        ];
+
+        const hasIndicator = negativeIndicators.some(ind => text.includes(ind));
+        if (hasIndicator) return true;
+
+        if (reply.length < 60) {
+          const starters = ["sorry", "mi dispiace", "dispiace", "scusa", "scusami"];
+          if (starters.some(s => text.startsWith(s))) return true;
+        }
+
+        if (text.includes("i") && text.includes("sorry")) return true;
+        return false;
+      };
+
       const pending = logs.filter((log) => {
         const resolved = log.resolved ?? false;
-        return !resolved && failurePatterns.some(p => log.marcoReply.toLowerCase().includes(p));
+        return !resolved && detectNeedsAttention(log.marcoReply);
       });
       setPendingCount(pending.length);
     } catch (err) {

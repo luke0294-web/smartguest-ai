@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "wouter";
 import { ArrowLeft, BookOpen, Loader2, MessageCircle, Bot, Calendar, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { detectNeedsAttention } from "../lib/detectNeedsAttention";
 
 interface ChatLog {
   id: number;
@@ -12,28 +13,6 @@ interface ChatLog {
 }
 
 const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
-
-const detectFailure = (reply: string): boolean => {
-  const lowerReply = reply.toLowerCase();
-  const failurePatterns = [
-    // Italian
-    "mi dispiace", "mi spiace", "sono spiacente",
-    "non ho questa informazione", "non lo so", "non ne ho idea",
-    "non so", "non abbiamo",
-    // English
-    "i am sorry", "i'm sorry", "i apologize", "apologize",
-    "don't have", "no information about", "cannot", "unable to",
-    "not specified", "no data on",
-    // French
-    "je suis désolé", "je m'excuse", "désolé",
-    "pas d'information", "je ne sais pas", "pas de données",
-    // Spanish
-    "lo siento", "lo sentimos", "disculpa",
-    "no tengo esa información", "no tengo información sobre",
-    "no sé", "no sabemos", "sin datos",
-  ];
-  return failurePatterns.some(pattern => lowerReply.includes(pattern));
-};
 
 export default function DiarioDiBordo() {
   const params = useParams<{ slug: string }>();
@@ -89,9 +68,9 @@ export default function DiarioDiBordo() {
     }
   };
 
-  const pendingLogs = logs.filter(l => !l.resolved && detectFailure(l.marcoReply));
+  const pendingLogs = logs.filter(l => !l.resolved && detectNeedsAttention(l.marcoReply));
   const resolvedLogs = logs.filter(l => l.resolved);
-  const successLogs = logs.filter(l => !l.resolved && !detectFailure(l.marcoReply));
+  const successLogs = logs.filter(l => !l.resolved && !detectNeedsAttention(l.marcoReply));
 
   return (
     <div className="min-h-[100dvh] bg-gradient-to-br from-slate-50 to-blue-50 py-8 px-4">

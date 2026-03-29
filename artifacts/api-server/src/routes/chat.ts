@@ -10,6 +10,7 @@ import {
 } from "@workspace/api-zod";
 import { logger } from "../lib/logger";
 import { chatRateLimiter, getClientIp } from "../lib/rateLimiter";
+import { detectNeedsAttention } from "../lib/detectNeedsAttention";
 
 const router: IRouter = Router();
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -207,11 +208,27 @@ router.get("/super-diario/:slug/unresolved-count", async (req, res): Promise<voi
       .from(chatLogsTable)
       .where(eq(chatLogsTable.propertySlug, slug));
 
-    const count = logs.filter(log => !log.resolved).length;
+    const count = logs.filter(log => !log.resolved && detectNeedsAttention(log.marcoReply)).length;
     res.json({ count });
   } catch (err) {
     console.error("Errore nel conteggio delle chat non risolte:", err);
     res.status(500).json({ error: "Impossibile contare i messaggi non risolti." });
+  }
+});
+
+router.post("/super-diario/refresh-all", async (req, res): Promise<void> => {
+  try {
+    const logs = await db.select().from(chatLogsTable);
+    
+    for (const log of logs) {
+      const needsAttention = detectNeedsAttention(log.marcoReply);
+      // Non aggiorniamo resolved, solo usiamo la logica per il conteggio dinamico
+    }
+    
+    res.json({ message: "Logica di rilevamento rinfrescata (calcolata dinamicamente)" });
+  } catch (err) {
+    console.error("Errore nel refresh:", err);
+    res.status(500).json({ error: "Impossibile fare il refresh." });
   }
 });
 
