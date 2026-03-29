@@ -79,6 +79,10 @@ export default function HostDashboard() {
     setSession(s);
     loadProperty(s);
     loadPendingCount();
+    
+    // Aggiorna il conteggio ogni 5 secondi
+    const interval = setInterval(loadPendingCount, 5000);
+    return () => clearInterval(interval);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug]);
 
@@ -86,17 +90,20 @@ export default function HostDashboard() {
     try {
       const res = await fetch(`${baseUrl}/api/super-diario/${slug}`);
       if (!res.ok) return;
-      const logs = await res.json();
+      const logs = await res.json() as any[];
       const failurePatterns = [
         "mi dispiace", "mi spiace", "sono spiacente",
         "non ho questa informazione", "non lo so", "non ne ho idea",
         "i am sorry", "i'm sorry", "i apologize",
         "don't have", "no information about",
         "je suis désolé", "je m'excuse",
+        "lo siento", "lo sentimos", "disculpa",
+        "no tengo esa información", "no tengo información sobre",
       ];
-      const pending = logs.filter((log: any) => 
-        !log.resolved && failurePatterns.some(p => log.marcoReply.toLowerCase().includes(p))
-      );
+      const pending = logs.filter((log) => {
+        const resolved = log.resolved ?? false;
+        return !resolved && failurePatterns.some(p => log.marcoReply.toLowerCase().includes(p));
+      });
       setPendingCount(pending.length);
     } catch (err) {
       // Silently fail

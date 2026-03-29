@@ -27,6 +27,10 @@ const detectFailure = (reply: string): boolean => {
     // French
     "je suis désolé", "je m'excuse", "désolé",
     "pas d'information", "je ne sais pas", "pas de données",
+    // Spanish
+    "lo siento", "lo sentimos", "disculpa",
+    "no tengo esa información", "no tengo información sobre",
+    "no sé", "no sabemos", "sin datos",
   ];
   return failurePatterns.some(pattern => lowerReply.includes(pattern));
 };

@@ -198,6 +198,23 @@ router.get("/super-diario/:slug", async (req, res): Promise<void> => {
     res.status(500).json({ error: "Impossibile caricare il diario di Marco." });
   }
 });
+router.get("/super-diario/:slug/unresolved-count", async (req, res): Promise<void> => {
+  try {
+    const { slug } = req.params;
+
+    const logs = await db
+      .select()
+      .from(chatLogsTable)
+      .where(eq(chatLogsTable.propertySlug, slug));
+
+    const count = logs.filter(log => !log.resolved).length;
+    res.json({ count });
+  } catch (err) {
+    console.error("Errore nel conteggio delle chat non risolte:", err);
+    res.status(500).json({ error: "Impossibile contare i messaggi non risolti." });
+  }
+});
+
 router.patch("/super-diario/:slug/resolve/:id", async (req, res): Promise<void> => {
   try {
     const { slug, id } = req.params;
