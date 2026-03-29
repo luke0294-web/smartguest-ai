@@ -18,6 +18,7 @@
     "duck-duck-scrape": "^2.2.7",
     "express": "^5",
     "multer": "^2.1.1",
+    "nodemailer": "^8.0.4",
     "openai": "^6.32.0",
     "pino": "^9",
     "pino-http": "^10"
@@ -27,6 +28,7 @@
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "catalog:",
+    "@types/nodemailer": "^7.0.11",
     "esbuild": "^0.27.3",
     "pino-pretty": "^13",
     "tsx": "catalog:"

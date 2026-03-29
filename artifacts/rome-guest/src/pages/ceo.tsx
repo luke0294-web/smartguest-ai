@@ -137,32 +137,76 @@ function QrModal({ property, onClose }: { property: { name: string; slug: string
 
   const handleSendEmail = async () => {
     if (!email.trim()) return;
-    
+
     setIsSendingEmail(true);
     try {
       const canvas = svgRef.current?.querySelector("canvas");
-      if (!canvas) return;
+      if (!canvas) throw new Error("QR Code non trovato");
+
       const qrDataUrl = canvas.toDataURL("image/png");
-      
+
+      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pageW = 210;
+      const pageH = 297;
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(18);
+      doc.setTextColor(17, 24, 39);
+      const title = `Benvenuti a ${property.name}`;
+      const splitTitle = doc.splitTextToSize(title, 170);
+      const startY = 60;
+      doc.text(splitTitle, pageW / 2, startY, { align: "center" });
+
+      const titleHeight = splitTitle.length * 7;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(11);
+      doc.setTextColor(107, 114, 128);
+      doc.text("Il tuo Assistente Virtuale 24/7", pageW / 2, startY + titleHeight + 4, { align: "center" });
+
+      const qrSize = 100;
+      const qrX = (pageW - qrSize) / 2;
+      const qrY = startY + titleHeight + 18;
+      doc.addImage(qrDataUrl, "PNG", qrX, qrY, qrSize, qrSize);
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      doc.setTextColor(55, 65, 81);
+      doc.text(
+        "Inquadra per: Wi-Fi \u2022 Regole \u2022 Consigli \u2022 WhatsApp",
+        pageW / 2,
+        qrY + qrSize + 16,
+        { align: "center" },
+      );
+
+      doc.setFont("helvetica", "italic");
+      doc.setFontSize(8);
+      doc.setTextColor(156, 163, 175);
+      doc.text("Powered by SmartGuest AI", pageW / 2, pageH - 10, { align: "center" });
+
+      const pdfBase64 = doc.output("datauristring");
+
       const response = await fetch(`${import.meta.env.BASE_URL.replace(/\/$/, "")}/api/send-pdf`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: email.trim(),
           propertyName: property.name,
-          qrDataUrl,
+          pdfBase64,
         }),
       });
-      
-      if (!response.ok) throw new Error("Errore nell'invio");
-      
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error((data as { error?: string }).error ?? "Errore nell'invio");
+      }
+
       setEmailSent(true);
       if (emailTimerRef.current) clearTimeout(emailTimerRef.current);
       emailTimerRef.current = setTimeout(() => setEmailSent(false), 3000);
       setEmail("");
     } catch (err) {
       console.error("Errore invio email:", err);
-      alert("Errore nell'invio. Riprova.");
+      alert(`Errore nell'invio: ${err instanceof Error ? err.message : "Riprova."}`);
     } finally {
       setIsSendingEmail(false);
     }

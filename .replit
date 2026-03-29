@@ -32,3 +32,12 @@ timeoutMs = 20000
 [nix]
 channel = "stable-25_05"
 packages = ["psmisc"]
+
+[userenv]
+
+[userenv.shared]
+EMAIL_SMTP_HOST = "smtp.gmail.com"
+EMAIL_SMTP_PORT = "465"
+EMAIL_USER = "hello.smartguest@gmail.com"
+EMAIL_PASS = "ajpt qsho ekqt lnqw"
+EMAIL_FROM_NAME = "SmartGuest AI"
