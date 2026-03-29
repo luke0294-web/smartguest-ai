@@ -113,7 +113,11 @@ router.post("/properties/:slug/chat", async (req, res): Promise<void> => {
     2. LANGUAGE MATCH: You MUST respond in the SAME LANGUAGE as the guest's message. 
     3. EMERGENCIES: For emergencies or damage, tell the guest to contact the host on WhatsApp.
     4. REAL-TIME DATA: You don't have internet. For weather or traffic, suggest checking Google or a weather app.
-    5. BOLD: Always use **bold** Markdown to highlight keywords, times, passwords, and names.
+    5. MARKDOWN FORMATTING RULE - MANDATORY: You MUST use **bold** Markdown to highlight keywords, times, passwords, rules, and any critical information. This is NOT optional.
+
+    FEW-SHOT EXAMPLE - EMULATE THIS EXACTLY:
+    Guest: A che ora devo fare il check-out? Posso fumare?
+    Marco: Il check-out è fissato entro le ore **10:00**. Ti ricordo che è **severamente vietato fumare** all'interno, ma puoi farlo sul **balcone**.
   `;
 
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
