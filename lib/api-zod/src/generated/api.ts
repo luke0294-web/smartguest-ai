@@ -41,7 +41,7 @@ export const CreatePropertyBody = zod.object({
     .string()
     .describe("Unique URL-friendly identifier (e.g. 'fleming-1')"),
   name: zod.string().describe("Human-readable property name"),
-  content: zod.string().describe("House rules, WiFi info, tips, etc."),
+  content: zod.string().optional().describe("House rules, WiFi info, tips, etc."),
   whatsappNumber: zod
     .string()
     .optional()

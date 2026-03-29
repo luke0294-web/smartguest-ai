@@ -10,7 +10,7 @@ import {
   Building, Plus, Trash2, ExternalLink, KeyRound, Loader2, Save,
   Users, AlertCircle, Sparkles, QrCode, X, Download, Inbox,
   UserCog, Copy, CheckCheck, Link2, Eye, EyeOff, RefreshCw,
-  Mail, ShieldAlert, FileText, ChevronDown,
+  Mail, ShieldAlert, FileText, ChevronDown, UserCheck,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -22,7 +22,7 @@ const createPropertySchema = z.object({
   slug: z.string().min(1, "Lo slug è obbligatorio").regex(/^[a-z0-9-]+$/, "Solo lettere minuscole, numeri e trattini"),
   whatsappNumber: z.string().optional(),
   ownerEmail: z.string().email("Email non valida").optional().or(z.literal("")),
-  content: z.string().min(1, "Il regolamento è obbligatorio"),
+  content: z.string().optional(),
 });
 
 type CreatePropertyValues = z.infer<typeof createPropertySchema>;
@@ -662,6 +662,8 @@ export default function CeoPanel() {
   const [contentModal, setContentModal] = useState<{ name: string; slug: string; content?: string | null } | null>(null);
   const [leadDeleting, setLeadDeleting] = useState<Record<number, boolean>>({});
   const [leadStatusSaving, setLeadStatusSaving] = useState<Record<number, boolean>>({});
+  const [convertingLead, setConvertingLead] = useState<Record<number, boolean>>({});
+  const [convertSuccess, setConvertSuccess] = useState<Record<number, string | null>>({});
   const [hosts, setHosts] = useState<Array<{ id: number; email: string; createdAt: string }>>([]);
   const [hostsLoading, setHostsLoading] = useState(false);
   const [newHostEmail, setNewHostEmail] = useState("");
@@ -791,6 +793,32 @@ export default function CeoPanel() {
       }
     } finally {
       setLeadStatusSaving((prev) => { const n = { ...prev }; delete n[id]; return n; });
+    }
+  };
+
+  const convertLead = async (lead: Lead) => {
+    if (!window.confirm(`Converti "${lead.hostName}" in host?\n\nVerra creata la proprietà "${lead.propertyName}".\nPassword assegnata: Benvenuto2026!`)) return;
+    setConvertingLead((prev) => ({ ...prev, [lead.id]: true }));
+    try {
+      const res = await fetch(`${baseUrl}/api/leads/${lead.id}/convert`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ceoPassword: password }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(`Errore: ${data.error ?? "Qualcosa è andato storto."}`);
+        return;
+      }
+      setConvertSuccess((prev) => ({ ...prev, [lead.id]: "Creato! Password: Benvenuto2026!" }));
+      setTimeout(() => {
+        setConvertSuccess((prev) => { const n = { ...prev }; delete n[lead.id]; return n; });
+      }, 6000);
+      setLeads((prev) => prev.map((l) => l.id === lead.id ? { ...l, status: "Chiuso" } : l));
+    } catch {
+      alert("Errore di rete. Riprova.");
+    } finally {
+      setConvertingLead((prev) => { const n = { ...prev }; delete n[lead.id]; return n; });
     }
   };
 
@@ -1003,7 +1031,7 @@ export default function CeoPanel() {
         )}
       </AnimatePresence>
 
-      <div className="min-h-[100dvh] flex flex-col md:py-8 md:px-6">
+      <div className="min-h-[100dvh] flex flex-col py-4 px-4 md:py-8 md:px-6">
         <div className="max-w-7xl w-full mx-auto flex flex-col gap-6">
 
           {/* Header */}
@@ -1025,10 +1053,10 @@ export default function CeoPanel() {
           </header>
 
           {/* Tabs */}
-          <div className="flex gap-2 px-1">
+          <div className="flex gap-1.5 px-1 overflow-x-auto pb-1">
             <button
               onClick={() => setActiveTab("properties")}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all ${
+              className={`flex-shrink-0 whitespace-nowrap flex items-center gap-2 px-3 sm:px-5 py-2.5 rounded-xl font-semibold text-sm transition-all ${
                 activeTab === "properties"
                   ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
                   : "text-muted-foreground hover:bg-black/5"
@@ -1039,7 +1067,7 @@ export default function CeoPanel() {
             </button>
             <button
               onClick={() => setActiveTab("leads")}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all ${
+              className={`flex-shrink-0 whitespace-nowrap flex items-center gap-2 px-3 sm:px-5 py-2.5 rounded-xl font-semibold text-sm transition-all ${
                 activeTab === "leads"
                   ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
                   : "text-muted-foreground hover:bg-black/5"
@@ -1055,7 +1083,7 @@ export default function CeoPanel() {
             </button>
             <button
               onClick={() => setActiveTab("resets")}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all ${
+              className={`flex-shrink-0 whitespace-nowrap flex items-center gap-2 px-3 sm:px-5 py-2.5 rounded-xl font-semibold text-sm transition-all ${
                 activeTab === "resets"
                   ? "bg-amber-500 text-white shadow-md shadow-amber-500/20"
                   : "text-muted-foreground hover:bg-black/5"
@@ -1071,7 +1099,7 @@ export default function CeoPanel() {
             </button>
             <button
               onClick={() => setActiveTab("hosts")}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all ${
+              className={`flex-shrink-0 whitespace-nowrap flex items-center gap-2 px-3 sm:px-5 py-2.5 rounded-xl font-semibold text-sm transition-all ${
                 activeTab === "hosts"
                   ? "bg-indigo-600 text-white shadow-md shadow-indigo-500/20"
                   : "text-muted-foreground hover:bg-black/5"
@@ -1447,14 +1475,26 @@ export default function CeoPanel() {
                           </div>
                         </div>
 
-                        {/* Right: date + status + delete */}
+                        {/* Right: date + status + actions */}
                         <div className="flex flex-col sm:items-end gap-2 pl-14 sm:pl-0 flex-shrink-0">
                           <span className="text-[11px] text-muted-foreground">
                             {format(new Date(lead.createdAt), "dd MMM yyyy · HH:mm")}
                           </span>
 
-                          {/* Status dropdown */}
-                          <div className="flex items-center gap-2">
+                          {/* Success banner */}
+                          {convertSuccess[lead.id] && (
+                            <motion.div
+                              initial={{ opacity: 0, scale: 0.95 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg"
+                            >
+                              <CheckCheck className="w-3 h-3 flex-shrink-0" />
+                              {convertSuccess[lead.id]}
+                            </motion.div>
+                          )}
+
+                          {/* Status dropdown + action buttons */}
+                          <div className="flex items-center gap-2 flex-wrap justify-end">
                             <div className="relative">
                               <select
                                 value={lead.status ?? "Nuovo"}
@@ -1468,6 +1508,19 @@ export default function CeoPanel() {
                               </select>
                               <ChevronDown className="w-3 h-3 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none opacity-60" />
                             </div>
+
+                            {/* Approva e Converti button */}
+                            <button
+                              onClick={() => convertLead(lead)}
+                              disabled={convertingLead[lead.id] || lead.status === "Chiuso"}
+                              title="Approva e Converti in Host + Proprietà"
+                              className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg bg-emerald-600 text-white text-[12px] font-semibold hover:bg-emerald-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+                            >
+                              {convertingLead[lead.id]
+                                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                : <UserCheck className="w-3.5 h-3.5" />}
+                              {!convertingLead[lead.id] && <span>Converti</span>}
+                            </button>
 
                             {/* Delete button */}
                             <button

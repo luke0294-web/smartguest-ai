@@ -109,6 +109,7 @@ artifacts-monorepo/
 │   │       ├── chat.ts          # Marco AI chat per property slug
 │   │       ├── host-dashboard.ts # Host auth (email+hosts table), property edit
 │   │       ├── admin-hosts.ts   # CEO host management (CRUD for hosts table)
+│   │       ├── leads.ts         # Leads CRUD + /leads/:id/convert endpoint
 │   │       ├── auth.ts          # Forgot/reset password flow
 │   │       ├── ai.ts            # AI transcription + vision endpoints
 │   │       ├── health.ts        # Health check
