@@ -11,8 +11,8 @@ import adminHostsRouter from "./admin-hosts";
 const router: IRouter = Router();
 
 router.use(healthRouter);
-router.use(propertiesRouter);
-router.use(chatRouter);
+router.use(chatRouter); // 👇 SCAMBIATO! Ora le chat vengono prima!
+router.use(propertiesRouter); // 👆 Le case vengono dopo
 router.use(leadsRouter);
 router.use(hostDashboardRouter);
 router.use(authRouter);

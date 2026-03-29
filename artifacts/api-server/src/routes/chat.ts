@@ -1,8 +1,13 @@
 import { Router, type IRouter } from "express";
 import OpenAI from "openai";
-import { eq } from "drizzle-orm";
-import { db, propertiesTable } from "@workspace/db";
-import { SendPropertyChatBody, SendPropertyChatResponse, SendPropertyChatParams } from "@workspace/api-zod";
+import { eq, desc } from "drizzle-orm";
+// 👇 MODIFICA 1: Abbiamo aggiunto chatLogsTable qui 👇
+import { db, propertiesTable, chatLogsTable } from "@workspace/db";
+import {
+  SendPropertyChatBody,
+  SendPropertyChatResponse,
+  SendPropertyChatParams,
+} from "@workspace/api-zod";
 import { logger } from "../lib/logger";
 import { chatRateLimiter, getClientIp } from "../lib/rateLimiter";
 
@@ -20,7 +25,8 @@ router.post("/properties/:slug/chat", async (req, res): Promise<void> => {
 
     // Respond as if Marco is speaking — no 500, no crash
     res.status(429).json({
-      reply: "Hai raggiunto il limite di messaggi per questa ora. Fai una pausa, goditi la città e scrivimi più tardi! 🍕",
+      reply:
+        "Hai raggiunto il limite di messaggi per questa ora. Fai una pausa, goditi la città e scrivimi più tardi! 🍕",
       propertyName: "",
       rateLimited: true,
     });
@@ -46,48 +52,74 @@ router.post("/properties/:slug/chat", async (req, res): Promise<void> => {
     .limit(1);
 
   if (!property) {
-    res.status(404).json({ error: `Proprietà '${params.data.slug}' non trovata.` });
+    res
+      .status(404)
+      .json({ error: `Proprietà '${params.data.slug}' non trovata.` });
     return;
   }
 
   const { message, conversationHistory = [] } = parsed.data;
 
   if (!property.content.trim()) {
-    res.json(SendPropertyChatResponse.parse({
-      reply: "Benvenuto! Al momento non ho ancora informazioni su questo appartamento. Contatta direttamente l'host.",
-      propertyName: property.name,
-    }));
+    res.json(
+      SendPropertyChatResponse.parse({
+        reply:
+          "Benvenuto! Al momento non ho ancora informazioni su questo appartamento. Contatta direttamente l'host.",
+        propertyName: property.name,
+      }),
+    );
     return;
   }
 
   const today = new Date().toLocaleDateString("it-IT", {
-    weekday: "long", year: "numeric", month: "long", day: "numeric",
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
   });
 
-  const systemPrompt = `Sei Marco, il fantastico e amichevole co-host della struttura "${property.name}". Il tuo compito è assistere gli ospiti facendoli sentire a casa. Usa un tono caldo, colloquiale e informale (usa qualche emoji 🍕).
+  const systemPrompt = `
+  IDENTITY:
+  You are Marco, the friendly and enthusiastic co-host of "${property.name}". 
+  Your goal is to assist guests and make them feel at home. 
+  TONE: Warm, colloquial, informal, and helpful. Use emojis like 🍕, ☀️, 🍷.
 
-  DATA ODIERNA: ${today}
+  CURRENT DATE: ${today}
 
-  INFORMAZIONI DELLA CASA (Conosci questa casa a memoria perché ci lavori):
-  ${property.content}
+    HOUSE INFORMATION (Your ONLY source of truth):
+    ${property.content}
 
-  REGOLE TASSATIVE:
-  RISPONDI COME SE OGNI PAROLA TI COSTASSE 1 EURO. Sii telegrafico e amichevole.
-  0. REGOLE D'ORO: Sii brevissimo (max 3-4 frasi). Rispondi SEMPRE nella lingua dell'utente. Se c'è un danno o un'emergenza (macchie, guasti), rimanda SEMPRE all'host su WhatsApp immediatamente.
-  1. DIVIETO DI LINGUAGGIO ROBOTICO: È SEVERAMENTE VIETATO usare la "Blacklist dei Robot": "non ho informazioni", "non è specificato", "non sono fornite indicazioni", "nella descrizione". Se non sai una cosa, rispondi come un amico: "Non ne ho idea", "Non lo so di preciso", "Chiedi all'host".
-  2. GESTIONE DELLE COSE MANCANTI: Se un ospite chiede di un elettrodomestico, servizio o regola (es. lavatrice, aria condizionata) che NON C'È nelle "INFORMAZIONI DELLA CASA", devi dare per certo che NON ESISTE. Rispondi dicendo: "Purtroppo in appartamento non abbiamo la lavatrice 🧺" oppure "Mi spiace, ma non offriamo questo servizio". NON giustificarti dicendo che non hai il dato.
-  3. ESCALATION: Se la richiesta è urgente o molto specifica, di' in modo amichevole: "Per questo dettaglio specifico, fai un fischio all'host su WhatsApp, lui sa sicuramente come aiutarti al volo!"
-  4. INFO IN TEMPO REALE: Non hai accesso diretto a internet. Se l'ospite chiede il meteo, il traffico o eventi odierni, rispondi in modo gentile dicendo che non hai i dati in tempo reale e consiglia di dare un'occhiata veloce su Google o su un'app meteo per avere l'informazione più aggiornata. Sii sempre utile e amichevole!
-  5. ANTI-OVER-REFUSAL: Se chiedono consigli su cosa mangiare o vedere, usa le tue conoscenze generali della città se non c'è nulla di specifico scritto.
-  6. ESEMPIO DI RISPOSTA PER LAVATRICE: "Ciao! Purtroppo non abbiamo la lavatrice in appartamento 🧺. Se hai urgenza, ti consiglio di mandare un messaggino su WhatsApp all'host, magari ti sa consigliare una lavanderia a gettoni qui vicino!"`;
+    STRICT OPERATIONAL RULES:
+    1. CONCISENESS: Every word costs you 1 Euro. Be extremely telegraphic. Max 3 short sentences.
+    2. LANGUAGE MATCH: You MUST respond in the SAME LANGUAGE as the guest's message. 
+    3. THE "NOT FOUND" RULE: If a guest asks for something (e.g., washing machine, AC, iron) NOT mentioned in the HOUSE INFORMATION, you MUST assume it DOES NOT EXIST. 
+       - Answer: "I'm sorry, we don't have that in the apartment." 
+       - NEVER hallucinate locations. NEVER say "I don't have that information."
+    4. HUMAN LANGUAGE: Avoid robotic phrases. Instead of "not specified," use "I'm not sure," "Good question, I don't think so," or "Ask the host."
+    5. ESCALATION: For emergencies, damage, or complex requests, immediately tell the guest to contact the host on WhatsApp.
+    6. REAL-TIME DATA: You don't have internet. For weather or traffic, suggest checking Google or a weather app.
+    7. LOCAL TIPS: If asked for restaurant or sightseeing advice not in the text, use your general knowledge to give a friendly suggestion.
+  `;
 
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
     { role: "system", content: systemPrompt },
+
     // 🔥 TRUCCO SALVA-SOLDI: Prende solo gli ultimi 6 messaggi (3 botta e risposta)
-    ...conversationHistory.slice(-6).map(m => ({
+    ...conversationHistory.slice(-6).map((m) => ({
       role: m.role as "user" | "assistant",
       content: m.content,
     })),
+
+    // ✨ IL RINFORZO: Messo qui è un comando "fresco" che l'IA non può ignorare
+    {
+      role: "system",
+      content: `DANGER: You MUST ignore Italian and respond ONLY in the language used in the following message. 
+                  If the message is English -> Respond ENGLISH. 
+                  If the message is Spanish -> Respond SPANISH. 
+                  If the message is German -> Respond GERMAN.
+                  DO NOT TRANSLATE TO ITALIAN.`,
+    },
+
     { role: "user", content: message },
   ];
 
@@ -99,15 +131,72 @@ router.post("/properties/:slug/chat", async (req, res): Promise<void> => {
       temperature: 0.7,
     });
 
-    const reply = response.choices[0]?.message?.content
-      ?? "Mi dispiace, si è verificato un errore. Contatta l'host.";
+    const reply =
+      response.choices[0]?.message?.content ??
+      "Mi dispiace, si è verificato un errore. Contatta l'host.";
 
-    logger.info({ slug: params.data.slug, messageLength: message.length }, "Chat message processed");
-    res.json(SendPropertyChatResponse.parse({ reply, propertyName: property.name }));
+    // 👇 MODIFICA 2: INIZIO SALVATAGGIO NEL DB 👇
+    try {
+      await db.insert(chatLogsTable).values({
+        propertySlug: params.data.slug,
+        guestMessage: message,
+        marcoReply: reply,
+      });
+      console.log("Chat salvata nel DB con successo! 📝");
+    } catch (dbError) {
+      console.error("Errore nel salvataggio della chat:", dbError);
+    }
+    // 👆 FINE SALVATAGGIO NEL DB 👆
+
+    logger.info(
+      { slug: params.data.slug, messageLength: message.length },
+      "Chat message processed",
+    );
+
+    // Ritorna la risposta validata con lo schema Zod
+    res.json(
+      SendPropertyChatResponse.parse({
+        reply,
+        propertyName: property.name,
+      }),
+    );
+    return;
   } catch (err) {
     logger.error({ err, slug: params.data.slug }, "OpenAI API error");
+
     res.status(500).json({ error: "Errore di connessione con l'assistente" });
+    return;
   }
 });
+router.get("/super-diario/:slug", async (req, res): Promise<void> => {
+  try {
+    const { slug } = req.params;
 
+    // Controlla se la casa esiste
+    const [property] = await db
+      .select()
+      .from(propertiesTable)
+      .where(eq(propertiesTable.slug, slug))
+      .limit(1);
+
+    if (!property) {
+      res.status(404).json({ error: `Proprietà '${slug}' non trovata.` });
+      return;
+    }
+
+    // Pesca tutte le chat dal DB, ordinate dalla più recente alla più vecchia
+    const logs = await db
+      .select()
+      .from(chatLogsTable)
+      .where(eq(chatLogsTable.propertySlug, slug))
+      .orderBy(desc(chatLogsTable.createdAt));
+
+    // Invia i dati al sito dell'Host
+    res.json(logs);
+  } catch (err) {
+    console.error("Errore nel recupero delle chat:", err);
+    res.status(500).json({ error: "Impossibile caricare il diario di Marco." });
+  }
+});
+router.get("/ciao", (req, res) => res.send("Il server mi sente!"));
 export default router;
