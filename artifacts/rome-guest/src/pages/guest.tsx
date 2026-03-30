@@ -4,7 +4,13 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Send, Home, Loader2, Sparkles, AlertCircle, KeyRound } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { useGetProperty, useSendPropertyChat } from "@workspace/api-client-react";
-import type { ConversationMessage } from "@workspace/api-client-react/src/generated/api.schemas";
+
+// ── Type Definitions ────────────────────────────────────────────────────────
+
+export interface ConversationMessage {
+  role: "user" | "assistant";
+  content: string;
+}
 
 // ── UI Localization ─────────────────────────────────────────────────────────
 
@@ -39,7 +45,7 @@ const TRANSLATIONS = {
     powered: "Powered by SmartGuest AI · Marco",
     quickReplies: [
       { label: "🔑 WiFi", question: "Qual è la password del WiFi?" },
-      { label: "🚌 Centro Città", question: "Come arrivo al centro città?" },
+      { label: "🍕 Ristoranti", question: "Quali ristoranti o posti per mangiare consigli nei dintorni?" },
       { label: "🗑️ Rifiuti", question: "Come funziona la raccolta differenziata?" },
       { label: "🕒 Check-out", question: "A che ora è il check-out?" },
     ],
@@ -60,7 +66,7 @@ const TRANSLATIONS = {
     powered: "Powered by SmartGuest AI · Marco",
     quickReplies: [
       { label: "🔑 WiFi", question: "What is the WiFi password?" },
-      { label: "🚌 City Centre", question: "How do I get to the city centre?" },
+      { label: "🍕 Restaurants", question: "What restaurants or places to eat do you recommend nearby?" },
       { label: "🗑️ Recycling", question: "How does the waste/recycling system work?" },
       { label: "🕒 Check-out", question: "What time is check-out?" },
     ],
@@ -81,7 +87,7 @@ const TRANSLATIONS = {
     powered: "Powered by SmartGuest AI · Marco",
     quickReplies: [
       { label: "🔑 WLAN", question: "Was ist das WLAN-Passwort?" },
-      { label: "🚌 Innenstadt", question: "Wie komme ich ins Stadtzentrum?" },
+      { label: "🍕 Restaurants", question: "Welche Restaurants empfehlen Sie in der Nähe?" },
       { label: "🗑️ Müll", question: "Wie funktioniert die Mülltrennung?" },
       { label: "🕒 Check-out", question: "Um wie viel Uhr ist der Check-out?" },
     ],
@@ -102,7 +108,7 @@ const TRANSLATIONS = {
     powered: "Powered by SmartGuest AI · Marco",
     quickReplies: [
       { label: "🔑 WiFi", question: "Quel est le mot de passe WiFi?" },
-      { label: "🚌 Centre-ville", question: "Comment rejoindre le centre-ville?" },
+      { label: "🍕 Restaurants", question: "Quels restaurants recommandez-vous aux alentours ?" },
       { label: "🗑️ Déchets", question: "Comment fonctionne le tri des déchets?" },
       { label: "🕒 Check-out", question: "À quelle heure est le check-out?" },
     ],
@@ -123,7 +129,7 @@ const TRANSLATIONS = {
     powered: "Powered by SmartGuest AI · Marco",
     quickReplies: [
       { label: "🔑 WiFi", question: "¿Cuál es la contraseña del WiFi?" },
-      { label: "🚌 Centro", question: "¿Cómo llego al centro de la ciudad?" },
+      { label: "🍕 Restaurantes", question: "¿Qué restaurantes o lugares para comer recomiendas cerca?" },
       { label: "🗑️ Basura", question: "¿Cómo funciona la recogida de basura?" },
       { label: "🕒 Check-out", question: "¿A qué hora es el check-out?" },
     ],
@@ -144,7 +150,7 @@ const TRANSLATIONS = {
     powered: "Powered by SmartGuest AI · Marco",
     quickReplies: [
       { label: "🔑 WiFi", question: "Wat is het WiFi-wachtwoord?" },
-      { label: "🚌 Stadscentrum", question: "Hoe kom ik naar het stadscentrum?" },
+      { label: "🍕 Restaurants", question: "Welke restaurants raad je aan in de buurt?" },
       { label: "🗑️ Afval", question: "Hoe werkt de afvalscheiding?" },
       { label: "🕒 Check-out", question: "Hoe laat is het check-out?" },
     ],
@@ -165,7 +171,7 @@ const TRANSLATIONS = {
     powered: "Powered by SmartGuest AI · Marco",
     quickReplies: [
       { label: "🔑 WiFi", question: "WiFi密码是什么？" },
-      { label: "🚌 市中心", question: "如何前往市中心？" },
+      { label: "🍕 餐厅", question: "您推荐附近有哪些餐厅？" },
       { label: "🗑️ 垃圾分类", question: "如何进行垃圾分类？" },
       { label: "🕒 退房", question: "退房时间是几点？" },
     ],
@@ -186,7 +192,7 @@ const TRANSLATIONS = {
     powered: "Powered by SmartGuest AI · Marco",
     quickReplies: [
       { label: "🔑 WiFi", question: "WiFiのパスワードは何ですか？" },
-      { label: "🚌 市内中心部", question: "市内中心部へはどう行きますか？" },
+      { label: "🍕 レストラン", question: "近くのおすすめのレストランはどこですか？" },
       { label: "🗑️ ゴミ分別", question: "ゴミの分別はどうすればいいですか？" },
       { label: "🕒 チェックアウト", question: "チェックアウトは何時ですか？" },
     ],
@@ -207,7 +213,7 @@ const TRANSLATIONS = {
     powered: "Powered by SmartGuest AI · Marco",
     quickReplies: [
       { label: "🔑 WiFi", question: "WiFi 비밀번호가 무엇인가요?" },
-      { label: "🚌 시내 중심", question: "시내 중심부에 어떻게 가나요?" },
+      { label: "🍕 레스토랑", question: "근처에 추천할 만한 식당이 있나요?" },
       { label: "🗑️ 쓰레기 분리", question: "쓰레기 분리수거는 어떻게 하나요?" },
       { label: "🕒 체크아웃", question: "체크아웃은 몇 시인가요?" },
     ],
@@ -228,7 +234,7 @@ const TRANSLATIONS = {
     powered: "Powered by SmartGuest AI · Marco",
     quickReplies: [
       { label: "🔑 WiFi", question: "Qual é a senha do WiFi?" },
-      { label: "🚌 Centro", question: "Como chego ao centro da cidade?" },
+      { label: "🍕 Restaurantes", question: "Quais restaurantes você recomenda por perto?" },
       { label: "🗑️ Lixo", question: "Como funciona a coleta seletiva de lixo?" },
       { label: "🕒 Check-out", question: "A que horas é o check-out?" },
     ],
@@ -249,7 +255,7 @@ const TRANSLATIONS = {
     powered: "Powered by SmartGuest AI · Marco",
     quickReplies: [
       { label: "🔑 WiFi", question: "Jakie jest hasło do WiFi?" },
-      { label: "🚌 Centrum", question: "Jak dojechać do centrum miasta?" },
+      { label: "🍕 Restauracje", question: "Jakie restauracje polecasz w pobliżu?" },
       { label: "🗑️ Śmieci", question: "Jak działa segregacja śmieci?" },
       { label: "🕒 Check-out", question: "O której jest check-out?" },
     ],

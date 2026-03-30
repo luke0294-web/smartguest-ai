@@ -5,24 +5,83 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import {
-  Home, Loader2, Save, CheckCircle2, AlertCircle,
-  Wifi, MessageSquare, Phone, FileText, Mic, MicOff, Camera,
-  Sparkles, ArrowLeft, BookOpen,
+  Home,
+  Loader2,
+  Save,
+  CheckCircle2,
+  AlertCircle,
+  Wifi,
+  MessageSquare,
+  Phone,
+  FileText,
+  Mic,
+  MicOff,
+  Camera,
+  Sparkles,
+  ArrowLeft,
+  BookOpen,
 } from "lucide-react";
+const DEFAULT_MANUAL_TEMPLATE = `🏠 MANUALE DI BENVENUTO - [NOME APPARTAMENTO]
+Benvenuti! Ecco tutte le informazioni essenziali per il vostro soggiorno.
+
+📶 WI-FI
+Rete: [Inserisci Nome Rete]
+Password: [Inserisci Password]
+
+🔑 CHECK-IN E CHECK-OUT
+Check-out: Tassativamente entro le ore [10:00].
+Istruzioni: Al check-out, chiudere bene le finestre, spegnere luci/clima e lasciare le chiavi [sul tavolo / nella lockbox].
+
+🚗 PARCHEGGIO E ZTL
+ZTL: L'appartamento si trova [fuori / dentro] la ZTL.
+Parcheggio: Consigliamo di parcheggiare in [Nome Via / Parcheggio a pagamento], a [X] minuti a piedi.
+
+🗑️ RIFIUTI E RACCOLTA DIFFERENZIATA
+Non lasciare rifiuti in casa al check-out. I bidoni si trovano [uscendo a destra / nel cortile].
+- Plastica/Lattine: [Sacco Giallo]
+- Carta: [Bidone Bianco]
+- Umido: [Bidoncino Marrone]
+- Vetro: [Campana in strada]
+
+❄️ CLIMA E RISCALDAMENTO
+Temperatura consigliata: 20°C in inverno, 24°C in estate. Vi chiediamo di spegnere i condizionatori quando uscite di casa.
+
+🚭 REGOLE DELLA CASA E VICINATO
+- Fumo: Rigorosamente VIETATO in casa. Consentito solo [sul balcone con posacenere].
+- Ospiti: Accesso vietato a persone non registrate.
+- Silenzio: Rispetto totale del vicinato dalle 22:00 alle 08:00 e dalle 14:00 alle 16:00.
+
+🍳 CUCINA
+Vi preghiamo di lasciare le stoviglie pulite (o lavastoviglie avviata) e svuotare il frigo prima della partenza.
+
+🧴 DOVE TROVO...
+- Phon per capelli: [Nel cassetto del bagno]
+- Ferro da stiro: [Nell'armadio della camera]
+- Lavatrice: [In bagno, detersivo sotto il lavandino]`;
+// --- FINE INCOLLA ---
 
 const HOST_SESSION_KEY = "host_session";
 const SESSION_TTL = 8 * 60 * 60 * 1000;
 
-interface Session { email: string; password: string; ts: number }
+interface Session {
+  email: string;
+  password: string;
+  ts: number;
+}
 
 function readSession(): Session | null {
   try {
     const raw = sessionStorage.getItem(HOST_SESSION_KEY);
     if (!raw) return null;
     const s = JSON.parse(raw) as Session;
-    if (Date.now() - s.ts > SESSION_TTL) { sessionStorage.removeItem(HOST_SESSION_KEY); return null; }
+    if (Date.now() - s.ts > SESSION_TTL) {
+      sessionStorage.removeItem(HOST_SESSION_KEY);
+      return null;
+    }
     return s;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 const updateSchema = z.object({
@@ -34,7 +93,11 @@ const updateSchema = z.object({
 type UpdateValues = z.infer<typeof updateSchema>;
 
 interface PropertyData {
-  id: number; slug: string; name: string; content: string; whatsappNumber: string | null;
+  id: number;
+  slug: string;
+  name: string;
+  content: string;
+  whatsappNumber: string | null;
 }
 
 type AiState =
@@ -77,23 +140,23 @@ export default function HostDashboard() {
       if (!slug) return;
       const res = await fetch(`${baseUrl}/api/super-diario/${slug}`);
       if (!res.ok) return;
-      const logs = await res.json() as any[];
+      const logs = (await res.json()) as any[];
       // Frase canonica di fallback di Marco — quando la usa, needs_attention: true
       const negativeIndicators = [
-        "non ho questa info",           // frase canonica nuova
-        "tasto whatsapp",               // parte canonica nuova
+        "non ho questa info", // frase canonica nuova
+        "tasto whatsapp", // parte canonica nuova
         "accidenti, mi cogli impreparato", // legacy
-        "caught me unprepared",          // legacy
+        "caught me unprepared", // legacy
         "mando subito un promemoria all'host", // legacy
-        "no tengo esa información a mano",    // legacy
+        "no tengo esa información a mano", // legacy
       ];
       const count = logs.filter((log: any) => {
         if (log.resolved) return false;
         const lower = (log.marcoReply ?? "").toLowerCase();
-        return negativeIndicators.some(p => lower.includes(p));
+        return negativeIndicators.some((p) => lower.includes(p));
       }).length;
       // Aggiorna lo state solo se il valore è effettivamente cambiato, evitando re-render inutili
-      setPendingCount(prev => (prev === count ? prev : count));
+      setPendingCount((prev) => (prev === count ? prev : count));
     } catch {
       // Silently fail — non bloccare l'UI
     }
@@ -112,7 +175,7 @@ export default function HostDashboard() {
     // Aggiorna il conteggio ogni 15 secondi — più lento riduce i re-render durante la digitazione
     const interval = setInterval(loadPendingCount, 15000);
     return () => clearInterval(interval);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug]);
 
   const loadProperty = async (s: Session) => {
@@ -120,7 +183,7 @@ export default function HostDashboard() {
     setLoadError("");
     try {
       const res = await fetch(
-        `${baseUrl}/api/host/${slug}?email=${encodeURIComponent(s.email)}&hostPassword=${encodeURIComponent(s.password)}`
+        `${baseUrl}/api/host/${slug}?email=${encodeURIComponent(s.email)}&hostPassword=${encodeURIComponent(s.password)}`,
       );
       const json = await res.json();
       if (!res.ok) {
@@ -132,9 +195,16 @@ export default function HostDashboard() {
         return;
       }
       setProperty(json);
+
+      // La magia è qui: se json.content è vuoto, usa il template.
+      const initialContent =
+        json.content && json.content.trim() !== ""
+          ? json.content
+          : DEFAULT_MANUAL_TEMPLATE;
+
       updateForm.reset({
         name: json.name,
-        content: json.content,
+        content: initialContent,
         whatsappNumber: json.whatsappNumber ?? "",
       });
     } catch {
@@ -171,13 +241,15 @@ export default function HostDashboard() {
     }
   };
 
-  // ─── AI TOOLS ───────────────────────────────────────────────────────────────
+  // ─── AI TOOLS ────────────────────────── ��────────────────────────────────────
 
   const appendToContent = (text: string) => {
     // NON usare shouldValidate: true — farebbe girare Zod ad ogni append e bloccherebbe l'UI
     const current = updateForm.getValues("content") ?? "";
     const separator = current.trim() ? "\n\n" : "";
-    updateForm.setValue("content", current + separator + text, { shouldDirty: true });
+    updateForm.setValue("content", current + separator + text, {
+      shouldDirty: true,
+    });
   };
 
   const startRecording = async () => {
@@ -187,23 +259,36 @@ export default function HostDashboard() {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
         ? "audio/webm;codecs=opus"
-        : MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/ogg";
+        : MediaRecorder.isTypeSupported("audio/webm")
+          ? "audio/webm"
+          : "audio/ogg";
       const recorder = new MediaRecorder(stream, { mimeType });
       mediaRecorderRef.current = recorder;
-      recorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
       recorder.onstop = async () => {
         stream.getTracks().forEach((t) => t.stop());
-        await sendAudioForTranscription(new Blob(audioChunksRef.current, { type: mimeType }), mimeType);
+        await sendAudioForTranscription(
+          new Blob(audioChunksRef.current, { type: mimeType }),
+          mimeType,
+        );
       };
       recorder.start(250);
     } catch {
-      setAiState({ type: "error", message: "Microfono non disponibile. Controlla i permessi del browser." });
+      setAiState({
+        type: "error",
+        message: "Microfono non disponibile. Controlla i permessi del browser.",
+      });
       setTimeout(() => setAiState({ type: "idle" }), 4000);
     }
   };
 
   const stopRecording = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+    if (
+      mediaRecorderRef.current &&
+      mediaRecorderRef.current.state !== "inactive"
+    ) {
       mediaRecorderRef.current.stop();
       setAiState({ type: "transcribing" });
     }
@@ -213,9 +298,16 @@ export default function HostDashboard() {
     setAiState({ type: "transcribing" });
     try {
       const formData = new FormData();
-      const ext = mimeType.includes("ogg") ? "ogg" : mimeType.includes("mp4") ? "mp4" : "webm";
+      const ext = mimeType.includes("ogg")
+        ? "ogg"
+        : mimeType.includes("mp4")
+          ? "mp4"
+          : "webm";
       formData.append("audio", blob, `recording.${ext}`);
-      const res = await fetch(`${baseUrl}/api/ai/transcribe`, { method: "POST", body: formData });
+      const res = await fetch(`${baseUrl}/api/ai/transcribe`, {
+        method: "POST",
+        body: formData,
+      });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Errore nella trascrizione.");
       appendToContent(json.text);
@@ -227,7 +319,9 @@ export default function HostDashboard() {
     }
   };
 
-  const handleImageSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageSelected = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = "";
@@ -235,11 +329,18 @@ export default function HostDashboard() {
     try {
       const formData = new FormData();
       formData.append("image", file);
-      const res = await fetch(`${baseUrl}/api/ai/vision`, { method: "POST", body: formData });
+      const res = await fetch(`${baseUrl}/api/ai/vision`, {
+        method: "POST",
+        body: formData,
+      });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Errore nell'analisi dell'immagine.");
+      if (!res.ok)
+        throw new Error(json.error ?? "Errore nell'analisi dell'immagine.");
       appendToContent(json.text);
-      setAiState({ type: "success", message: "Informazioni estratte e aggiunte!" });
+      setAiState({
+        type: "success",
+        message: "Informazioni estratte e aggiunte!",
+      });
     } catch (err: any) {
       setAiState({ type: "error", message: err.message });
     } finally {
@@ -271,8 +372,12 @@ export default function HostDashboard() {
           <div className="w-14 h-14 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <AlertCircle className="w-7 h-7 text-red-500" />
           </div>
-          <h2 className="font-bold text-gray-900 text-xl mb-2">Accesso negato</h2>
-          <p className="text-gray-400 text-sm mb-6">{loadError || "Struttura non trovata."}</p>
+          <h2 className="font-bold text-gray-900 text-xl mb-2">
+            Accesso negato
+          </h2>
+          <p className="text-gray-400 text-sm mb-6">
+            {loadError || "Struttura non trovata."}
+          </p>
           <div className="flex gap-3 justify-center">
             <Link
               href="/host/dashboard"
@@ -293,12 +398,14 @@ export default function HostDashboard() {
   }
 
   // ── DASHBOARD ──
-  const isAiBusy = aiState.type === "recording" || aiState.type === "transcribing" || aiState.type === "scanning";
+  const isAiBusy =
+    aiState.type === "recording" ||
+    aiState.type === "transcribing" ||
+    aiState.type === "scanning";
 
   return (
     <div className="min-h-[100dvh] bg-gradient-to-br from-slate-50 to-blue-50 py-8 px-4 overflow-x-hidden">
       <div className="max-w-2xl mx-auto flex flex-col gap-6 w-full">
-
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -10 }}
@@ -310,7 +417,9 @@ export default function HostDashboard() {
               <Home className="w-5 h-5 text-white" />
             </div>
             <div className="min-w-0">
-              <h1 className="font-extrabold text-gray-900 text-sm sm:text-base leading-tight truncate">{property?.name || "Caricamento..."}</h1>
+              <h1 className="font-extrabold text-gray-900 text-sm sm:text-base leading-tight truncate">
+                {property?.name || "Caricamento..."}
+              </h1>
             </div>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
@@ -360,8 +469,10 @@ export default function HostDashboard() {
             <h2 className="font-bold text-gray-900">Modifica i tuoi dati</h2>
           </div>
 
-          <form onSubmit={updateForm.handleSubmit(handleUpdate)} className="p-6 flex flex-col gap-5">
-
+          <form
+            onSubmit={updateForm.handleSubmit(handleUpdate)}
+            className="p-6 flex flex-col gap-5"
+          >
             {/* Nome struttura */}
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
@@ -373,7 +484,9 @@ export default function HostDashboard() {
                 className="border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
               />
               {updateForm.formState.errors.name && (
-                <p className="text-xs text-red-500">{updateForm.formState.errors.name.message}</p>
+                <p className="text-xs text-red-500">
+                  {updateForm.formState.errors.name.message}
+                </p>
               )}
             </div>
 
@@ -388,7 +501,9 @@ export default function HostDashboard() {
                 placeholder="es. 393901234567"
                 className="border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
               />
-              <p className="text-[11px] text-gray-400">Solo numeri, senza spazi o + (es: 393901234567)</p>
+              <p className="text-[11px] text-gray-400">
+                Solo numeri, senza spazi o + (es: 393901234567)
+              </p>
             </div>
 
             {/* Knowledge base */}
@@ -409,7 +524,9 @@ export default function HostDashboard() {
                 className="border border-gray-200 rounded-xl px-4 py-3 text-sm leading-relaxed resize-y focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all font-sans"
               />
               {updateForm.formState.errors.content && (
-                <p className="text-xs text-red-500">{updateForm.formState.errors.content.message}</p>
+                <p className="text-xs text-red-500">
+                  {updateForm.formState.errors.content.message}
+                </p>
               )}
 
               {/* ── AI TOOLS ── */}
@@ -420,28 +537,43 @@ export default function HostDashboard() {
                       aiState.type === "recording"
                         ? "bg-red-50 border-red-200 text-red-700"
                         : aiState.type === "transcribing"
-                        ? "bg-blue-50 border-blue-200 text-blue-700"
-                        : aiState.type === "scanning"
-                        ? "bg-violet-50 border-violet-200 text-violet-700"
-                        : aiState.type === "success"
-                        ? "bg-emerald-50 border-emerald-200 text-emerald-700"
-                        : "bg-red-50 border-red-200 text-red-700"
+                          ? "bg-blue-50 border-blue-200 text-blue-700"
+                          : aiState.type === "scanning"
+                            ? "bg-violet-50 border-violet-200 text-violet-700"
+                            : aiState.type === "success"
+                              ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                              : "bg-red-50 border-red-200 text-red-700"
                     }`}
                   >
                     {aiState.type === "recording" && (
-                      <><span className="w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />Registrazione in corso... Premi stop quando finisci.</>
+                      <>
+                        <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
+                        Registrazione in corso... Premi stop quando finisci.
+                      </>
                     )}
                     {aiState.type === "transcribing" && (
-                      <><Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />L'IA sta trascrivendo l'audio...</>
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
+                        L'IA sta trascrivendo l'audio...
+                      </>
                     )}
                     {aiState.type === "scanning" && (
-                      <><Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />L'IA sta analizzando l'immagine...</>
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
+                        L'IA sta analizzando l'immagine...
+                      </>
                     )}
                     {aiState.type === "success" && (
-                      <><CheckCircle2 className="w-4 h-4 flex-shrink-0" />{aiState.message}</>
+                      <>
+                        <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                        {aiState.message}
+                      </>
                     )}
                     {aiState.type === "error" && (
-                      <><AlertCircle className="w-4 h-4 flex-shrink-0" />{aiState.message}</>
+                      <>
+                        <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                        {aiState.message}
+                      </>
                     )}
                   </div>
                 )}
@@ -453,8 +585,7 @@ export default function HostDashboard() {
                       onClick={stopRecording}
                       className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-red-500 hover:bg-red-600 text-white transition-all shadow-sm shadow-red-200 animate-pulse"
                     >
-                      <MicOff className="w-4 h-4" />
-                      ⏹ Stop Registrazione
+                      <MicOff className="w-4 h-4" />⏹ Stop Registrazione
                     </button>
                   ) : (
                     <button
@@ -463,7 +594,11 @@ export default function HostDashboard() {
                       disabled={isAiBusy}
                       className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white transition-all shadow-sm shadow-rose-200 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {aiState.type === "transcribing" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mic className="w-4 h-4" />}
+                      {aiState.type === "transcribing" ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Mic className="w-4 h-4" />
+                      )}
                       🎤 Registra Vocale
                     </button>
                   )}
@@ -473,15 +608,31 @@ export default function HostDashboard() {
                     disabled={isAiBusy}
                     className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 text-white transition-all shadow-sm shadow-violet-200 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {aiState.type === "scanning" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+                    {aiState.type === "scanning" ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Camera className="w-4 h-4" />
+                    )}
                     📷 Scansiona Foto
                   </button>
-                  <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageSelected} />
+                  <input
+                    ref={imageInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleImageSelected}
+                  />
                 </div>
 
                 <div className="flex gap-2 text-[10px] text-gray-400">
-                  <span className="flex-1 text-center">Parla per dettare il regolamento — il testo apparirà nella textarea.</span>
-                  <span className="flex-1 text-center">Scatta o carica la foto di un cartello WiFi o manuale — l'IA lo legge.</span>
+                  <span className="flex-1 text-center">
+                    Parla per dettare il regolamento — il testo apparirà nella
+                    textarea.
+                  </span>
+                  <span className="flex-1 text-center">
+                    Scatta o carica la foto di un cartello WiFi o manuale — l'IA
+                    lo legge.
+                  </span>
                 </div>
 
                 <div className="flex items-center justify-center gap-1 text-[10px] text-gray-300 pt-0.5">
@@ -499,8 +650,8 @@ export default function HostDashboard() {
                 isSaving
                   ? "bg-gray-400 text-white shadow-gray-100"
                   : isSaved
-                  ? "bg-emerald-500 text-white shadow-emerald-100 cursor-default"
-                  : "bg-blue-600 hover:bg-blue-700 text-white shadow-blue-100 disabled:opacity-50"
+                    ? "bg-emerald-500 text-white shadow-emerald-100 cursor-default"
+                    : "bg-blue-600 hover:bg-blue-700 text-white shadow-blue-100 disabled:opacity-50"
               }`}
             >
               {isSaving ? (
