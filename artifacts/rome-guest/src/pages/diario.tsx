@@ -31,10 +31,7 @@ export default function DiarioDiBordo() {
         return res.json() as Promise<ChatLog[]>;
       })
       .then((data) => {
-        setLogs(data.map(log => ({
-          ...log,
-          resolved: log.resolved ?? false,
-        })));
+        setLogs(data.map(log => ({ ...log, resolved: log.resolved ?? false })));
         setIsLoading(false);
       })
       .catch((err: Error) => {
@@ -50,11 +47,8 @@ export default function DiarioDiBordo() {
   const formatDate = (dateStr: string) => {
     const d = new Date(dateStr);
     return d.toLocaleString("it-IT", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
+      day: "2-digit", month: "short", year: "numeric",
+      hour: "2-digit", minute: "2-digit",
     });
   };
 
@@ -63,8 +57,8 @@ export default function DiarioDiBordo() {
       const res = await fetch(`${baseUrl}/api/super-diario/${slug}/resolve/${id}`, { method: "PATCH" });
       if (!res.ok) throw new Error("Errore nel salvataggio");
       setLogs(logs.map(log => log.id === id ? { ...log, resolved: true } : log));
-    } catch (err) {
-      console.error("Errore:", err);
+    } catch {
+      // silently fail — UI will retain previous state
     }
   };
 
@@ -76,7 +70,6 @@ export default function DiarioDiBordo() {
     <div className="min-h-[100dvh] bg-gradient-to-br from-slate-50 to-blue-50 py-8 px-4">
       <div className="max-w-2xl mx-auto flex flex-col gap-6">
 
-        {/* Header */}
         <div className="bg-white rounded-3xl shadow-sm border border-gray-100 px-5 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200">
@@ -96,7 +89,6 @@ export default function DiarioDiBordo() {
           </Link>
         </div>
 
-        {/* Content */}
         {isLoading && (
           <div className="flex justify-center py-16">
             <div className="flex flex-col items-center gap-3 text-indigo-500">
@@ -109,10 +101,7 @@ export default function DiarioDiBordo() {
         {!isLoading && error && (
           <div className="bg-white rounded-3xl shadow-sm border border-red-100 p-8 text-center">
             <p className="text-red-500 font-medium">{error}</p>
-            <Link
-              href={`/host/${slug}`}
-              className="mt-4 inline-block text-sm text-indigo-600 hover:underline"
-            >
+            <Link href={`/host/${slug}`} className="mt-4 inline-block text-sm text-indigo-600 hover:underline">
               Torna alla dashboard
             </Link>
           </div>
@@ -130,7 +119,7 @@ export default function DiarioDiBordo() {
 
         {!isLoading && !error && logs.length > 0 && (
           <div className="flex flex-col gap-4">
-            {/* ⚠️ RICHIESTE IN SOSPESO */}
+
             {pendingLogs.length > 0 && (
               <div>
                 <div className="flex items-center gap-2 px-1 mb-3">
@@ -140,18 +129,12 @@ export default function DiarioDiBordo() {
                 </div>
                 <div className="flex flex-col gap-3">
                   {pendingLogs.map((log) => (
-                    <div
-                      key={log.id}
-                      className="bg-white rounded-2xl shadow-sm border-2 border-red-300 overflow-hidden hover:shadow-md transition-shadow"
-                    >
-                      {/* Timestamp */}
+                    <div key={log.id} className="bg-white rounded-2xl shadow-sm border-2 border-red-300 overflow-hidden hover:shadow-md transition-shadow">
                       <div className="px-5 py-2.5 bg-red-50 border-b border-red-200 flex items-center gap-2">
                         <Calendar className="w-3.5 h-3.5 text-red-400" />
                         <span className="text-[11px] text-red-600 font-mono">{formatDate(log.createdAt)}</span>
                       </div>
-
                       <div className="p-5 flex flex-col gap-4">
-                        {/* Guest message */}
                         <div className="flex items-start gap-3">
                           <div className="w-7 h-7 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                             <MessageCircle className="w-3.5 h-3.5 text-blue-600" />
@@ -161,8 +144,6 @@ export default function DiarioDiBordo() {
                             <p className="text-sm text-gray-700 leading-relaxed">{log.guestMessage}</p>
                           </div>
                         </div>
-
-                        {/* Marco reply */}
                         <div className="flex items-start gap-3">
                           <div className="w-7 h-7 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                             <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
@@ -172,8 +153,6 @@ export default function DiarioDiBordo() {
                             <p className="text-sm text-gray-600 leading-relaxed italic">{log.marcoReply}</p>
                           </div>
                         </div>
-
-                        {/* Action button */}
                         <button
                           onClick={() => markAsResolved(log.id)}
                           className="mt-2 self-start flex items-center gap-1.5 text-xs font-semibold text-green-600 hover:text-green-700 bg-green-50 hover:bg-green-100 px-3 py-1.5 rounded-lg transition-colors"
@@ -188,7 +167,6 @@ export default function DiarioDiBordo() {
               </div>
             )}
 
-            {/* CRONOLOGIA NORMALE */}
             <div>
               {(successLogs.length > 0 || resolvedLogs.length > 0) && (
                 <p className="text-xs text-gray-400 font-medium px-1 mb-3">
@@ -197,11 +175,7 @@ export default function DiarioDiBordo() {
               )}
               <div className="flex flex-col gap-3">
                 {[...successLogs, ...resolvedLogs].map((log) => (
-                  <div
-                    key={log.id}
-                    className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"
-                  >
-                    {/* Timestamp */}
+                  <div key={log.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                     <div className="px-5 py-2.5 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
                       <Calendar className="w-3.5 h-3.5 text-gray-400" />
                       <span className="text-[11px] text-gray-400 font-mono">{formatDate(log.createdAt)}</span>
@@ -209,9 +183,7 @@ export default function DiarioDiBordo() {
                         <span className="ml-auto text-[10px] text-green-600 font-semibold bg-green-50 px-2 py-0.5 rounded">Risolto</span>
                       )}
                     </div>
-
                     <div className="p-5 flex flex-col gap-4">
-                      {/* Guest message */}
                       <div className="flex items-start gap-3">
                         <div className="w-7 h-7 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                           <MessageCircle className="w-3.5 h-3.5 text-blue-600" />
@@ -221,8 +193,6 @@ export default function DiarioDiBordo() {
                           <p className="text-sm text-gray-700 leading-relaxed">{log.guestMessage}</p>
                         </div>
                       </div>
-
-                      {/* Marco reply */}
                       <div className="flex items-start gap-3">
                         <div className="w-7 h-7 bg-indigo-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                           <Bot className="w-3.5 h-3.5 text-indigo-600" />
@@ -237,6 +207,7 @@ export default function DiarioDiBordo() {
                 ))}
               </div>
             </div>
+
           </div>
         )}
 

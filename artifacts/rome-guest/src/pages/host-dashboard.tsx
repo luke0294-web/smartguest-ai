@@ -58,7 +58,6 @@ Vi preghiamo di lasciare le stoviglie pulite (o lavastoviglie avviata) e svuotar
 - Phon per capelli: [Nel cassetto del bagno]
 - Ferro da stiro: [Nell'armadio della camera]
 - Lavatrice: [In bagno, detersivo sotto il lavandino]`;
-// --- FINE INCOLLA ---
 
 const HOST_SESSION_KEY = "host_session";
 const SESSION_TTL = 8 * 60 * 60 * 1000;
@@ -134,14 +133,12 @@ export default function HostDashboard() {
     defaultValues: { name: "", content: "", whatsappNumber: "" },
   });
 
-  // Stabile via useCallback — non ricrea la funzione ad ogni render, evitando re-render del form
   const loadPendingCount = useCallback(async () => {
     try {
       if (!slug) return;
       const res = await fetch(`${baseUrl}/api/super-diario/${slug}`);
       if (!res.ok) return;
       const logs = (await res.json()) as any[];
-      // Frase canonica di fallback di Marco — quando la usa, needs_attention: true
       const negativeIndicators = [
         "non ho questa info", // frase canonica nuova
         "tasto whatsapp", // parte canonica nuova
@@ -155,7 +152,6 @@ export default function HostDashboard() {
         const lower = (log.marcoReply ?? "").toLowerCase();
         return negativeIndicators.some((p) => lower.includes(p));
       }).length;
-      // Aggiorna lo state solo se il valore è effettivamente cambiato, evitando re-render inutili
       setPendingCount((prev) => (prev === count ? prev : count));
     } catch {
       // Silently fail — non bloccare l'UI
@@ -172,7 +168,6 @@ export default function HostDashboard() {
     setSession(s);
     loadProperty(s);
     loadPendingCount();
-    // Aggiorna il conteggio ogni 15 secondi — più lento riduce i re-render durante la digitazione
     const interval = setInterval(loadPendingCount, 15000);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -196,7 +191,6 @@ export default function HostDashboard() {
       }
       setProperty(json);
 
-      // La magia è qui: se json.content è vuoto, usa il template.
       const initialContent =
         json.content && json.content.trim() !== ""
           ? json.content
@@ -230,7 +224,6 @@ export default function HostDashboard() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Errore nel salvataggio.");
       updateForm.reset(data);
-      // Spunta verde per 3 secondi
       if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
       setIsSaved(true);
       savedTimerRef.current = setTimeout(() => setIsSaved(false), 3000);
@@ -241,7 +234,6 @@ export default function HostDashboard() {
     }
   };
 
-  // ─── AI TOOLS ────────────────────────── ��────────────────────────────────────
 
   const appendToContent = (text: string) => {
     // NON usare shouldValidate: true — farebbe girare Zod ad ogni append e bloccherebbe l'UI

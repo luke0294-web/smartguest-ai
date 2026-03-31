@@ -3,11 +3,11 @@ import { useLocation, Link } from "wouter";
 import { motion } from "framer-motion";
 import {
   Building, MessageSquare, Settings, LogOut, Loader2,
-  AlertCircle, Home, ArrowRight, KeyRound, BookOpen,
+  AlertCircle, Home, ArrowRight, BookOpen,
 } from "lucide-react";
 
 const HOST_SESSION_KEY = "host_session";
-const SESSION_TTL = 8 * 60 * 60 * 1000; // 8 hours
+const SESSION_TTL = 8 * 60 * 60 * 1000;
 
 interface PropertySummary {
   id: number;
@@ -54,7 +54,7 @@ export default function HostProperties() {
     }
     setSession(s);
     loadProperties(s);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadProperties = async (s: Session) => {
@@ -100,7 +100,6 @@ export default function HostProperties() {
     <div className="min-h-[100dvh] bg-gradient-to-br from-slate-50 to-blue-50 py-8 px-4">
       <div className="max-w-3xl mx-auto flex flex-col gap-6">
 
-        {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -111,12 +110,8 @@ export default function HostProperties() {
               <Building className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="font-extrabold text-gray-900 text-[17px] leading-tight">
-                Le mie Strutture
-              </h1>
-              <p className="text-gray-400 text-[12px] mt-0.5 truncate max-w-[220px]">
-                {session?.email}
-              </p>
+              <h1 className="font-extrabold text-gray-900 text-[17px] leading-tight">Le mie Strutture</h1>
+              <p className="text-gray-400 text-[12px] mt-0.5 truncate max-w-[220px]">{session?.email}</p>
             </div>
           </div>
           <button
@@ -128,7 +123,6 @@ export default function HostProperties() {
           </button>
         </motion.div>
 
-        {/* Error */}
         {error && (
           <div className="flex items-center gap-3 bg-red-50 border border-red-100 text-red-600 px-5 py-4 rounded-2xl">
             <AlertCircle className="w-5 h-5 flex-shrink-0" />
@@ -136,7 +130,6 @@ export default function HostProperties() {
           </div>
         )}
 
-        {/* Empty state */}
         {!error && properties.length === 0 && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
@@ -153,7 +146,6 @@ export default function HostProperties() {
           </motion.div>
         )}
 
-        {/* Property grid */}
         {properties.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {properties.map((prop, idx) => (
@@ -164,22 +156,16 @@ export default function HostProperties() {
                 transition={{ delay: idx * 0.06 }}
                 className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6 flex flex-col gap-4 hover:shadow-md hover:-translate-y-0.5 transition-all"
               >
-                {/* Card header */}
                 <div className="flex items-start gap-3">
                   <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center flex-shrink-0">
                     <Home className="w-5 h-5 text-blue-600" />
                   </div>
                   <div className="min-w-0">
-                    <h2 className="font-bold text-gray-900 text-[15px] leading-tight truncate">
-                      {prop.name}
-                    </h2>
-                    <p className="text-[11px] text-gray-400 font-mono mt-0.5">
-                      /guest/{prop.slug}
-                    </p>
+                    <h2 className="font-bold text-gray-900 text-[15px] leading-tight truncate">{prop.name}</h2>
+                    <p className="text-[11px] text-gray-400 font-mono mt-0.5">/guest/{prop.slug}</p>
                   </div>
                 </div>
 
-                {/* Card actions */}
                 <div className="flex gap-2 mt-auto pt-2 border-t border-gray-50">
                   <Link
                     href={`/guest/${prop.slug}`}
@@ -209,7 +195,6 @@ export default function HostProperties() {
           </div>
         )}
 
-        {/* Footer */}
         <p className="text-center text-[11px] text-gray-300 mt-2 uppercase tracking-widest">
           Powered by SmartGuest AI
         </p>
