@@ -10,7 +10,9 @@
   },
   "private": true,
   "devDependencies": {
+    "@rollup/rollup-darwin-arm64": "^4.60.1",
     "drizzle-kit": "^0.31.9",
+    "lightningcss-darwin-arm64": "^1.32.0",
     "pg": "^8.20.0",
     "prettier": "^3.8.1",
     "typescript": "~5.9.2"
