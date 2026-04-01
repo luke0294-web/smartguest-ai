@@ -22,7 +22,7 @@ type HostFormValues = z.infer<typeof hostSchema>;
     };
 
     const form = useForm<HostFormValues>({
-      resolver: zodResolver(hostSchema),
+      resolver: zodResolver(hostSchema as any),
       defaultValues: {
         content: "",
         hostPassword: "",
@@ -95,7 +95,7 @@ type HostFormValues = z.infer<typeof hostSchema>;
           </div>
 
           <div className="p-8">
-            <div className="space-y-8" autoComplete="off">
+            <div className="space-y-8">
               
               <div className="space-y-4">
                 <div className="flex items-center justify-between">

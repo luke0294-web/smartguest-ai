@@ -1,6 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import nodemailer from "nodemailer";
 import { logger } from "../lib/logger";
+import { requireCeoSession } from "../lib/ceo-session";
 
 const router: IRouter = Router();
 
@@ -31,6 +32,8 @@ const transporter = nodemailer.createTransport({
  *   EMAIL_SMTP_HOST, EMAIL_SMTP_PORT, EMAIL_USER, EMAIL_PASS, EMAIL_FROM_NAME
  */
 router.post("/send-pdf", async (req: Request<{}, {}, SendPdfBody>, res: Response): Promise<void> => {
+  if (!requireCeoSession(req, res)) return;
+
   const { email, propertyName, pdfBase64, chatLink } = req.body;
 
   if (!email?.trim()) {

@@ -64,7 +64,7 @@ const SESSION_TTL = 8 * 60 * 60 * 1000;
 
 interface Session {
   email: string;
-  password: string;
+  sessionToken: string;
   ts: number;
 }
 
@@ -73,6 +73,10 @@ function readSession(): Session | null {
     const raw = sessionStorage.getItem(HOST_SESSION_KEY);
     if (!raw) return null;
     const s = JSON.parse(raw) as Session;
+    if (!s.sessionToken || !s.email) {
+      sessionStorage.removeItem(HOST_SESSION_KEY);
+      return null;
+    }
     if (Date.now() - s.ts > SESSION_TTL) {
       sessionStorage.removeItem(HOST_SESSION_KEY);
       return null;
@@ -129,14 +133,16 @@ export default function HostDashboard() {
   const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
 
   const updateForm = useForm<UpdateValues>({
-    resolver: zodResolver(updateSchema),
+    resolver: zodResolver(updateSchema as any),
     defaultValues: { name: "", content: "", whatsappNumber: "" },
   });
 
-  const loadPendingCount = useCallback(async () => {
+  const loadPendingCount = useCallback(async (sessionToken: string | undefined) => {
     try {
-      if (!slug) return;
-      const res = await fetch(`${baseUrl}/api/super-diario/${slug}`);
+      if (!slug || !sessionToken) return;
+      const res = await fetch(`${baseUrl}/api/super-diario/${slug}`, {
+        headers: { Authorization: `Bearer ${sessionToken}` },
+      });
       if (!res.ok) return;
       const logs = (await res.json()) as any[];
       const negativeIndicators = [
@@ -167,8 +173,11 @@ export default function HostDashboard() {
     }
     setSession(s);
     loadProperty(s);
-    loadPendingCount();
-    const interval = setInterval(loadPendingCount, 15000);
+    loadPendingCount(s.sessionToken);
+    const interval = setInterval(() => {
+      const cur = readSession();
+      if (cur?.sessionToken) loadPendingCount(cur.sessionToken);
+    }, 15000);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug]);
@@ -177,9 +186,9 @@ export default function HostDashboard() {
     setIsLoading(true);
     setLoadError("");
     try {
-      const res = await fetch(
-        `${baseUrl}/api/host/${slug}?email=${encodeURIComponent(s.email)}&hostPassword=${encodeURIComponent(s.password)}`,
-      );
+      const res = await fetch(`${baseUrl}/api/host/${slug}`, {
+        headers: { Authorization: `Bearer ${s.sessionToken}` },
+      });
       const json = await res.json();
       if (!res.ok) {
         if (res.status === 401 || res.status === 403) {
@@ -214,12 +223,11 @@ export default function HostDashboard() {
     try {
       const res = await fetch(`${baseUrl}/api/host/${slug}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: session.email,
-          hostPassword: session.password,
-          ...data,
-        }),
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.sessionToken}`,
+        },
+        body: JSON.stringify(data),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Errore nel salvataggio.");

@@ -34,11 +34,7 @@ paths:
       tags: [properties]
       summary: List all properties (CEO only)
       parameters:
-        - name: ceoPassword
-          in: query
-          required: true
-          schema:
-            type: string
+        - $ref: "#/components/parameters/CeoSessionHeader"
       responses:
         "200":
           description: List of properties
@@ -58,6 +54,8 @@ paths:
       operationId: createProperty
       tags: [properties]
       summary: Create a new property (CEO only)
+      parameters:
+        - $ref: "#/components/parameters/CeoSessionHeader"
       requestBody:
         required: true
         content:
@@ -124,6 +122,7 @@ paths:
           required: true
           schema:
             type: string
+        - $ref: "#/components/parameters/CeoSessionHeader"
       requestBody:
         required: true
         content:
@@ -165,17 +164,7 @@ paths:
           required: true
           schema:
             type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                ceoPassword:
-                  type: string
-              required:
-                - ceoPassword
+        - $ref: "#/components/parameters/CeoSessionHeader"
       responses:
         "204":
           description: Deleted
@@ -230,6 +219,15 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
 components:
+  parameters:
+    CeoSessionHeader:
+      name: X-CEO-Session
+      in: header
+      required: true
+      description: HMAC session token from POST /auth/ceo-login
+      schema:
+        type: string
+
   schemas:
     HealthStatus:
       type: object
@@ -270,8 +268,6 @@ components:
     CreatePropertyRequest:
       type: object
       properties:
-        ceoPassword:
-          type: string
         slug:
           type: string
           description: Unique URL-friendly identifier (e.g. 'fleming-1')
@@ -285,7 +281,6 @@ components:
           type: string
           description: Host WhatsApp number for SOS button
       required:
-        - ceoPassword
         - slug
         - name
         - content
@@ -293,9 +288,6 @@ components:
     UpdatePropertyRequest:
       type: object
       properties:
-        ceoPassword:
-          type: string
-          description: CEO password (if updating as admin)
         hostPassword:
           type: string
           description: Property-specific host password

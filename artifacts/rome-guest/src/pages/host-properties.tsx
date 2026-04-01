@@ -18,7 +18,7 @@ interface PropertySummary {
 
 interface Session {
   email: string;
-  password: string;
+  sessionToken: string;
   ts: number;
 }
 
@@ -27,6 +27,10 @@ function readSession(): Session | null {
     const raw = sessionStorage.getItem(HOST_SESSION_KEY);
     if (!raw) return null;
     const s = JSON.parse(raw) as Session;
+    if (!s.sessionToken || !s.email) {
+      sessionStorage.removeItem(HOST_SESSION_KEY);
+      return null;
+    }
     if (Date.now() - s.ts > SESSION_TTL) {
       sessionStorage.removeItem(HOST_SESSION_KEY);
       return null;
@@ -61,10 +65,8 @@ export default function HostProperties() {
     setIsLoading(true);
     setError("");
     try {
-      const res = await fetch(`${baseUrl}/api/auth/host-login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: s.email, password: s.password }),
+      const res = await fetch(`${baseUrl}/api/auth/host/me`, {
+        headers: { Authorization: `Bearer ${s.sessionToken}` },
       });
       const json = await res.json();
       if (!res.ok) {

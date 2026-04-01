@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, type Variants } from "framer-motion";
 import {
   Zap,
   Globe,
@@ -17,12 +17,12 @@ import {
   ChevronDown,
 } from "lucide-react";
 
-const fadeUp = {
+const fadeUp: Variants = {
   hidden: { opacity: 0, y: 28 },
   visible: (i = 0) => ({
     opacity: 1,
     y: 0,
-    transition: { duration: 0.55, delay: i * 0.1, ease: [0.25, 0.46, 0.45, 0.94] },
+    transition: { duration: 0.55, delay: (i as number) * 0.1, ease: [0.25, 0.46, 0.45, 0.94] },
   }),
 };
 
@@ -122,7 +122,7 @@ function RegistrationModal({ onClose }: { onClose: () => void }) {
         initial={{ opacity: 0, scale: 0.94, y: 16 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.94, y: 16 }}
-        transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
+        transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] as const }}
         className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden"
       >
         {/* Header */}

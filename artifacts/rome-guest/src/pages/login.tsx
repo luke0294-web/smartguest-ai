@@ -38,9 +38,13 @@ export default function HostLogin() {
       const json = await res.json();
 
       if (res.ok) {
+        if (!json.sessionToken || typeof json.sessionToken !== "string") {
+          setError("Risposta dal server non valida. Contatta il supporto.");
+          return;
+        }
         sessionStorage.setItem(
           HOST_SESSION_KEY,
-          JSON.stringify({ email: json.email, password: trimmedPassword, ts: Date.now() })
+          JSON.stringify({ email: json.email, sessionToken: json.sessionToken, ts: Date.now() }),
         );
         navigate("/host/dashboard");
         return;

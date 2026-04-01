@@ -48,4 +48,8 @@ Thumbs.db
 .cache/
 .local/
 
+# Secrets & local env (never commit)
+.env
+.env.*
+!.env.example
 

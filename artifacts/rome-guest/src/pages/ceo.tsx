@@ -37,6 +37,16 @@ interface Lead {
 }
 
 const LEAD_STATUSES = ["Nuovo", "Contattato", "In Trattativa", "Chiuso", "Non Interessato"] as const;
+
+const CEO_SESSION_KEY = "ceo_session_token";
+
+function readCeoToken(): string {
+  try {
+    return sessionStorage.getItem(CEO_SESSION_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
 const STATUS_COLORS: Record<string, string> = {
   "Nuovo": "bg-blue-100 text-blue-700 border-blue-200",
   "Contattato": "bg-amber-100 text-amber-700 border-amber-200",
@@ -45,7 +55,15 @@ const STATUS_COLORS: Record<string, string> = {
   "Non Interessato": "bg-red-100 text-red-700 border-red-200",
 };
 
-function QrModal({ property, onClose }: { property: { name: string; slug: string }; onClose: () => void }) {
+function QrModal({
+  property,
+  ceoSessionHeaders,
+  onClose,
+}: {
+  property: { name: string; slug: string };
+  ceoSessionHeaders: HeadersInit;
+  onClose: () => void;
+}) {
   const svgRef = useRef<HTMLDivElement>(null);
   const [isCopied, setIsCopied] = useState(false);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -187,7 +205,7 @@ function QrModal({ property, onClose }: { property: { name: string; slug: string
 
       const response = await fetch(`${import.meta.env.BASE_URL.replace(/\/$/, "")}/api/send-pdf`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...ceoSessionHeaders },
         body: JSON.stringify({
           email: email.trim(),
           propertyName: property.name,
@@ -319,12 +337,12 @@ function QrModal({ property, onClose }: { property: { name: string; slug: string
 
 function HostPasswordModal({
   property,
-  ceoPassword,
+  ceoSessionHeaders,
   onClose,
   onSaved,
 }: {
   property: { name: string; slug: string; hostPassword?: string | null };
-  ceoPassword: string;
+  ceoSessionHeaders: HeadersInit;
   onClose: () => void;
   onSaved: (newPassword: string) => void;
 }) {
@@ -351,8 +369,8 @@ function HostPasswordModal({
     try {
       const res = await fetch(`${base}/api/properties/${property.slug}/host-password`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ceoPassword, hostPassword: newPassword.trim() }),
+        headers: { "Content-Type": "application/json", ...ceoSessionHeaders },
+        body: JSON.stringify({ hostPassword: newPassword.trim() }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Errore nel salvataggio.");
@@ -519,12 +537,12 @@ function HostPasswordModal({
 
 function ContentEditModal({
   property,
-  ceoPassword,
+  ceoSessionHeaders,
   onClose,
   onSaved,
 }: {
   property: { name: string; slug: string; content?: string | null };
-  ceoPassword: string;
+  ceoSessionHeaders: HeadersInit;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -541,8 +559,8 @@ function ContentEditModal({
     try {
       const res = await fetch(`${base}/api/properties/${property.slug}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ceoPassword, content: text }),
+        headers: { "Content-Type": "application/json", ...ceoSessionHeaders },
+        body: JSON.stringify({ content: text }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Errore nel salvataggio.");
@@ -647,8 +665,8 @@ type InlineEditState = {
 };
 
 export default function CeoPanel() {
-  const [password, setPassword] = useState("");
-  const [authAttempt, setAuthAttempt] = useState(false);
+  const [ceoToken, setCeoToken] = useState(readCeoToken);
+  const [loginLoading, setLoginLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"properties" | "leads" | "resets" | "hosts">("properties");
   const [qrProperty, setQrProperty] = useState<{ name: string; slug: string } | null>(null);
   const [hostManageProp, setHostManageProp] = useState<{ name: string; slug: string; hostPassword?: string | null } | null>(null);
@@ -675,22 +693,25 @@ export default function CeoPanel() {
 
   const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
 
-  const { data: properties, isLoading: isListLoading, error: listError } = useListProperties(
-    { ceoPassword: password },
-    {
-      query: {
-        enabled: authAttempt && !!password,
-        retry: false,
-      }
-    }
-  );
+  const ceoSessionHeaders = { "X-CEO-Session": ceoToken };
+
+  const { data: properties, isLoading: isListLoading, error: listError } = useListProperties({
+    query: {
+      queryKey: getListPropertiesQueryKey(),
+      enabled: !!ceoToken,
+      retry: false,
+    },
+    request: { headers: ceoSessionHeaders },
+  });
 
   const { mutate: _createProperty } = useCreateProperty();
   const [isCreating, setIsCreating] = useState(false);
-  const { mutate: deleteProperty, isPending: isDeleting } = useDeleteProperty();
+  const { mutate: deleteProperty, isPending: isDeleting } = useDeleteProperty({
+    request: { headers: ceoSessionHeaders },
+  });
 
   const form = useForm<CreatePropertyValues>({
-    resolver: zodResolver(createPropertySchema),
+    resolver: zodResolver(createPropertySchema as any),
     defaultValues: { name: "", slug: "", whatsappNumber: "", content: "" }
   });
 
@@ -707,17 +728,17 @@ export default function CeoPanel() {
 
   useEffect(() => {
     if (listError && (listError as any).status === 401) {
-      setAuthAttempt(false);
-      setPassword("");
-      alert("Password errata. Riprova.");
+      sessionStorage.removeItem(CEO_SESSION_KEY);
+      setCeoToken("");
+      alert("Sessione non valida o scaduta. Accedi di nuovo.");
     }
   }, [listError]);
 
   const fetchLeads = async () => {
-    if (!password) return;
+    if (!ceoToken) return;
     setLeadsLoading(true);
     try {
-      const res = await fetch(`${baseUrl}/api/leads?ceoPassword=${encodeURIComponent(password)}`);
+      const res = await fetch(`${baseUrl}/api/leads`, { headers: ceoSessionHeaders });
       const data = await res.json();
       if (res.ok) setLeads(data);
     } finally {
@@ -726,16 +747,16 @@ export default function CeoPanel() {
   };
 
   useEffect(() => {
-    if (authAttempt && activeTab === "leads") {
+    if (ceoToken && activeTab === "leads") {
       fetchLeads();
     }
-  }, [activeTab, authAttempt]);
+  }, [activeTab, ceoToken]);
 
   const fetchResets = async () => {
-    if (!password) return;
+    if (!ceoToken) return;
     setResetsLoading(true);
     try {
-      const res = await fetch(`${baseUrl}/api/auth/resets?ceoPassword=${encodeURIComponent(password)}`);
+      const res = await fetch(`${baseUrl}/api/auth/resets`, { headers: ceoSessionHeaders });
       const data = await res.json();
       if (res.ok) setResetRequests(data);
     } finally {
@@ -748,8 +769,7 @@ export default function CeoPanel() {
     try {
       await fetch(`${baseUrl}/api/auth/resets/${slug}`, {
         method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ceoPassword: password }),
+        headers: { ...ceoSessionHeaders },
       });
       setResetRequests((prev) => prev.filter((r) => r.slug !== slug));
     } finally {
@@ -758,10 +778,10 @@ export default function CeoPanel() {
   };
 
   useEffect(() => {
-    if (authAttempt && activeTab === "resets") {
+    if (ceoToken && activeTab === "resets") {
       fetchResets();
     }
-  }, [activeTab, authAttempt]);
+  }, [activeTab, ceoToken]);
 
   const deleteLead = async (id: number) => {
     if (!window.confirm("Sei sicuro? Il lead sarà eliminato definitivamente dal database.")) return;
@@ -769,8 +789,7 @@ export default function CeoPanel() {
     try {
       const res = await fetch(`${baseUrl}/api/leads/${id}`, {
         method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ceoPassword: password }),
+        headers: { ...ceoSessionHeaders },
       });
       if (res.ok) {
         setLeads((prev) => prev.filter((l) => l.id !== id));
@@ -785,8 +804,8 @@ export default function CeoPanel() {
     try {
       const res = await fetch(`${baseUrl}/api/leads/${id}/status`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ceoPassword: password, status }),
+        headers: { "Content-Type": "application/json", ...ceoSessionHeaders },
+        body: JSON.stringify({ status }),
       });
       if (res.ok) {
         setLeads((prev) => prev.map((l) => l.id === id ? { ...l, status } : l));
@@ -802,8 +821,8 @@ export default function CeoPanel() {
     try {
       const res = await fetch(`${baseUrl}/api/leads/${lead.id}/convert`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ceoPassword: password }),
+        headers: { "Content-Type": "application/json", ...ceoSessionHeaders },
+        body: JSON.stringify({}),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -823,10 +842,10 @@ export default function CeoPanel() {
   };
 
   const fetchHosts = async () => {
-    if (!password) return;
+    if (!ceoToken) return;
     setHostsLoading(true);
     try {
-      const res = await fetch(`${baseUrl}/api/admin/hosts?ceoPassword=${encodeURIComponent(password)}`);
+      const res = await fetch(`${baseUrl}/api/admin/hosts`, { headers: ceoSessionHeaders });
       const data = await res.json();
       if (res.ok) setHosts(data);
     } finally {
@@ -835,9 +854,9 @@ export default function CeoPanel() {
   };
 
   useEffect(() => {
-    if (authAttempt && activeTab === "hosts") fetchHosts();
+    if (ceoToken && activeTab === "hosts") fetchHosts();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, authAttempt]);
+  }, [activeTab, ceoToken]);
 
   const saveHost = async () => {
     if (!newHostEmail.trim() || !newHostPassword.trim()) {
@@ -849,8 +868,8 @@ export default function CeoPanel() {
     try {
       const res = await fetch(`${baseUrl}/api/admin/hosts`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ceoPassword: password, email: newHostEmail.trim(), hostPassword: newHostPassword.trim() }),
+        headers: { "Content-Type": "application/json", ...ceoSessionHeaders },
+        body: JSON.stringify({ email: newHostEmail.trim(), hostPassword: newHostPassword.trim() }),
       });
       const data = await res.json();
       if (!res.ok) { setHostFormMsg({ type: "err", text: data.error ?? "Errore." }); return; }
@@ -867,8 +886,7 @@ export default function CeoPanel() {
     try {
       await fetch(`${baseUrl}/api/admin/hosts/${encodeURIComponent(email)}`, {
         method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ceoPassword: password }),
+        headers: { ...ceoSessionHeaders },
       });
       setHosts((prev) => prev.filter((h) => h.email !== email));
     } finally {
@@ -876,13 +894,33 @@ export default function CeoPanel() {
     }
   };
 
-  const handleLogin = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     const pwd = fd.get("password") as string;
-    if (pwd) {
-      setPassword(pwd);
-      setAuthAttempt(true);
+    if (!pwd?.trim()) return;
+    setLoginLoading(true);
+    try {
+      const res = await fetch(`${baseUrl}/api/auth/ceo-login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: pwd }),
+      });
+      const data = (await res.json()) as { token?: string; error?: string };
+      if (!res.ok) {
+        alert(data.error ?? "Accesso negato.");
+        return;
+      }
+      if (!data.token) {
+        alert("Risposta dal server non valida.");
+        return;
+      }
+      sessionStorage.setItem(CEO_SESSION_KEY, data.token);
+      setCeoToken(data.token);
+    } catch {
+      alert("Errore di connessione. Riprova.");
+    } finally {
+      setLoginLoading(false);
     }
   };
 
@@ -892,8 +930,8 @@ export default function CeoPanel() {
       const { ownerEmail, ...rest } = data;
       const res = await fetch(`${baseUrl}/api/properties`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ceoPassword: password, ...rest, ownerEmail: ownerEmail || undefined }),
+        headers: { "Content-Type": "application/json", ...ceoSessionHeaders },
+        body: JSON.stringify({ ...rest, ownerEmail: ownerEmail || undefined }),
       });
       const json = await res.json();
       if (!res.ok) {
@@ -901,7 +939,7 @@ export default function CeoPanel() {
         return;
       }
       form.reset();
-      queryClient.invalidateQueries({ queryKey: getListPropertiesQueryKey({ ceoPassword: password }) });
+      queryClient.invalidateQueries({ queryKey: getListPropertiesQueryKey() });
     } catch {
       alert("Errore di rete. Riprova.");
     } finally {
@@ -912,10 +950,10 @@ export default function CeoPanel() {
   const handleDelete = (slug: string) => {
     if (window.confirm(`Sei sicuro di voler eliminare la proprietà ${slug}?`)) {
       deleteProperty(
-        { slug, data: { ceoPassword: password } },
+        { slug },
         {
           onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: getListPropertiesQueryKey({ ceoPassword: password }) });
+            queryClient.invalidateQueries({ queryKey: getListPropertiesQueryKey() });
           },
           onError: () => alert("Errore durante l'eliminazione"),
         }
@@ -938,9 +976,8 @@ export default function CeoPanel() {
     try {
       const res = await fetch(`${baseUrl}/api/properties/${originalSlug}/full-edit`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...ceoSessionHeaders },
         body: JSON.stringify({
-          ceoPassword: password,
           name: inlineEdit.name,
           newSlug: inlineEdit.slug,
           hostPassword: inlineEdit.hostPassword,
@@ -953,10 +990,10 @@ export default function CeoPanel() {
         return;
       }
       setInlineEdit((prev) => ({ ...prev, saving: false, saved: true, error: "" }));
-      queryClient.invalidateQueries({ queryKey: getListPropertiesQueryKey({ ceoPassword: password }) });
+      queryClient.invalidateQueries({ queryKey: getListPropertiesQueryKey() });
       setTimeout(() => {
         setEditingSlug(null);
-        setInlineEdit({ name: "", slug: "", hostPassword: "", saving: false, saved: false, error: "" });
+        setInlineEdit({ name: "", slug: "", hostPassword: "", email: "", saving: false, saved: false, error: "" });
       }, 1800);
     } catch {
       setInlineEdit((prev) => ({ ...prev, saving: false, error: "Errore di rete. Riprova." }));
@@ -964,7 +1001,7 @@ export default function CeoPanel() {
   };
 
   // ── AUTH SCREEN ──
-  if (!authAttempt || (!properties && !isListLoading)) {
+  if (!ceoToken) {
     return (
       <div className="min-h-[100dvh] flex items-center justify-center p-4">
         <motion.div
@@ -991,9 +1028,10 @@ export default function CeoPanel() {
             </div>
             <button
               type="submit"
-              className="w-full bg-primary text-primary-foreground font-medium py-3.5 rounded-xl shadow-lg shadow-primary/20 hover:shadow-xl hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2"
+              disabled={loginLoading}
+              className="w-full bg-primary text-primary-foreground font-medium py-3.5 rounded-xl shadow-lg shadow-primary/20 hover:shadow-xl hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 disabled:opacity-60"
             >
-              {isListLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Accedi al Pannello"}
+              {loginLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Accedi al Pannello"}
             </button>
           </form>
         </motion.div>
@@ -1006,26 +1044,30 @@ export default function CeoPanel() {
     <>
       <AnimatePresence>
         {qrProperty && (
-          <QrModal property={qrProperty} onClose={() => setQrProperty(null)} />
+          <QrModal
+            property={qrProperty}
+            ceoSessionHeaders={ceoSessionHeaders}
+            onClose={() => setQrProperty(null)}
+          />
         )}
         {hostManageProp && (
           <HostPasswordModal
             property={hostManageProp}
-            ceoPassword={password}
+            ceoSessionHeaders={ceoSessionHeaders}
             onClose={() => setHostManageProp(null)}
             onSaved={(newPwd) => {
               setHostManageProp((prev) => prev ? { ...prev, hostPassword: newPwd } : null);
-              queryClient.invalidateQueries({ queryKey: getListPropertiesQueryKey({ ceoPassword: password }) });
+              queryClient.invalidateQueries({ queryKey: getListPropertiesQueryKey() });
             }}
           />
         )}
         {contentModal && (
           <ContentEditModal
             property={contentModal}
-            ceoPassword={password}
+            ceoSessionHeaders={ceoSessionHeaders}
             onClose={() => setContentModal(null)}
             onSaved={() => {
-              queryClient.invalidateQueries({ queryKey: getListPropertiesQueryKey({ ceoPassword: password }) });
+              queryClient.invalidateQueries({ queryKey: getListPropertiesQueryKey() });
             }}
           />
         )}
@@ -1047,7 +1089,14 @@ export default function CeoPanel() {
                 </p>
               </div>
             </div>
-            <a href="/" className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-black/5 rounded-lg transition-colors self-start sm:self-auto">
+            <a
+              href="/"
+              className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-black/5 rounded-lg transition-colors self-start sm:self-auto"
+              onClick={() => {
+                sessionStorage.removeItem(CEO_SESSION_KEY);
+                setCeoToken("");
+              }}
+            >
               Esci
             </a>
           </header>

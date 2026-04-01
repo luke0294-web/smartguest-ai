@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { db, propertiesTable } from "@workspace/db";
+import { db, propertiesTable, hostsTable } from "@workspace/db";
 import {
   CreatePropertyBody,
   UpdatePropertyBody,
@@ -9,28 +9,22 @@ import {
   GetPropertyResponse,
   UpdatePropertyResponse,
   DeletePropertyParams,
-  DeletePropertyBody,
 } from "@workspace/api-zod";
 import { logger } from "../lib/logger";
+import { requireCeoSession } from "../lib/ceo-session";
+import { hashHostPassword } from "../lib/passwords";
 
 const router: IRouter = Router();
 
-const CEO_PASSWORD = process.env.CEO_PASSWORD ?? "fleming2026";
-
 // GET /properties — list all (CEO only)
 router.get("/properties", async (req, res): Promise<void> => {
-  const ceoPassword = req.query["ceoPassword"];
-  if (ceoPassword !== CEO_PASSWORD) {
-    res.status(401).json({ error: "Password CEO non corretta. Accesso negato." });
-    return;
-  }
+  if (!requireCeoSession(req, res)) return;
 
   const rows = await db
     .select()
     .from(propertiesTable)
     .orderBy(propertiesTable.createdAt);
 
-  // Return full rows to CEO (includes hostPassword) — not parsed through the public schema
   res.json(rows);
 });
 
@@ -42,15 +36,11 @@ router.post("/properties", async (req, res): Promise<void> => {
     return;
   }
 
-  const { ceoPassword, slug, name, content, whatsappNumber } = parsed.data;
+  if (!requireCeoSession(req, res)) return;
+
+  const { slug, name, content, whatsappNumber } = parsed.data;
   const ownerEmail = typeof req.body?.ownerEmail === "string" ? req.body.ownerEmail.trim().toLowerCase() || null : null;
 
-  if (ceoPassword !== CEO_PASSWORD) {
-    res.status(401).json({ error: "Password CEO non corretta." });
-    return;
-  }
-
-  // Check slug uniqueness
   const existing = await db
     .select()
     .from(propertiesTable)
@@ -107,12 +97,9 @@ router.put("/properties/:slug", async (req, res): Promise<void> => {
     return;
   }
 
-  const { ceoPassword, name, content, whatsappNumber } = body.data;
+  if (!requireCeoSession(req, res)) return;
 
-  if (ceoPassword !== CEO_PASSWORD) {
-    res.status(401).json({ error: "Password CEO non corretta." });
-    return;
-  }
+  const { name, content, whatsappNumber } = body.data;
 
   const updateData: Partial<{ name: string; content: string; whatsappNumber: string | null }> = {};
   if (name !== undefined) updateData.name = name;
@@ -136,13 +123,10 @@ router.put("/properties/:slug", async (req, res): Promise<void> => {
 
 // PUT /properties/:slug/full-edit — inline CEO edit: name, slug, hostPassword (CEO only)
 router.put("/properties/:slug/full-edit", async (req, res): Promise<void> => {
-  const { slug } = req.params;
-  const { ceoPassword, name, newSlug, hostPassword, email } = req.body ?? {};
+  if (!requireCeoSession(req, res)) return;
 
-  if (ceoPassword !== CEO_PASSWORD) {
-    res.status(401).json({ error: "Password CEO non corretta." });
-    return;
-  }
+  const { slug } = req.params;
+  const { name, newSlug, hostPassword, email } = req.body ?? {};
 
   const [current] = await db
     .select()
@@ -164,7 +148,6 @@ router.put("/properties/:slug/full-edit", async (req, res): Promise<void> => {
   if (newSlug !== undefined) {
     const trimmed = String(newSlug).trim().toLowerCase().replace(/[^a-z0-9-]/g, "");
     if (trimmed && trimmed !== slug) {
-      // Check uniqueness
       const [conflict] = await db
         .select({ id: propertiesTable.id })
         .from(propertiesTable)
@@ -180,7 +163,31 @@ router.put("/properties/:slug/full-edit", async (req, res): Promise<void> => {
 
   if (hostPassword !== undefined) {
     const trimmed = String(hostPassword).trim();
-    updates.hostPassword = trimmed || null;
+    const effectiveEmail =
+      email !== undefined ? String(email).trim().toLowerCase() || null : current.email;
+
+    if (!trimmed) {
+      updates.hostPassword = null;
+    } else if (effectiveEmail) {
+      const hashed = await hashHostPassword(trimmed);
+      const [existingHost] = await db
+        .select()
+        .from(hostsTable)
+        .where(eq(hostsTable.email, effectiveEmail))
+        .limit(1);
+
+      if (existingHost) {
+        await db
+          .update(hostsTable)
+          .set({ hostPassword: hashed })
+          .where(eq(hostsTable.email, effectiveEmail));
+      } else {
+        await db.insert(hostsTable).values({ email: effectiveEmail, hostPassword: hashed });
+      }
+      updates.hostPassword = null;
+    } else {
+      updates.hostPassword = await hashHostPassword(trimmed);
+    }
   }
 
   if (email !== undefined) {
@@ -193,13 +200,14 @@ router.put("/properties/:slug/full-edit", async (req, res): Promise<void> => {
     return;
   }
 
+  const targetSlug = updates.slug ?? slug;
   const [updated] = await db
     .update(propertiesTable)
     .set(updates)
     .where(eq(propertiesTable.slug, slug))
     .returning();
 
-  logger.info({ slug, updates: Object.keys(updates) }, "Property fully edited by CEO");
+  logger.info({ slug: targetSlug, updates: Object.keys(updates) }, "Property fully edited by CEO");
   res.json(updated);
 });
 
@@ -211,16 +219,7 @@ router.delete("/properties/:slug", async (req, res): Promise<void> => {
     return;
   }
 
-  const body = DeletePropertyBody.safeParse(req.body);
-  if (!body.success) {
-    res.status(400).json({ error: body.error.message });
-    return;
-  }
-
-  if (body.data.ceoPassword !== CEO_PASSWORD) {
-    res.status(401).json({ error: "Password CEO non corretta." });
-    return;
-  }
+  if (!requireCeoSession(req, res)) return;
 
   const [deleted] = await db
     .delete(propertiesTable)

@@ -3,8 +3,11 @@ import { Link } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { Send, KeyRound, Home, Loader2, Sparkles } from "lucide-react";
 import ReactMarkdown from "react-markdown";
-import { useSendChatMessage } from "@workspace/api-client-react";
-import type { ConversationMessage } from "@workspace/api-client-react/src/generated/api.schemas";
+import { useSendPropertyChat } from "@workspace/api-client-react";
+import type { ConversationMessage } from "@workspace/api-client-react";
+
+/** Demo chat page: uses first property slug if served standalone. */
+const DEMO_PROPERTY_SLUG = "fleming-1";
 
 const WHATSAPP_NUMBER = "39XXXXXXXXXX";
 const WHATSAPP_MESSAGE = encodeURIComponent(
@@ -31,7 +34,7 @@ export default function Chat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const { mutate: sendMessage, isPending } = useSendChatMessage();
+  const { mutate: sendMessage, isPending } = useSendPropertyChat();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -55,6 +58,7 @@ export default function Chat() {
 
     sendMessage(
       {
+        slug: DEMO_PROPERTY_SLUG,
         data: {
           message: userMsg,
           conversationHistory: messages,

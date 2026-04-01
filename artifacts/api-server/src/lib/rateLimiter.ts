@@ -80,6 +80,17 @@ export const chatRateLimiter = new RateLimiter({
   windowMs: 60 * 60 * 1000, // 1 hour
 });
 
+/** Strict limit for OpenAI-backed upload endpoints (per IP, per route). */
+export const aiTranscribeRateLimiter = new RateLimiter({
+  maxRequests: 10,
+  windowMs: 60 * 60 * 1000,
+});
+
+export const aiVisionRateLimiter = new RateLimiter({
+  maxRequests: 10,
+  windowMs: 60 * 60 * 1000,
+});
+
 /**
  * Extracts the real client IP from an Express request,
  * honouring X-Forwarded-For when behind a proxy (Replit's edge).

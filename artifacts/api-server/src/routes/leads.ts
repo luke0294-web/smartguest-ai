@@ -2,9 +2,10 @@ import { Router, type IRouter } from "express";
 import { db, leadsTable, hostsTable, propertiesTable } from "@workspace/db";
 import { desc, eq } from "drizzle-orm";
 import { logger } from "../lib/logger";
+import { requireCeoSession } from "../lib/ceo-session";
+import { hashHostPassword } from "../lib/passwords";
 
 const router: IRouter = Router();
-const CEO_PASSWORD = process.env.CEO_PASSWORD ?? "fleming2026";
 const VALID_STATUSES = ["Nuovo", "Contattato", "In Trattativa", "Chiuso", "Non Interessato"] as const;
 
 router.post("/leads", async (req, res): Promise<void> => {
@@ -30,21 +31,14 @@ router.post("/leads", async (req, res): Promise<void> => {
 });
 
 router.get("/leads", async (req, res): Promise<void> => {
-  if (req.query["ceoPassword"] !== CEO_PASSWORD) {
-    res.status(401).json({ error: "Accesso negato." });
-    return;
-  }
+  if (!requireCeoSession(req, res)) return;
 
   const leads = await db.select().from(leadsTable).orderBy(desc(leadsTable.createdAt));
   res.json(leads);
 });
 
 router.delete("/leads/:id", async (req, res): Promise<void> => {
-  const { ceoPassword } = req.body ?? {};
-  if (ceoPassword !== CEO_PASSWORD) {
-    res.status(401).json({ error: "Accesso negato." });
-    return;
-  }
+  if (!requireCeoSession(req, res)) return;
 
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) {
@@ -63,11 +57,9 @@ router.delete("/leads/:id", async (req, res): Promise<void> => {
 });
 
 router.put("/leads/:id/status", async (req, res): Promise<void> => {
-  const { ceoPassword, status } = req.body ?? {};
-  if (ceoPassword !== CEO_PASSWORD) {
-    res.status(401).json({ error: "Accesso negato." });
-    return;
-  }
+  if (!requireCeoSession(req, res)) return;
+
+  const { status } = req.body ?? {};
 
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) {
@@ -75,7 +67,7 @@ router.put("/leads/:id/status", async (req, res): Promise<void> => {
     return;
   }
 
-  if (!VALID_STATUSES.includes(status)) {
+  if (typeof status !== "string" || !VALID_STATUSES.includes(status as (typeof VALID_STATUSES)[number])) {
     res.status(400).json({ error: `Stato non valido. Usa: ${VALID_STATUSES.join(", ")}` });
     return;
   }
@@ -91,11 +83,7 @@ router.put("/leads/:id/status", async (req, res): Promise<void> => {
 });
 
 router.post("/leads/:id/convert", async (req, res): Promise<void> => {
-  const { ceoPassword } = req.body ?? {};
-  if (ceoPassword !== CEO_PASSWORD) {
-    res.status(401).json({ error: "Accesso negato." });
-    return;
-  }
+  if (!requireCeoSession(req, res)) return;
 
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) {
@@ -111,11 +99,12 @@ router.post("/leads/:id/convert", async (req, res): Promise<void> => {
 
   const DEFAULT_PASSWORD = "Benvenuto2026!";
   const normalizedEmail = lead.email.trim().toLowerCase();
+  const hashed = await hashHostPassword(DEFAULT_PASSWORD);
 
   const [existingHost] = await db.select().from(hostsTable).where(eq(hostsTable.email, normalizedEmail)).limit(1);
   const hostCreated = !existingHost;
   if (hostCreated) {
-    await db.insert(hostsTable).values({ email: normalizedEmail, hostPassword: DEFAULT_PASSWORD });
+    await db.insert(hostsTable).values({ email: normalizedEmail, hostPassword: hashed });
   }
 
   const baseSlug = lead.propertyName
@@ -138,7 +127,7 @@ router.post("/leads/:id/convert", async (req, res): Promise<void> => {
     name: lead.propertyName.trim(),
     content: "",
     email: normalizedEmail,
-    hostPassword: DEFAULT_PASSWORD,
+    hostPassword: null,
   });
 
   await db.update(leadsTable).set({ status: "Chiuso" }).where(eq(leadsTable.id, id));

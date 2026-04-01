@@ -9,6 +9,7 @@ import {
 } from "@workspace/api-zod";
 import { logger } from "../lib/logger";
 import { chatRateLimiter, getClientIp } from "../lib/rateLimiter";
+import { requireHostSession, requireHostOwnsPropertySlug } from "../lib/host-auth";
 import { detectNeedsAttention } from "../lib/detectNeedsAttention";
 import {
   categorizeMessage,
@@ -191,6 +192,10 @@ STRICT OPERATIONAL RULES:
 // GET /super-diario/:slug — tutti i log
 // ─────────────────────────────────────────────
 router.get("/super-diario/:slug", async (req, res): Promise<void> => {
+  const session = requireHostSession(req, res);
+  if (!session) return;
+  if (!(await requireHostOwnsPropertySlug(res, session, req.params.slug))) return;
+
   try {
     const logs = await db
       .select()
@@ -210,6 +215,10 @@ router.get("/super-diario/:slug", async (req, res): Promise<void> => {
 router.get(
   "/super-diario/:slug/unresolved-count",
   async (req, res): Promise<void> => {
+    const session = requireHostSession(req, res);
+    if (!session) return;
+    if (!(await requireHostOwnsPropertySlug(res, session, req.params.slug))) return;
+
     try {
       const logs = await db
         .select()
@@ -234,6 +243,9 @@ router.get(
 router.patch(
   "/super-diario/:slug/resolve/:id",
   async (req, res): Promise<void> => {
+    const session = requireHostSession(req, res);
+    if (!session) return;
+
     try {
       const { slug, id } = req.params;
       const logId = parseInt(id, 10);
@@ -242,6 +254,8 @@ router.patch(
         res.status(400).json({ error: "ID non valido." });
         return;
       }
+
+      if (!(await requireHostOwnsPropertySlug(res, session, slug))) return;
 
       await db
         .update(chatLogsTable)
@@ -266,6 +280,9 @@ router.patch(
 // Ricalcola la logica di risoluzione su tutti i log esistenti
 // ─────────────────────────────────────────────
 router.post("/super-diario/refresh-all", async (req, res): Promise<void> => {
+  const session = requireHostSession(req, res);
+  if (!session) return;
+
   try {
     const logs = await db.select().from(chatLogsTable);
 

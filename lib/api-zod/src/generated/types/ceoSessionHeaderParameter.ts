@@ -6,7 +6,7 @@
  * OpenAPI spec version: 0.2.0
  */
 
-export interface ChatMessageResponse {
-  reply: string;
-  propertyName: string;
-}
+/**
+ * HMAC session token from POST /auth/ceo-login
+ */
+export type CeoSessionHeaderParameter = string;

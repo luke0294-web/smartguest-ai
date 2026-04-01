@@ -1,7 +1,12 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type RequestHandler } from "express";
 import multer from "multer";
 import OpenAI, { toFile } from "openai";
 import { logger } from "../lib/logger";
+import {
+  aiTranscribeRateLimiter,
+  aiVisionRateLimiter,
+  getClientIp,
+} from "../lib/rateLimiter";
 
 const router: IRouter = Router();
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -12,9 +17,38 @@ const upload = multer({
   limits: { fileSize: 25 * 1024 * 1024 }, // 25 MB max (Whisper limit)
 });
 
+const rateLimitAiTranscribe: RequestHandler = (req, res, next) => {
+  const clientIp = getClientIp(req);
+  if (!aiTranscribeRateLimiter.check(clientIp)) {
+    const retryAfter = aiTranscribeRateLimiter.retryAfterSeconds(clientIp);
+    logger.warn({ ip: clientIp, retryAfter }, "AI transcribe rate limit exceeded");
+    res.status(429).json({
+      error: "Troppe richieste. Riprova più tardi.",
+      retryAfter,
+    });
+    return;
+  }
+  next();
+};
+
+const rateLimitAiVision: RequestHandler = (req, res, next) => {
+  const clientIp = getClientIp(req);
+  if (!aiVisionRateLimiter.check(clientIp)) {
+    const retryAfter = aiVisionRateLimiter.retryAfterSeconds(clientIp);
+    logger.warn({ ip: clientIp, retryAfter }, "AI vision rate limit exceeded");
+    res.status(429).json({
+      error: "Troppe richieste. Riprova più tardi.",
+      retryAfter,
+    });
+    return;
+  }
+  next();
+};
+
 // POST /ai/transcribe — Whisper speech-to-text
 router.post(
   "/ai/transcribe",
+  rateLimitAiTranscribe,
   upload.single("audio"),
   async (req, res): Promise<void> => {
     if (!req.file) {
@@ -39,9 +73,9 @@ router.post(
 
       logger.info({ chars: transcription.text.length }, "Whisper transcription completed");
       res.json({ text: transcription.text });
-    } catch (err: any) {
-      logger.error({ err: err.message }, "Whisper transcription failed");
-      res.status(500).json({ error: err.message ?? "Errore nella trascrizione." });
+    } catch (err: unknown) {
+      logger.error({ err }, "Whisper transcription failed");
+      res.status(500).json({ error: "Errore nella trascrizione. Riprova tra poco." });
     }
   }
 );
@@ -49,6 +83,7 @@ router.post(
 // POST /ai/vision — GPT-4o vision: extract info from an image
 router.post(
   "/ai/vision",
+  rateLimitAiVision,
   upload.single("image"),
   async (req, res): Promise<void> => {
     if (!req.file) {
@@ -93,9 +128,9 @@ router.post(
       const text = response.choices[0]?.message?.content ?? "";
       logger.info({ chars: text.length }, "Vision extraction completed");
       res.json({ text });
-    } catch (err: any) {
-      logger.error({ err: err.message }, "Vision extraction failed");
-      res.status(500).json({ error: err.message ?? "Errore nell'analisi immagine." });
+    } catch (err: unknown) {
+      logger.error({ err }, "Vision extraction failed");
+      res.status(500).json({ error: "Errore nell'analisi immagine. Riprova tra poco." });
     }
   }
 );

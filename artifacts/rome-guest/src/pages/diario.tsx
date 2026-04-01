@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, Link } from "wouter";
+import { useParams, Link, useLocation } from "wouter";
 import { ArrowLeft, BookOpen, Loader2, MessageCircle, Bot, Calendar, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { detectNeedsAttention } from "../lib/detectNeedsAttention";
 
@@ -12,10 +12,33 @@ interface ChatLog {
   resolved: boolean;
 }
 
+const HOST_SESSION_KEY = "host_session";
+const SESSION_TTL = 8 * 60 * 60 * 1000;
+
+function readHostSession(): { sessionToken: string } | null {
+  try {
+    const raw = sessionStorage.getItem(HOST_SESSION_KEY);
+    if (!raw) return null;
+    const s = JSON.parse(raw) as { sessionToken?: string; ts?: number };
+    if (!s.sessionToken) {
+      sessionStorage.removeItem(HOST_SESSION_KEY);
+      return null;
+    }
+    if (typeof s.ts === "number" && Date.now() - s.ts > SESSION_TTL) {
+      sessionStorage.removeItem(HOST_SESSION_KEY);
+      return null;
+    }
+    return { sessionToken: s.sessionToken };
+  } catch {
+    return null;
+  }
+}
+
 const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 export default function DiarioDiBordo() {
   const params = useParams<{ slug: string }>();
+  const [, navigate] = useLocation();
   const slug = params?.slug ?? "";
 
   const [logs, setLogs] = useState<ChatLog[]>([]);
@@ -24,14 +47,27 @@ export default function DiarioDiBordo() {
 
   const loadLogs = () => {
     if (!slug) return;
+    const auth = readHostSession();
+    if (!auth) {
+      navigate("/login");
+      return;
+    }
     setIsLoading(true);
-    fetch(`${baseUrl}/api/super-diario/${slug}`)
+    fetch(`${baseUrl}/api/super-diario/${slug}`, {
+      headers: { Authorization: `Bearer ${auth.sessionToken}` },
+    })
       .then((res) => {
+        if (res.status === 401 || res.status === 403) {
+          sessionStorage.removeItem(HOST_SESSION_KEY);
+          navigate("/login");
+          throw new Error("Sessione scaduta. Accedi di nuovo.");
+        }
         if (!res.ok) throw new Error(`Errore ${res.status}`);
         return res.json() as Promise<ChatLog[]>;
       })
       .then((data) => {
-        setLogs(data.map(log => ({ ...log, resolved: log.resolved ?? false })));
+        setLogs(data.map((log) => ({ ...log, resolved: log.resolved ?? false })));
+        setError("");
         setIsLoading(false);
       })
       .catch((err: Error) => {
@@ -41,7 +77,14 @@ export default function DiarioDiBordo() {
   };
 
   useEffect(() => {
+    if (!slug) return;
+    const auth = readHostSession();
+    if (!auth) {
+      navigate("/login");
+      return;
+    }
     loadLogs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug]);
 
   const formatDate = (dateStr: string) => {
@@ -53,18 +96,31 @@ export default function DiarioDiBordo() {
   };
 
   const markAsResolved = async (id: number) => {
+    const auth = readHostSession();
+    if (!auth) {
+      navigate("/login");
+      return;
+    }
     try {
-      const res = await fetch(`${baseUrl}/api/super-diario/${slug}/resolve/${id}`, { method: "PATCH" });
+      const res = await fetch(`${baseUrl}/api/super-diario/${slug}/resolve/${id}`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${auth.sessionToken}` },
+      });
+      if (res.status === 401 || res.status === 403) {
+        sessionStorage.removeItem(HOST_SESSION_KEY);
+        navigate("/login");
+        return;
+      }
       if (!res.ok) throw new Error("Errore nel salvataggio");
-      setLogs(logs.map(log => log.id === id ? { ...log, resolved: true } : log));
+      setLogs(logs.map((log) => (log.id === id ? { ...log, resolved: true } : log)));
     } catch {
       // silently fail — UI will retain previous state
     }
   };
 
-  const pendingLogs = logs.filter(l => !l.resolved && detectNeedsAttention(l.marcoReply));
-  const resolvedLogs = logs.filter(l => l.resolved);
-  const successLogs = logs.filter(l => !l.resolved && !detectNeedsAttention(l.marcoReply));
+  const pendingLogs = logs.filter((l) => !l.resolved && detectNeedsAttention(l.marcoReply));
+  const resolvedLogs = logs.filter((l) => l.resolved);
+  const successLogs = logs.filter((l) => !l.resolved && !detectNeedsAttention(l.marcoReply));
 
   return (
     <div className="min-h-[100dvh] bg-gradient-to-br from-slate-50 to-blue-50 py-8 px-4">
@@ -154,6 +210,7 @@ export default function DiarioDiBordo() {
                           </div>
                         </div>
                         <button
+                          type="button"
                           onClick={() => markAsResolved(log.id)}
                           className="mt-2 self-start flex items-center gap-1.5 text-xs font-semibold text-green-600 hover:text-green-700 bg-green-50 hover:bg-green-100 px-3 py-1.5 rounded-lg transition-colors"
                         >

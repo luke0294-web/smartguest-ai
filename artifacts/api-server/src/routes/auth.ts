@@ -1,11 +1,67 @@
 import { Router, type IRouter } from "express";
 import { eq, isNotNull } from "drizzle-orm";
 import { randomBytes } from "crypto";
-import { db, propertiesTable } from "@workspace/db";
+import { db, propertiesTable, hostsTable } from "@workspace/db";
 import { logger } from "../lib/logger";
+import { requireCeoSession, getCeoPassword, issueCeoToken } from "../lib/ceo-session";
+import { getHostSessionSecret, verifyHostSessionToken, getHostTokenFromRequest } from "../lib/host-session";
+import { hashHostPassword } from "../lib/passwords";
 
 const router: IRouter = Router();
-const CEO_PASSWORD = process.env.CEO_PASSWORD ?? "fleming2026";
+
+// POST /auth/ceo-login — validate CEO password, issue session token (no env default for password)
+router.post("/auth/ceo-login", async (req, res): Promise<void> => {
+  const pwd = getCeoPassword();
+  if (!pwd) {
+    res.status(503).json({ error: "Server non configurato: impostare CEO_PASSWORD." });
+    return;
+  }
+
+  const { password } = req.body ?? {};
+  if (typeof password !== "string" || String(password) !== pwd) {
+    res.status(401).json({ error: "Password non corretta." });
+    return;
+  }
+
+  const token = issueCeoToken();
+  res.json({ token });
+});
+
+// GET /auth/host/me — properties for current host session (Bearer token)
+router.get("/auth/host/me", async (req, res): Promise<void> => {
+  const secret = getHostSessionSecret();
+  if (!secret) {
+    res.status(503).json({
+      error: "Server non configurato: impostare HOST_SESSION_SECRET o SESSION_SECRET.",
+    });
+    return;
+  }
+
+  const raw = getHostTokenFromRequest(req);
+  if (!raw) {
+    res.status(401).json({ error: "Autenticazione richiesta." });
+    return;
+  }
+
+  const payload = verifyHostSessionToken(raw);
+  if (!payload) {
+    res.status(401).json({ error: "Sessione non valida o scaduta." });
+    return;
+  }
+
+  const properties = await db
+    .select({
+      id: propertiesTable.id,
+      slug: propertiesTable.slug,
+      name: propertiesTable.name,
+      whatsappNumber: propertiesTable.whatsappNumber,
+    })
+    .from(propertiesTable)
+    .where(eq(propertiesTable.email, payload.email))
+    .orderBy(propertiesTable.name);
+
+  res.json({ email: payload.email, properties });
+});
 
 // POST /auth/forgot-password — host requests reset by email
 router.post("/auth/forgot-password", async (req, res): Promise<void> => {
@@ -91,11 +147,28 @@ router.post("/auth/reset-password/:token", async (req, res): Promise<void> => {
     return;
   }
 
-  // Update password and invalidate token (single use)
+  const trimmed = String(newPassword).trim();
+  const hashed = await hashHostPassword(trimmed);
+  const ownerEmail = property.email?.trim().toLowerCase() ?? null;
+
+  if (ownerEmail) {
+    const [existingHost] = await db
+      .select()
+      .from(hostsTable)
+      .where(eq(hostsTable.email, ownerEmail))
+      .limit(1);
+
+    if (existingHost) {
+      await db.update(hostsTable).set({ hostPassword: hashed }).where(eq(hostsTable.email, ownerEmail));
+    } else {
+      await db.insert(hostsTable).values({ email: ownerEmail, hostPassword: hashed });
+    }
+  }
+
   await db
     .update(propertiesTable)
     .set({
-      hostPassword: String(newPassword).trim(),
+      hostPassword: ownerEmail ? null : hashed,
       resetToken: null,
       resetRequestedAt: null,
     })
@@ -107,12 +180,7 @@ router.post("/auth/reset-password/:token", async (req, res): Promise<void> => {
 
 // GET /auth/resets — CEO only — list all pending reset tokens with magic links
 router.get("/auth/resets", async (req, res): Promise<void> => {
-  const { ceoPassword } = req.query as Record<string, string>;
-
-  if (ceoPassword !== CEO_PASSWORD) {
-    res.status(401).json({ error: "Password CEO non corretta." });
-    return;
-  }
+  if (!requireCeoSession(req, res)) return;
 
   const pending = await db
     .select({
@@ -130,13 +198,9 @@ router.get("/auth/resets", async (req, res): Promise<void> => {
 
 // DELETE /auth/resets/:slug — CEO only — clear a pending reset token
 router.delete("/auth/resets/:slug", async (req, res): Promise<void> => {
-  const { slug } = req.params;
-  const { ceoPassword } = req.body ?? {};
+  if (!requireCeoSession(req, res)) return;
 
-  if (ceoPassword !== CEO_PASSWORD) {
-    res.status(401).json({ error: "Password CEO non corretta." });
-    return;
-  }
+  const { slug } = req.params;
 
   await db
     .update(propertiesTable)
