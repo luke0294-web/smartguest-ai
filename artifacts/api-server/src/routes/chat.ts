@@ -279,12 +279,16 @@ router.patch(
 // POST /super-diario/refresh-all
 // Ricalcola la logica di risoluzione su tutti i log esistenti
 // ─────────────────────────────────────────────
-router.post("/super-diario/refresh-all", async (req, res): Promise<void> => {
+router.post("/super-diario/:slug/refresh-all", async (req, res): Promise<void> => {
   const session = requireHostSession(req, res);
   if (!session) return;
+  if (!(await requireHostOwnsPropertySlug(res, session, req.params.slug))) return;
 
   try {
-    const logs = await db.select().from(chatLogsTable);
+    const logs = await db
+      .select()
+      .from(chatLogsTable)
+      .where(eq(chatLogsTable.propertySlug, req.params.slug));
 
     for (const log of logs) {
       const isHostFallback = isHostFallbackResponse(log.marcoReply);

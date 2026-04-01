@@ -36,6 +36,12 @@ interface Lead {
   createdAt: string;
 }
 
+interface LeadConversionResult {
+  email: string;
+  slug: string;
+  password: string;
+}
+
 const LEAD_STATUSES = ["Nuovo", "Contattato", "In Trattativa", "Chiuso", "Non Interessato"] as const;
 
 const CEO_SESSION_KEY = "ceo_session_token";
@@ -682,6 +688,8 @@ export default function CeoPanel() {
   const [leadStatusSaving, setLeadStatusSaving] = useState<Record<number, boolean>>({});
   const [convertingLead, setConvertingLead] = useState<Record<number, boolean>>({});
   const [convertSuccess, setConvertSuccess] = useState<Record<number, string | null>>({});
+  const [leadConversionModal, setLeadConversionModal] = useState<LeadConversionResult | null>(null);
+  const [leadPasswordCopied, setLeadPasswordCopied] = useState(false);
   const [hosts, setHosts] = useState<Array<{ id: number; email: string; createdAt: string }>>([]);
   const [hostsLoading, setHostsLoading] = useState(false);
   const [newHostEmail, setNewHostEmail] = useState("");
@@ -816,7 +824,7 @@ export default function CeoPanel() {
   };
 
   const convertLead = async (lead: Lead) => {
-    if (!window.confirm(`Converti "${lead.hostName}" in host?\n\nVerra creata la proprietà "${lead.propertyName}".\nPassword assegnata: Benvenuto2026!`)) return;
+    if (!window.confirm(`Converti "${lead.hostName}" in host?\n\nVerra creata la proprietà "${lead.propertyName}".`)) return;
     setConvertingLead((prev) => ({ ...prev, [lead.id]: true }));
     try {
       const res = await fetch(`${baseUrl}/api/leads/${lead.id}/convert`, {
@@ -829,7 +837,13 @@ export default function CeoPanel() {
         alert(`Errore: ${data.error ?? "Qualcosa è andato storto."}`);
         return;
       }
-      setConvertSuccess((prev) => ({ ...prev, [lead.id]: "Creato! Password: Benvenuto2026!" }));
+      setLeadConversionModal({
+        email: data.email,
+        slug: data.slug,
+        password: data.password,
+      });
+      setLeadPasswordCopied(false);
+      setConvertSuccess((prev) => ({ ...prev, [lead.id]: "Lead convertito con successo." }));
       setTimeout(() => {
         setConvertSuccess((prev) => { const n = { ...prev }; delete n[lead.id]; return n; });
       }, 6000);
@@ -1043,6 +1057,57 @@ export default function CeoPanel() {
   return (
     <>
       <AnimatePresence>
+        {leadConversionModal && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, y: 8, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.96 }}
+              className="w-full max-w-2xl rounded-2xl border-2 border-amber-400 bg-amber-50 shadow-2xl"
+            >
+              <div className="p-6 sm:p-7 flex flex-col gap-5">
+                <div>
+                  <h3 className="text-xl font-extrabold text-amber-900">Password host generata</h3>
+                  <p className="mt-2 text-amber-800 font-semibold">
+                    ⚠️ Salva questa password ora! Non sarà più visibile dopo aver chiuso questa finestra.
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-amber-300 bg-white px-4 py-4">
+                  <p className="text-xs uppercase tracking-wider text-amber-700 font-semibold">Password onboarding</p>
+                  <p className="mt-2 font-mono text-3xl sm:text-4xl font-bold text-amber-900 break-all">
+                    {leadConversionModal.password}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-amber-200 bg-white/80 px-4 py-3 text-sm text-amber-900 space-y-1">
+                  <p><strong>Email host:</strong> {leadConversionModal.email}</p>
+                  <p><strong>Slug proprieta:</strong> {leadConversionModal.slug}</p>
+                  <p className="break-all"><strong>Chat link:</strong> {`${window.location.origin}${baseUrl}/guest/${leadConversionModal.slug}`}</p>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <button
+                    onClick={async () => {
+                      await navigator.clipboard.writeText(leadConversionModal.password);
+                      setLeadPasswordCopied(true);
+                      setTimeout(() => setLeadPasswordCopied(false), 2000);
+                    }}
+                    className="flex-1 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold px-4 py-3"
+                  >
+                    {leadPasswordCopied ? "✅ Copiata!" : "📋 Copia password"}
+                  </button>
+                  <button
+                    onClick={() => setLeadConversionModal(null)}
+                    className="flex-1 rounded-xl border-2 border-amber-500 bg-white hover:bg-amber-100 text-amber-900 font-bold px-4 py-3"
+                  >
+                    Ho salvato la password ✓
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
         {qrProperty && (
           <QrModal
             property={qrProperty}

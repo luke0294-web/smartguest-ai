@@ -6,11 +6,19 @@ import { logger } from "../lib/logger";
 import { requireCeoSession, getCeoPassword, issueCeoToken } from "../lib/ceo-session";
 import { getHostSessionSecret, verifyHostSessionToken, getHostTokenFromRequest } from "../lib/host-session";
 import { hashHostPassword } from "../lib/passwords";
+import { authRateLimiter, getClientIp } from "../lib/rateLimiter";
 
 const router: IRouter = Router();
 
 // POST /auth/ceo-login — validate CEO password, issue session token (no env default for password)
 router.post("/auth/ceo-login", async (req, res): Promise<void> => {
+  const clientIp = getClientIp(req);
+  if (!authRateLimiter.check(clientIp)) {
+    const retryAfter = authRateLimiter.retryAfterSeconds(clientIp);
+    res.status(429).json({ error: "Troppi tentativi di accesso. Riprova più tardi.", retryAfter });
+    return;
+  }
+
   const pwd = getCeoPassword();
   if (!pwd) {
     res.status(503).json({ error: "Server non configurato: impostare CEO_PASSWORD." });
@@ -65,6 +73,13 @@ router.get("/auth/host/me", async (req, res): Promise<void> => {
 
 // POST /auth/forgot-password — host requests reset by email
 router.post("/auth/forgot-password", async (req, res): Promise<void> => {
+  const clientIp = getClientIp(req);
+  if (!authRateLimiter.check(clientIp)) {
+    const retryAfter = authRateLimiter.retryAfterSeconds(clientIp);
+    res.status(429).json({ error: "Troppe richieste. Riprova più tardi.", retryAfter });
+    return;
+  }
+
   const { email } = req.body ?? {};
 
   if (!email?.trim()) {

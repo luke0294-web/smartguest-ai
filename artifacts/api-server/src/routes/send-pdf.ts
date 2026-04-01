@@ -94,11 +94,10 @@ router.post("/send-pdf", async (req: Request<{}, {}, SendPdfBody>, res: Response
       email,
     });
   } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : "Errore sconosciuto nel server email";
     console.error("Errore Nodemailer:", err);
     logger.error({ err, email }, "❌ Errore durante l'invio dell'email");
     res.status(500).json({
-      error: errorMessage,
+      error: "Errore durante l'invio dell'email. Riprova più tardi.",
     });
   }
 });

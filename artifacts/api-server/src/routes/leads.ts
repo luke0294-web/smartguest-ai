@@ -4,11 +4,19 @@ import { desc, eq } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { requireCeoSession } from "../lib/ceo-session";
 import { hashHostPassword } from "../lib/passwords";
+import { authRateLimiter, getClientIp } from "../lib/rateLimiter";
 
 const router: IRouter = Router();
 const VALID_STATUSES = ["Nuovo", "Contattato", "In Trattativa", "Chiuso", "Non Interessato"] as const;
 
 router.post("/leads", async (req, res): Promise<void> => {
+  const clientIp = getClientIp(req);
+  if (!authRateLimiter.check(clientIp)) {
+    const retryAfter = authRateLimiter.retryAfterSeconds(clientIp);
+    res.status(429).json({ error: "Troppe richieste. Riprova più tardi.", retryAfter });
+    return;
+  }
+
   const { hostName, email, propertyName } = req.body ?? {};
 
   if (!hostName?.trim() || !email?.trim() || !propertyName?.trim()) {

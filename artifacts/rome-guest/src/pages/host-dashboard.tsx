@@ -306,6 +306,7 @@ export default function HostDashboard() {
       formData.append("audio", blob, `recording.${ext}`);
       const res = await fetch(`${baseUrl}/api/ai/transcribe`, {
         method: "POST",
+        headers: { Authorization: `Bearer ${session?.sessionToken ?? ""}` },
         body: formData,
       });
       const json = await res.json();
@@ -331,6 +332,7 @@ export default function HostDashboard() {
       formData.append("image", file);
       const res = await fetch(`${baseUrl}/api/ai/vision`, {
         method: "POST",
+        headers: { Authorization: `Bearer ${session?.sessionToken ?? ""}` },
         body: formData,
       });
       const json = await res.json();

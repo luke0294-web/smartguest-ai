@@ -91,6 +91,12 @@ export const aiVisionRateLimiter = new RateLimiter({
   windowMs: 60 * 60 * 1000,
 });
 
+/** Strict limit for auth and public lead intake endpoints (per IP). */
+export const authRateLimiter = new RateLimiter({
+  maxRequests: 10,
+  windowMs: 60 * 60 * 1000,
+});
+
 /**
  * Extracts the real client IP from an Express request,
  * honouring X-Forwarded-For when behind a proxy (Replit's edge).

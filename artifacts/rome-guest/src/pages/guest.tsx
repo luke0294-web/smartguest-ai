@@ -3,6 +3,7 @@ import { useParams, Link } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { Send, Home, Loader2, Sparkles, AlertCircle, KeyRound } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import rehypeSanitize from "rehype-sanitize";
 import { useGetProperty, useSendPropertyChat } from "@workspace/api-client-react";
 
 // ── Type Definitions ────────────────────────────────────────────────────────
@@ -488,6 +489,7 @@ export default function GuestChat() {
                   {msg.role === "assistant" ? (
                     <div className="markdown-content font-sans break-words text-sm sm:text-base">
                       <ReactMarkdown
+                        rehypePlugins={[rehypeSanitize]}
                         components={{
                           strong: ({ node, children, ...props }) => <b className="font-extrabold text-black" {...props}>{children}</b>,
                           p: ({ node, children, ...props }) => <p className="mb-2 last:mb-0" {...props}>{children}</p>,

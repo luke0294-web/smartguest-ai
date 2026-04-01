@@ -21,7 +21,16 @@ router.get("/properties", async (req, res): Promise<void> => {
   if (!requireCeoSession(req, res)) return;
 
   const rows = await db
-    .select()
+    .select({
+      id: propertiesTable.id,
+      slug: propertiesTable.slug,
+      name: propertiesTable.name,
+      content: propertiesTable.content,
+      whatsappNumber: propertiesTable.whatsappNumber,
+      createdAt: propertiesTable.createdAt,
+      updatedAt: propertiesTable.updatedAt,
+      email: propertiesTable.email,
+    })
     .from(propertiesTable)
     .orderBy(propertiesTable.createdAt);
 
@@ -196,7 +205,7 @@ router.put("/properties/:slug/full-edit", async (req, res): Promise<void> => {
   }
 
   if (Object.keys(updates).length === 0) {
-    res.json(current);
+    res.json(GetPropertyResponse.parse(current));
     return;
   }
 
@@ -208,7 +217,7 @@ router.put("/properties/:slug/full-edit", async (req, res): Promise<void> => {
     .returning();
 
   logger.info({ slug: targetSlug, updates: Object.keys(updates) }, "Property fully edited by CEO");
-  res.json(updated);
+  res.json(GetPropertyResponse.parse(updated));
 });
 
 // DELETE /properties/:slug — delete (CEO only)

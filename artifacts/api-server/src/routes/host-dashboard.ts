@@ -6,10 +6,10 @@ import { requireCeoSession } from "../lib/ceo-session";
 import {
   getHostSessionSecret,
   issueHostSessionToken,
-  verifyHostSessionToken,
-  getHostTokenFromRequest,
 } from "../lib/host-session";
+import { requireHostSession, requireHostOwnsPropertySlug } from "../lib/host-auth";
 import { hashHostPassword, verifyHostPassword } from "../lib/passwords";
+import { authRateLimiter, getClientIp } from "../lib/rateLimiter";
 
 const router: IRouter = Router();
 
@@ -39,16 +39,15 @@ async function authenticateHost(email: string, password: string) {
   return host;
 }
 
-async function hostFromSessionToken(token: string) {
-  const payload = verifyHostSessionToken(token);
-  if (!payload) return null;
-  const [host] = await db.select().from(hostsTable).where(eq(hostsTable.id, payload.hostId)).limit(1);
-  if (!host || host.email !== payload.email) return null;
-  return host;
-}
-
 // POST /api/auth/host-login — email+password → list of owned properties + session token
 router.post("/auth/host-login", async (req, res): Promise<void> => {
+  const clientIp = getClientIp(req);
+  if (!authRateLimiter.check(clientIp)) {
+    const retryAfter = authRateLimiter.retryAfterSeconds(clientIp);
+    res.status(429).json({ error: "Troppi tentativi di accesso. Riprova più tardi.", retryAfter });
+    return;
+  }
+
   if (!getHostSessionSecret()) {
     res.status(503).json({
       error: "Server non configurato: impostare HOST_SESSION_SECRET o SESSION_SECRET.",
@@ -81,14 +80,13 @@ router.post("/auth/host-login", async (req, res): Promise<void> => {
   res.json({ email: host.email, properties, sessionToken });
 });
 
-// GET /api/host/:slug — get property info (host session or email+password auth)
+// GET /api/host/:slug — get property info (host session only)
 router.get("/host/:slug", async (req, res): Promise<void> => {
+  const session = requireHostSession(req, res);
+  if (!session) return;
+
   const { slug } = req.params;
-  const email = req.query["email"] as string | undefined;
-  const hostPassword = req.query["hostPassword"] as string | undefined;
-  const qSession = req.query["sessionToken"] as string | undefined;
-  const headerSession = getHostTokenFromRequest(req);
-  const sessionRaw = headerSession ?? qSession;
+  if (!(await requireHostOwnsPropertySlug(res, session, slug))) return;
 
   const [property] = await db
     .select()
@@ -101,65 +99,18 @@ router.get("/host/:slug", async (req, res): Promise<void> => {
     return;
   }
 
-  if (sessionRaw) {
-    const host = await hostFromSessionToken(sessionRaw);
-    if (!host) {
-      res.status(401).json({ error: "Sessione non valida o scaduta." });
-      return;
-    }
-    if (property.email?.toLowerCase() !== host.email) {
-      res.status(403).json({ error: "Non sei il proprietario di questa struttura." });
-      return;
-    }
-    const { hostPassword: _hidden, resetToken: _rt, resetRequestedAt: _rra, ...safe } = property;
-    res.json(safe);
-    return;
-  }
-
-  if (email && hostPassword) {
-    const host = await authenticateHost(email, hostPassword);
-    if (!host) {
-      res.status(401).json({ error: "Credenziali non valide." });
-      return;
-    }
-    if (property.email?.toLowerCase() !== host.email) {
-      res.status(403).json({ error: "Non sei il proprietario di questa struttura." });
-      return;
-    }
-    const { hostPassword: _hidden, resetToken: _rt, resetRequestedAt: _rra, ...safe } = property;
-    res.json(safe);
-    return;
-  }
-
-  if (hostPassword && property.hostPassword) {
-    const valid = await verifyHostPassword(property.hostPassword, hostPassword);
-    if (!valid) {
-      res.status(401).json({ error: "Password non corretta." });
-      return;
-    }
-    const legacyPlain =
-      !property.hostPassword.startsWith("$2a$") &&
-      !property.hostPassword.startsWith("$2b$") &&
-      !property.hostPassword.startsWith("$2y$");
-    if (legacyPlain) {
-      const hashed = await hashHostPassword(hostPassword);
-      await db
-        .update(propertiesTable)
-        .set({ hostPassword: hashed })
-        .where(eq(propertiesTable.slug, slug));
-    }
-    const { hostPassword: _hidden, resetToken: _rt, resetRequestedAt: _rra, ...safe } = property;
-    res.json(safe);
-    return;
-  }
-
-  res.status(401).json({ error: "Autenticazione richiesta." });
+  const { hostPassword: _hidden, resetToken: _rt, resetRequestedAt: _rra, ...safe } = property;
+  res.json(safe);
 });
 
-// PUT /api/host/:slug — update property (host session or email+password)
+// PUT /api/host/:slug — update property (host session only)
 router.put("/host/:slug", async (req, res): Promise<void> => {
+  const session = requireHostSession(req, res);
+  if (!session) return;
+
   const { slug } = req.params;
-  const { email, hostPassword, name, content, whatsappNumber, sessionToken: bodyToken } = req.body ?? {};
+  const { name, content, whatsappNumber } = req.body ?? {};
+  if (!(await requireHostOwnsPropertySlug(res, session, slug))) return;
 
   const [property] = await db
     .select()
@@ -170,46 +121,6 @@ router.put("/host/:slug", async (req, res): Promise<void> => {
   if (!property) {
     res.status(404).json({ error: "Proprietà non trovata." });
     return;
-  }
-
-  const headerSession = getHostTokenFromRequest(req);
-  const sessionRaw =
-    typeof headerSession === "string"
-      ? headerSession
-      : typeof bodyToken === "string"
-        ? bodyToken
-        : undefined;
-
-  if (sessionRaw) {
-    const host = await hostFromSessionToken(sessionRaw);
-    if (!host) {
-      res.status(401).json({ error: "Sessione non valida o scaduta." });
-      return;
-    }
-    if (property.email?.toLowerCase() !== host.email) {
-      res.status(403).json({ error: "Non sei il proprietario di questa struttura." });
-      return;
-    }
-  } else if (email) {
-    const host = await authenticateHost(email, hostPassword);
-    if (!host) {
-      res.status(401).json({ error: "Credenziali non valide." });
-      return;
-    }
-    if (property.email?.toLowerCase() !== host.email) {
-      res.status(403).json({ error: "Non sei il proprietario di questa struttura." });
-      return;
-    }
-  } else {
-    if (!property.hostPassword) {
-      res.status(401).json({ error: "Password non corretta." });
-      return;
-    }
-    const valid = await verifyHostPassword(property.hostPassword, hostPassword);
-    if (!valid) {
-      res.status(401).json({ error: "Password non corretta." });
-      return;
-    }
   }
 
   const updates: Partial<{ name: string; content: string; whatsappNumber: string | null }> = {};
