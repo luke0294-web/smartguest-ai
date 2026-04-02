@@ -8,6 +8,7 @@ import {
   getClientIp,
 } from "../lib/rateLimiter";
 import { enforceAiMessageLimit, requireAiInternalApiKey } from "../lib/aiGuard";
+import { requireHostSession } from "../lib/host-auth";
 
 const router: IRouter = Router();
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -46,6 +47,12 @@ const rateLimitAiVision: RequestHandler = (req, res, next) => {
   next();
 };
 
+/** Dopo rate limit, prima di multer: solo host con sessione Bearer valida. */
+const requireHostSessionForAi: RequestHandler = (req, res, next) => {
+  const session = requireHostSession(req, res);
+  if (session) next();
+};
+
 // POST /ai/transcribe — Whisper speech-to-text
 router.post(
   "/ai/transcribe",
@@ -54,6 +61,7 @@ router.post(
     next();
   },
   rateLimitAiTranscribe,
+  requireHostSessionForAi,
   upload.single("audio"),
   async (req, res): Promise<void> => {
     if (!enforceAiMessageLimit(req, res)) return;
@@ -95,6 +103,7 @@ router.post(
     next();
   },
   rateLimitAiVision,
+  requireHostSessionForAi,
   upload.single("image"),
   async (req, res): Promise<void> => {
     if (!enforceAiMessageLimit(req, res)) return;

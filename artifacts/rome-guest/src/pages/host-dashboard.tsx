@@ -22,6 +22,7 @@ import {
   BookOpen,
 } from "lucide-react";
 import { apiUrl, getAiSecurityHeaders } from "@/lib/apiUrl";
+import { getHostSession, type HostSession } from "@/lib/hostSession";
 
 const DEFAULT_MANUAL_TEMPLATE = `🏠 MANUALE DI BENVENUTO - [NOME APPARTAMENTO]
 Benvenuti! Ecco tutte le informazioni essenziali per il vostro soggiorno.
@@ -61,34 +62,6 @@ Vi preghiamo di lasciare le stoviglie pulite (o lavastoviglie avviata) e svuotar
 - Ferro da stiro: [Nell'armadio della camera]
 - Lavatrice: [In bagno, detersivo sotto il lavandino]`;
 
-const HOST_SESSION_KEY = "host_session";
-const SESSION_TTL = 8 * 60 * 60 * 1000;
-
-interface Session {
-  email: string;
-  sessionToken: string;
-  ts: number;
-}
-
-function readSession(): Session | null {
-  try {
-    const raw = sessionStorage.getItem(HOST_SESSION_KEY);
-    if (!raw) return null;
-    const s = JSON.parse(raw) as Session;
-    if (!s.sessionToken || !s.email) {
-      sessionStorage.removeItem(HOST_SESSION_KEY);
-      return null;
-    }
-    if (Date.now() - s.ts > SESSION_TTL) {
-      sessionStorage.removeItem(HOST_SESSION_KEY);
-      return null;
-    }
-    return s;
-  } catch {
-    return null;
-  }
-}
-
 const updateSchema = z.object({
   name: z.string().min(1, "Il nome è obbligatorio"),
   content: z.string().min(1, "Il regolamento è obbligatorio"),
@@ -119,7 +92,7 @@ export default function HostDashboard() {
   const [, navigate] = useLocation();
   const slug = params?.slug ?? "";
 
-  const [session, setSession] = useState<Session | null>(null);
+  const [session, setSession] = useState<HostSession | null>(null);
   const [property, setProperty] = useState<PropertyData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -140,7 +113,7 @@ export default function HostDashboard() {
 
   useEffect(() => {
     if (!slug) return;
-    const s = readSession();
+    const s = getHostSession();
     if (!s) {
       navigate(`/login`);
       return;
@@ -151,7 +124,7 @@ export default function HostDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug]);
 
-  const loadProperty = async (s: Session) => {
+  const loadProperty = async (s: HostSession) => {
     setIsLoading(true);
     setLoadError("");
     try {

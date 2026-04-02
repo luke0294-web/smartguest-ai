@@ -3,8 +3,7 @@ import { useLocation, Link } from "wouter";
 import { motion } from "framer-motion";
 import { MessageSquare, KeyRound, Mail, Loader2, AlertCircle, HelpCircle } from "lucide-react";
 import { apiUrl } from "@/lib/apiUrl";
-
-const HOST_SESSION_KEY = "host_session";
+import { persistHostSession } from "@/lib/hostSession";
 
 export default function HostLogin() {
   const [, navigate] = useLocation();
@@ -41,10 +40,7 @@ export default function HostLogin() {
           setError("Risposta dal server non valida. Contatta il supporto.");
           return;
         }
-        sessionStorage.setItem(
-          HOST_SESSION_KEY,
-          JSON.stringify({ email: json.email, sessionToken: json.sessionToken, ts: Date.now() }),
-        );
+        persistHostSession(json.email, json.sessionToken);
         navigate("/host/dashboard");
         return;
       }

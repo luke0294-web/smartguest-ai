@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 import { logger } from "../lib/logger";
 import { requireCeoSession } from "../lib/ceo-session";
 import { authRateLimiter, getClientIp } from "../lib/rateLimiter";
-import { supabase, supabaseAdmin } from "../lib/supabase";
+import { supabaseAdmin } from "../lib/supabase";
 
 const router: IRouter = Router();
 const VALID_STATUSES = ["Nuovo", "Contattato", "In Trattativa", "Chiuso", "Non Interessato"] as const;
@@ -209,34 +209,8 @@ router.post("/leads/:id/convert", async (req, res): Promise<void> => {
     }
 
     const normalizedEmail = leadRow.email.trim().toLowerCase();
-    const generatedPassword = randomBytes(18).toString("base64url");
-    const { error: signUpError } = await supabase.auth.signUp({
-      email: normalizedEmail,
-      password: generatedPassword,
-      options: {
-        data: { full_name: leadRow.host_name.trim() },
-      },
-    });
-    const authProvisioned = !signUpError;
-    if (signUpError) {
-      logger.warn(
-        { email: normalizedEmail, error: signUpError.message },
-        "Supabase signUp failed during lead conversion",
-      );
-    }
-
-    const { error: profileError } = await supabaseAdmin
-      .from("profiles")
-      .upsert(
-        { email: normalizedEmail, full_name: leadRow.host_name.trim() },
-        { onConflict: "email" },
-      );
-    if (profileError) {
-      logger.warn(
-        { email: normalizedEmail, error: profileError.message },
-        "Supabase profile sync failed during lead conversion",
-      );
-    }
+    const inviteToken = randomBytes(32).toString("hex");
+    const inviteTokenExpiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
 
     const baseSlug = leadRow.property_name
       .toLowerCase()
@@ -260,6 +234,8 @@ router.post("/leads/:id/convert", async (req, res): Promise<void> => {
       manual_content: "",
       email: normalizedEmail,
       pending_questions_count: 0,
+      invite_token: inviteToken,
+      invite_token_expires_at: inviteTokenExpiresAt,
     });
 
     if (propInsErr) {
@@ -275,8 +251,19 @@ router.post("/leads/:id/convert", async (req, res): Promise<void> => {
       logger.warn({ leadUpdErr, id }, "Lead convert — stato lead non aggiornato");
     }
 
-    logger.info({ id, email: normalizedEmail, slug, authProvisioned }, "Lead converted to host+property");
-    res.status(201).json({ success: true, email: normalizedEmail, slug, authProvisioned });
+    const frontendBase = (process.env.FRONTEND_URL ?? "").trim().replace(/\/$/, "");
+    const inviteLink = frontendBase
+      ? `${frontendBase}/setup-password/${inviteToken}`
+      : `/setup-password/${inviteToken}`;
+
+    logger.info({ id, email: normalizedEmail, slug }, "Lead converted to property + invite token (no host password yet)");
+    res.status(201).json({
+      success: true,
+      email: normalizedEmail,
+      slug,
+      hostCreated: false,
+      inviteLink,
+    });
   } catch (error) {
     console.error("[ERRORE CRITICO]", error);
     if (!res.headersSent) {

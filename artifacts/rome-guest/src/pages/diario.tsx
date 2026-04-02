@@ -3,6 +3,7 @@ import { useParams, Link, useLocation } from "wouter";
 import { ArrowLeft, BookOpen, Loader2, MessageCircle, Bot, Calendar, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { detectNeedsAttention } from "../lib/detectNeedsAttention";
 import { apiUrl } from "@/lib/apiUrl";
+import { clearHostSession, getHostSession } from "@/lib/hostSession";
 
 interface ChatLog {
   id: number;
@@ -11,28 +12,6 @@ interface ChatLog {
   marcoReply: string;
   createdAt: string;
   resolved: boolean;
-}
-
-const HOST_SESSION_KEY = "host_session";
-const SESSION_TTL = 8 * 60 * 60 * 1000;
-
-function readHostSession(): { sessionToken: string } | null {
-  try {
-    const raw = sessionStorage.getItem(HOST_SESSION_KEY);
-    if (!raw) return null;
-    const s = JSON.parse(raw) as { sessionToken?: string; ts?: number };
-    if (!s.sessionToken) {
-      sessionStorage.removeItem(HOST_SESSION_KEY);
-      return null;
-    }
-    if (typeof s.ts === "number" && Date.now() - s.ts > SESSION_TTL) {
-      sessionStorage.removeItem(HOST_SESSION_KEY);
-      return null;
-    }
-    return { sessionToken: s.sessionToken };
-  } catch {
-    return null;
-  }
 }
 
 export default function DiarioDiBordo() {
@@ -46,7 +25,7 @@ export default function DiarioDiBordo() {
 
   const loadLogs = () => {
     if (!slug) return;
-    const auth = readHostSession();
+    const auth = getHostSession();
     if (!auth) {
       navigate("/login");
       return;
@@ -57,7 +36,7 @@ export default function DiarioDiBordo() {
     })
       .then((res) => {
         if (res.status === 401 || res.status === 403) {
-          sessionStorage.removeItem(HOST_SESSION_KEY);
+          clearHostSession();
           navigate("/login");
           throw new Error("Sessione scaduta. Accedi di nuovo.");
         }
@@ -77,7 +56,7 @@ export default function DiarioDiBordo() {
 
   useEffect(() => {
     if (!slug) return;
-    const auth = readHostSession();
+    const auth = getHostSession();
     if (!auth) {
       navigate("/login");
       return;
@@ -95,7 +74,7 @@ export default function DiarioDiBordo() {
   };
 
   const markAsResolved = async (id: number) => {
-    const auth = readHostSession();
+    const auth = getHostSession();
     if (!auth) {
       navigate("/login");
       return;
@@ -106,7 +85,7 @@ export default function DiarioDiBordo() {
         headers: { Authorization: `Bearer ${auth.sessionToken}` },
       });
       if (res.status === 401 || res.status === 403) {
-        sessionStorage.removeItem(HOST_SESSION_KEY);
+        clearHostSession();
         navigate("/login");
         return;
       }

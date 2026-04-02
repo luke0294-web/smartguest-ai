@@ -4,7 +4,11 @@ import { motion } from "framer-motion";
 import { MessageSquare, KeyRound, Eye, EyeOff, ArrowLeft, Loader2, AlertCircle, CheckCircle2, ShieldAlert } from "lucide-react";
 import { apiUrl } from "@/lib/apiUrl";
 
-export default function ResetPassword() {
+/**
+ * Primo accesso host dopo conversione lead: stesso flusso di reset-password,
+ * ma API su /auth/setup-password (token invite su properties).
+ */
+export default function SetupPassword() {
   const params = useParams<{ token: string }>();
   const token = params.token ?? "";
 
@@ -28,19 +32,14 @@ export default function ResetPassword() {
     }
     (async () => {
       try {
-        const res = await fetch(apiUrl(`/api/auth/reset-password/${encodeURIComponent(token)}`));
+        const res = await fetch(apiUrl(`/api/auth/setup-password/${encodeURIComponent(token)}`));
         const data = await res.json();
         if (res.ok && data.valid) {
           setTokenValid(true);
           setPropertyName(data.propertyName ?? "");
         } else {
           setTokenValid(false);
-          setTokenError(
-            data.error ??
-              (res.status === 410
-                ? "Token scaduto. Richiedi un nuovo reset."
-                : "Token non valido o già utilizzato."),
-          );
+          setTokenError(data.error ?? "Token non valido o già utilizzato.");
         }
       } catch {
         setTokenValid(false);
@@ -64,7 +63,7 @@ export default function ResetPassword() {
 
     setIsLoading(true);
     try {
-      const res = await fetch(apiUrl(`/api/auth/reset-password/${encodeURIComponent(token)}`), {
+      const res = await fetch(apiUrl(`/api/auth/setup-password/${encodeURIComponent(token)}`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ newPassword: newPassword.trim() }),
@@ -101,10 +100,9 @@ export default function ResetPassword() {
         transition={{ duration: 0.3 }}
         className="bg-white rounded-3xl shadow-xl w-full max-w-md overflow-hidden"
       >
-        <div className="h-1.5 bg-gradient-to-r from-blue-500 via-blue-600 to-blue-500" />
+        <div className="h-1.5 bg-gradient-to-r from-violet-500 via-blue-600 to-violet-500" />
 
         <div className="p-8">
-          {/* Loading state */}
           {tokenValid === null && (
             <div className="text-center py-8">
               <Loader2 className="w-8 h-8 text-blue-400 animate-spin mx-auto mb-3" />
@@ -112,7 +110,6 @@ export default function ResetPassword() {
             </div>
           )}
 
-          {/* Invalid token */}
           {tokenValid === false && (
             <div className="text-center py-4">
               <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-5">
@@ -121,33 +118,32 @@ export default function ResetPassword() {
               <h2 className="text-xl font-extrabold text-gray-900 mb-2">Link Non Valido</h2>
               <p className="text-gray-500 text-sm leading-relaxed mb-4">{tokenError}</p>
               <Link
-                href="/forgot-password"
+                href="/login"
                 className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-3 rounded-xl text-sm transition-all"
               >
-                Richiedi un Nuovo Link
+                Vai al Login
               </Link>
             </div>
           )}
 
-          {/* Valid token — show form */}
           {tokenValid === true && !success && (
             <>
               <div className="text-center mb-8">
-                <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <KeyRound className="w-8 h-8 text-blue-600" />
+                <div className="w-16 h-16 bg-violet-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <KeyRound className="w-8 h-8 text-violet-600" />
                 </div>
-                <h1 className="text-2xl font-extrabold text-gray-900 mb-1">Nuova Password</h1>
+                <h1 className="text-2xl font-extrabold text-gray-900 mb-1">Imposta la tua password</h1>
                 {propertyName && (
-                  <p className="text-blue-600 text-sm font-semibold mb-1">{propertyName}</p>
+                  <p className="text-violet-600 text-sm font-semibold mb-1">{propertyName}</p>
                 )}
                 <p className="text-gray-400 text-sm">
-                  Scegli una nuova password sicura per il tuo account.
+                  Scegli una password per accedere al pannello host.
                 </p>
               </div>
 
               <form onSubmit={handleSubmit} className="flex flex-col gap-4">
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-sm font-semibold text-gray-700">Nuova Password</label>
+                  <label className="text-sm font-semibold text-gray-700">Password</label>
                   <div className="relative">
                     <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <input
@@ -155,7 +151,7 @@ export default function ResetPassword() {
                       value={newPassword}
                       onChange={(e) => { setNewPassword(e.target.value); setError(""); }}
                       placeholder="Minimo 4 caratteri"
-                      className="w-full border border-gray-200 rounded-xl pl-10 pr-12 py-3 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
+                      className="w-full border border-gray-200 rounded-xl pl-10 pr-12 py-3 text-sm focus:outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 transition-all"
                     />
                     <button
                       type="button"
@@ -168,7 +164,7 @@ export default function ResetPassword() {
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-sm font-semibold text-gray-700">Conferma Password</label>
+                  <label className="text-sm font-semibold text-gray-700">Conferma password</label>
                   <div className="relative">
                     <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <input
@@ -176,7 +172,7 @@ export default function ResetPassword() {
                       value={confirmPassword}
                       onChange={(e) => { setConfirmPassword(e.target.value); setError(""); }}
                       placeholder="Ripeti la password"
-                      className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
+                      className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 transition-all"
                     />
                   </div>
                 </div>
@@ -195,19 +191,18 @@ export default function ResetPassword() {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-100 disabled:opacity-60 mt-1"
+                  className="w-full bg-violet-600 hover:bg-violet-700 active:scale-[0.99] text-white font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-violet-100 disabled:opacity-60 mt-1"
                 >
                   {isLoading ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
                   ) : (
-                    "Salva Nuova Password"
+                    "Crea password e accedi"
                   )}
                 </button>
               </form>
             </>
           )}
 
-          {/* Success */}
           {success && (
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
@@ -217,16 +212,21 @@ export default function ResetPassword() {
               <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-5">
                 <CheckCircle2 className="w-10 h-10 text-emerald-500" />
               </div>
-              <h2 className="text-xl font-extrabold text-gray-900 mb-2">Password Aggiornata!</h2>
+              <h2 className="text-xl font-extrabold text-gray-900 mb-2">Password creata!</h2>
               <p className="text-gray-500 text-sm leading-relaxed mb-6">
-                La tua nuova password è attiva. Puoi accedere subito al tuo pannello.
+                Il tuo account host è pronto. Accedi con email e password.
               </p>
               <Link
-                href={successSlug ? `/host/${successSlug}` : "/login"}
-                className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-bold px-8 py-3 rounded-xl text-sm transition-all shadow-lg shadow-blue-100"
+                href="/login"
+                className="inline-block bg-violet-600 hover:bg-violet-700 text-white font-bold px-8 py-3 rounded-xl text-sm transition-all shadow-lg shadow-violet-100"
               >
-                Accedi al Pannello
+                Vai al Login
               </Link>
+              {successSlug && (
+                <p className="text-xs text-gray-400 mt-4">
+                  Dopo il login troverai la struttura <span className="font-mono">{successSlug}</span> in elenco.
+                </p>
+              )}
             </motion.div>
           )}
         </div>
@@ -245,7 +245,7 @@ export default function ResetPassword() {
       </motion.div>
 
       <p className="text-center text-[11px] text-gray-300 mt-6">
-        Powered by SmartGuest AI · Link monouso sicuro
+        Powered by SmartGuest AI · Invito sicuro
       </p>
     </div>
   );

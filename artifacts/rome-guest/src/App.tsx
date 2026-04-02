@@ -11,6 +11,7 @@ import HostProperties from "./pages/host-properties";
 import HostLogin from "./pages/login";
 import ForgotPassword from "./pages/forgot-password";
 import ResetPassword from "./pages/reset-password";
+import SetupPassword from "./pages/setup-password";
 import PrivacyPolicy from "./pages/privacy";
 import DiarioDiBordo from "./pages/diario";
 import SignupRedirect from "./pages/signup-redirect";
@@ -44,6 +45,7 @@ function Router() {
       <Route path="/diario/:slug" component={DiarioDiBordo} />
       <Route path="/forgot-password" component={ForgotPassword} />
       <Route path="/reset-password/:token" component={ResetPassword} />
+      <Route path="/setup-password/:token" component={SetupPassword} />
       <Route path="/privacy" component={PrivacyPolicy} />
       <Route component={NotFound} />
     </Switch>

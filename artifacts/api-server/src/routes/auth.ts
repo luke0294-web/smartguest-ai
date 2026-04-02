@@ -7,6 +7,22 @@ import { hashHostPassword } from "../lib/passwords";
 import { authRateLimiter, getClientIp } from "../lib/rateLimiter";
 import { supabaseAdmin } from "../lib/supabase";
 
+const RESET_TOKEN_TTL_MS = 2 * 60 * 60 * 1000;
+
+function isPasswordResetTokenExpired(resetRequestedAt: string | null | undefined): boolean {
+  if (resetRequestedAt == null || String(resetRequestedAt).trim() === "") return true;
+  const t = new Date(resetRequestedAt).getTime();
+  if (Number.isNaN(t)) return true;
+  return Date.now() - t > RESET_TOKEN_TTL_MS;
+}
+
+function isInviteTokenExpired(inviteTokenExpiresAt: string | null | undefined): boolean {
+  if (inviteTokenExpiresAt == null || String(inviteTokenExpiresAt).trim() === "") return true;
+  const t = new Date(inviteTokenExpiresAt).getTime();
+  if (Number.isNaN(t)) return true;
+  return Date.now() > t;
+}
+
 const router: IRouter = Router();
 
 // POST /auth/ceo-login — validate CEO password, issue session token (no env default for password)
@@ -167,9 +183,9 @@ router.get("/auth/reset-password/:token", async (req, res): Promise<void> => {
 
     const { data: property, error } = await supabaseAdmin
       .from("properties")
-      .select("slug, name")
+      .select("slug, name, reset_requested_at")
       .eq("reset_token", token)
-      .maybeSingle<{ slug: string; name: string }>();
+      .maybeSingle<{ slug: string; name: string; reset_requested_at: string | null }>();
 
     if (error) {
       console.error("[ERRORE CRITICO] reset-password GET:", error);
@@ -179,6 +195,15 @@ router.get("/auth/reset-password/:token", async (req, res): Promise<void> => {
 
     if (!property) {
       res.status(404).json({ valid: false, error: "Token non valido o già utilizzato." });
+      return;
+    }
+
+    if (isPasswordResetTokenExpired(property.reset_requested_at)) {
+      console.error("[ERRORE CRITICO] Token reset scaduto", { tokenSuffix: token.slice(-6) });
+      res.status(410).json({
+        valid: false,
+        error: "Token scaduto. Richiedi un nuovo reset.",
+      });
       return;
     }
 
@@ -209,9 +234,9 @@ router.post("/auth/reset-password/:token", async (req, res): Promise<void> => {
 
     const { data: property, error: selErr } = await supabaseAdmin
       .from("properties")
-      .select("id, slug, email")
+      .select("id, slug, email, reset_requested_at")
       .eq("reset_token", token)
-      .maybeSingle<{ id: number; slug: string; email: string | null }>();
+      .maybeSingle<{ id: number; slug: string; email: string | null; reset_requested_at: string | null }>();
 
     if (selErr) {
       console.error("[ERRORE CRITICO] reset-password POST select:", selErr);
@@ -221,6 +246,12 @@ router.post("/auth/reset-password/:token", async (req, res): Promise<void> => {
 
     if (!property) {
       res.status(404).json({ error: "Token non valido o già utilizzato." });
+      return;
+    }
+
+    if (isPasswordResetTokenExpired(property.reset_requested_at)) {
+      console.error("[ERRORE CRITICO] Token reset scaduto", { tokenSuffix: token.slice(-6) });
+      res.status(410).json({ error: "Token scaduto. Richiedi un nuovo reset." });
       return;
     }
 
@@ -273,6 +304,153 @@ router.post("/auth/reset-password/:token", async (req, res): Promise<void> => {
     }
 
     logger.info({ slug: property.slug }, "Host password reset via token");
+    res.json({ success: true, slug: property.slug });
+  } catch (error) {
+    console.error("[ERRORE CRITICO]", error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Errore interno del server" });
+    }
+  }
+});
+
+// GET /auth/setup-password/:token — primo setup password (invite da conversione lead)
+router.get("/auth/setup-password/:token", async (req, res): Promise<void> => {
+  try {
+    const { token } = req.params;
+
+    if (!token) {
+      res.status(400).json({ valid: false, error: "Token mancante." });
+      return;
+    }
+
+    const { data: property, error } = await supabaseAdmin
+      .from("properties")
+      .select("slug, name, invite_token_expires_at")
+      .eq("invite_token", token)
+      .maybeSingle<{ slug: string; name: string; invite_token_expires_at: string | null }>();
+
+    if (error) {
+      console.error("[ERRORE CRITICO] setup-password GET:", error);
+      res.status(500).json({ valid: false, error: "Errore interno del server" });
+      return;
+    }
+
+    if (!property) {
+      res.status(404).json({ valid: false, error: "Token non valido o già utilizzato." });
+      return;
+    }
+
+    if (isInviteTokenExpired(property.invite_token_expires_at)) {
+      console.error("[ERRORE CRITICO] Token invito scaduto", { tokenSuffix: token.slice(-6) });
+      res.status(410).json({
+        valid: false,
+        error: "Token scaduto. Richiedi un nuovo invito al gestore.",
+      });
+      return;
+    }
+
+    res.json({ valid: true, propertyName: property.name, slug: property.slug });
+  } catch (error) {
+    console.error("[ERRORE CRITICO]", error);
+    if (!res.headersSent) {
+      res.status(500).json({ valid: false, error: "Errore interno del server" });
+    }
+  }
+});
+
+// POST /auth/setup-password/:token — consuma invite e crea/aggiorna password host
+router.post("/auth/setup-password/:token", async (req, res): Promise<void> => {
+  try {
+    const { token } = req.params;
+    const { newPassword } = req.body ?? {};
+
+    if (!token) {
+      res.status(400).json({ error: "Token mancante." });
+      return;
+    }
+
+    if (!newPassword?.trim() || String(newPassword).trim().length < 4) {
+      res.status(400).json({ error: "La nuova password deve essere di almeno 4 caratteri." });
+      return;
+    }
+
+    const { data: property, error: selErr } = await supabaseAdmin
+      .from("properties")
+      .select("id, slug, email, invite_token_expires_at")
+      .eq("invite_token", token)
+      .maybeSingle<{
+        id: number;
+        slug: string;
+        email: string | null;
+        invite_token_expires_at: string | null;
+      }>();
+
+    if (selErr) {
+      console.error("[ERRORE CRITICO] setup-password POST select:", selErr);
+      res.status(500).json({ error: "Errore interno del server" });
+      return;
+    }
+
+    if (!property) {
+      res.status(404).json({ error: "Token non valido o già utilizzato." });
+      return;
+    }
+
+    if (isInviteTokenExpired(property.invite_token_expires_at)) {
+      console.error("[ERRORE CRITICO] Token invito scaduto", { tokenSuffix: token.slice(-6) });
+      res.status(410).json({ error: "Token scaduto. Richiedi un nuovo invito al gestore." });
+      return;
+    }
+
+    const trimmed = String(newPassword).trim();
+    const hashed = await hashHostPassword(trimmed);
+    const ownerEmail = property.email?.trim().toLowerCase() ?? null;
+
+    if (ownerEmail) {
+      const { data: existingHost } = await supabaseAdmin
+        .from("hosts")
+        .select("email")
+        .eq("email", ownerEmail)
+        .maybeSingle();
+
+      if (existingHost) {
+        const { error: uErr } = await supabaseAdmin
+          .from("hosts")
+          .update({ host_password: hashed })
+          .eq("email", ownerEmail);
+        if (uErr) {
+          console.error("[ERRORE CRITICO] setup-password update host:", uErr);
+          res.status(500).json({ error: "Errore interno del server" });
+          return;
+        }
+      } else {
+        const { error: iErr } = await supabaseAdmin
+          .from("hosts")
+          .insert({ email: ownerEmail, host_password: hashed });
+        if (iErr) {
+          console.error("[ERRORE CRITICO] setup-password insert host:", iErr);
+          res.status(500).json({ error: "Errore interno del server" });
+          return;
+        }
+      }
+    }
+
+    const { error: pErr } = await supabaseAdmin
+      .from("properties")
+      .update({
+        host_password: ownerEmail ? null : hashed,
+        invite_token: null,
+        invite_token_expires_at: null,
+      })
+      .eq("id", property.id);
+
+    if (pErr) {
+      console.error("[ERRORE CRITICO] setup-password update property:", pErr);
+      res.status(500).json({ error: "Errore interno del server" });
+      return;
+    }
+
+    logger.info({ slug: property.slug }, "Host password impostata via invite token");
     res.json({ success: true, slug: property.slug });
   } catch (error) {
     console.error("[ERRORE CRITICO]", error);

@@ -6,9 +6,7 @@ import {
   AlertCircle, Home, ArrowRight, BookOpen,
 } from "lucide-react";
 import { apiUrl } from "@/lib/apiUrl";
-
-const HOST_SESSION_KEY = "host_session";
-const SESSION_TTL = 8 * 60 * 60 * 1000;
+import { clearHostSession, getHostSession, type HostSession } from "@/lib/hostSession";
 
 interface PropertySummary {
   id: number;
@@ -17,40 +15,15 @@ interface PropertySummary {
   whatsappNumber: string | null;
 }
 
-interface Session {
-  email: string;
-  sessionToken: string;
-  ts: number;
-}
-
-function readSession(): Session | null {
-  try {
-    const raw = sessionStorage.getItem(HOST_SESSION_KEY);
-    if (!raw) return null;
-    const s = JSON.parse(raw) as Session;
-    if (!s.sessionToken || !s.email) {
-      sessionStorage.removeItem(HOST_SESSION_KEY);
-      return null;
-    }
-    if (Date.now() - s.ts > SESSION_TTL) {
-      sessionStorage.removeItem(HOST_SESSION_KEY);
-      return null;
-    }
-    return s;
-  } catch {
-    return null;
-  }
-}
-
 export default function HostProperties() {
   const [, navigate] = useLocation();
-  const [session, setSession] = useState<Session | null>(null);
+  const [session, setSession] = useState<HostSession | null>(null);
   const [properties, setProperties] = useState<PropertySummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const s = readSession();
+    const s = getHostSession();
     if (!s) {
       navigate("/login");
       return;
@@ -60,7 +33,7 @@ export default function HostProperties() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const loadProperties = async (s: Session) => {
+  const loadProperties = async (s: HostSession) => {
     setIsLoading(true);
     setError("");
     try {
@@ -69,7 +42,7 @@ export default function HostProperties() {
       });
       const json = await res.json();
       if (!res.ok) {
-        sessionStorage.removeItem(HOST_SESSION_KEY);
+        clearHostSession();
         navigate("/login");
         return;
       }
@@ -82,7 +55,7 @@ export default function HostProperties() {
   };
 
   const handleLogout = () => {
-    sessionStorage.removeItem(HOST_SESSION_KEY);
+    clearHostSession();
     navigate("/login");
   };
 

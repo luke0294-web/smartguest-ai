@@ -39,7 +39,7 @@ interface Lead {
 interface LeadConversionResult {
   email: string;
   slug: string;
-  password: string;
+  inviteLink: string;
 }
 
 const LEAD_STATUSES = ["Nuovo", "Contattato", "In Trattativa", "Chiuso", "Non Interessato"] as const;
@@ -312,7 +312,7 @@ function QrModal({
               ) : emailSent ? (
                 <>
                   <CheckCheck className="w-4 h-4" />
-                  Inviato! ✅
+                  📧 Email in elaborazione! Arriverà entro pochi secondi.
                 </>
               ) : (
                 "Invia PDF via Email"
@@ -673,7 +673,7 @@ export default function CeoPanel() {
   const [convertingLead, setConvertingLead] = useState<Record<number, boolean>>({});
   const [convertSuccess, setConvertSuccess] = useState<Record<number, string | null>>({});
   const [leadConversionModal, setLeadConversionModal] = useState<LeadConversionResult | null>(null);
-  const [leadPasswordCopied, setLeadPasswordCopied] = useState(false);
+  const [leadInviteLinkCopied, setLeadInviteLinkCopied] = useState(false);
   const [hosts, setHosts] = useState<Array<{ id: number; email: string; createdAt: string }>>([]);
   const [hostsLoading, setHostsLoading] = useState(false);
   const [newHostEmail, setNewHostEmail] = useState("");
@@ -824,9 +824,9 @@ export default function CeoPanel() {
       setLeadConversionModal({
         email: data.email,
         slug: data.slug,
-        password: data.password,
+        inviteLink: data.inviteLink ?? "",
       });
-      setLeadPasswordCopied(false);
+      setLeadInviteLinkCopied(false);
       setConvertSuccess((prev) => ({ ...prev, [lead.id]: "Lead convertito con successo." }));
       setTimeout(() => {
         setConvertSuccess((prev) => { const n = { ...prev }; delete n[lead.id]; return n; });
@@ -1051,16 +1051,17 @@ export default function CeoPanel() {
             >
               <div className="p-6 sm:p-7 flex flex-col gap-5">
                 <div>
-                  <h3 className="text-xl font-extrabold text-amber-900">Password host generata</h3>
+                  <h3 className="text-xl font-extrabold text-amber-900">Invito host</h3>
                   <p className="mt-2 text-amber-800 font-semibold">
-                    ⚠️ Salva questa password ora! Non sarà più visibile dopo aver chiuso questa finestra.
+                    Invia al lead il link qui sotto: potrà impostare la propria password (valido 48 ore). L&apos;account
+                    host viene creato al completamento del link.
                   </p>
                 </div>
 
                 <div className="rounded-xl border border-amber-300 bg-white px-4 py-4">
-                  <p className="text-xs uppercase tracking-wider text-amber-700 font-semibold">Password onboarding</p>
-                  <p className="mt-2 font-mono text-3xl sm:text-4xl font-bold text-amber-900 break-all">
-                    {leadConversionModal.password}
+                  <p className="text-xs uppercase tracking-wider text-amber-700 font-semibold">Link impostazione password</p>
+                  <p className="mt-2 font-mono text-sm sm:text-base font-bold text-amber-900 break-all">
+                    {leadConversionModal.inviteLink}
                   </p>
                 </div>
 
@@ -1073,19 +1074,19 @@ export default function CeoPanel() {
                 <div className="flex flex-col sm:flex-row gap-3">
                   <button
                     onClick={async () => {
-                      await navigator.clipboard.writeText(leadConversionModal.password);
-                      setLeadPasswordCopied(true);
-                      setTimeout(() => setLeadPasswordCopied(false), 2000);
+                      await navigator.clipboard.writeText(leadConversionModal.inviteLink);
+                      setLeadInviteLinkCopied(true);
+                      setTimeout(() => setLeadInviteLinkCopied(false), 2000);
                     }}
                     className="flex-1 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold px-4 py-3"
                   >
-                    {leadPasswordCopied ? "✅ Copiata!" : "📋 Copia password"}
+                    {leadInviteLinkCopied ? "✅ Copiato!" : "📋 Copia link invito"}
                   </button>
                   <button
                     onClick={() => setLeadConversionModal(null)}
                     className="flex-1 rounded-xl border-2 border-amber-500 bg-white hover:bg-amber-100 text-amber-900 font-bold px-4 py-3"
                   >
-                    Ho salvato la password ✓
+                    Chiudi
                   </button>
                 </div>
               </div>
