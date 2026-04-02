@@ -5,6 +5,7 @@ import {
   Building, MessageSquare, Settings, LogOut, Loader2,
   AlertCircle, Home, ArrowRight, BookOpen,
 } from "lucide-react";
+import { apiUrl } from "@/lib/apiUrl";
 
 const HOST_SESSION_KEY = "host_session";
 const SESSION_TTL = 8 * 60 * 60 * 1000;
@@ -48,8 +49,6 @@ export default function HostProperties() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
-
   useEffect(() => {
     const s = readSession();
     if (!s) {
@@ -65,7 +64,7 @@ export default function HostProperties() {
     setIsLoading(true);
     setError("");
     try {
-      const res = await fetch(`${baseUrl}/api/auth/host/me`, {
+      const res = await fetch(apiUrl("/api/auth/host/me"), {
         headers: { Authorization: `Bearer ${s.sessionToken}` },
       });
       const json = await res.json();

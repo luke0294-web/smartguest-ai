@@ -7,6 +7,7 @@ import {
   aiVisionRateLimiter,
   getClientIp,
 } from "../lib/rateLimiter";
+import { enforceAiMessageLimit, requireAiInternalApiKey } from "../lib/aiGuard";
 
 const router: IRouter = Router();
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -48,9 +49,14 @@ const rateLimitAiVision: RequestHandler = (req, res, next) => {
 // POST /ai/transcribe — Whisper speech-to-text
 router.post(
   "/ai/transcribe",
+  (req, res, next) => {
+    if (!requireAiInternalApiKey(req, res)) return;
+    next();
+  },
   rateLimitAiTranscribe,
   upload.single("audio"),
   async (req, res): Promise<void> => {
+    if (!enforceAiMessageLimit(req, res)) return;
     if (!req.file) {
       res.status(400).json({ error: "Nessun file audio ricevuto." });
       return;
@@ -74,6 +80,7 @@ router.post(
       logger.info({ chars: transcription.text.length }, "Whisper transcription completed");
       res.json({ text: transcription.text });
     } catch (err: unknown) {
+      console.error("[ERRORE CRITICO] /ai/transcribe:", err);
       logger.error({ err }, "Whisper transcription failed");
       res.status(500).json({ error: "Errore nella trascrizione. Riprova tra poco." });
     }
@@ -83,9 +90,14 @@ router.post(
 // POST /ai/vision — GPT-4o vision: extract info from an image
 router.post(
   "/ai/vision",
+  (req, res, next) => {
+    if (!requireAiInternalApiKey(req, res)) return;
+    next();
+  },
   rateLimitAiVision,
   upload.single("image"),
   async (req, res): Promise<void> => {
+    if (!enforceAiMessageLimit(req, res)) return;
     if (!req.file) {
       res.status(400).json({ error: "Nessuna immagine ricevuta." });
       return;
@@ -129,6 +141,7 @@ router.post(
       logger.info({ chars: text.length }, "Vision extraction completed");
       res.json({ text });
     } catch (err: unknown) {
+      console.error("[ERRORE CRITICO] /ai/vision:", err);
       logger.error({ err }, "Vision extraction failed");
       res.status(500).json({ error: "Errore nell'analisi immagine. Riprova tra poco." });
     }

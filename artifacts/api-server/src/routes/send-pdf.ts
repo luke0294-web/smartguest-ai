@@ -12,13 +12,17 @@ interface SendPdfBody {
   chatLink?: string;
 }
 
+const smtpUser = process.env.EMAIL_USER?.trim();
+const smtpPass = process.env.EMAIL_PASS?.trim();
+const smtpPort = Number(process.env.EMAIL_SMTP_PORT ?? 465);
+
 const transporter = nodemailer.createTransport({
   host: process.env.EMAIL_SMTP_HOST ?? "smtp.gmail.com",
-  port: Number(process.env.EMAIL_SMTP_PORT ?? 465),
-  secure: true,
+  port: smtpPort,
+  secure: smtpPort === 465,
   auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
+    user: smtpUser,
+    pass: smtpPass,
   },
 });
 
@@ -52,12 +56,17 @@ router.post("/send-pdf", async (req: Request<{}, {}, SendPdfBody>, res: Response
   }
 
   const fromName = process.env.EMAIL_FROM_NAME ?? "SmartGuest AI";
-  const fromAddress = process.env.EMAIL_USER ?? "hello.smartguest@gmail.com";
+  const fromAddress = smtpUser ?? "hello.smartguest@gmail.com";
 
   const base64Data = pdfBase64.includes(",") ? pdfBase64.split(",")[1] : pdfBase64;
+  const normalizedPdf = base64Data.trim();
+  if (!/^[A-Za-z0-9+/=\r\n]+$/.test(normalizedPdf)) {
+    res.status(400).json({ error: "PDF non valido. Riprova." });
+    return;
+  }
 
   try {
-    logger.info({ email, propertyName }, "📧 Invio email con PDF in corso...");
+    logger.info({ email, propertyName, pdfSize: normalizedPdf.length }, "📧 Invio email con PDF in corso...");
 
     await transporter.sendMail({
       from: `"${fromName}" <${fromAddress}>`,
@@ -79,7 +88,7 @@ router.post("/send-pdf", async (req: Request<{}, {}, SendPdfBody>, res: Response
       attachments: [
         {
           filename: `Cartello_QR_${propertyName.replace(/\s+/g, "_")}.pdf`,
-          content: base64Data,
+          content: Buffer.from(normalizedPdf, "base64"),
           encoding: "base64",
           contentType: "application/pdf",
         },
@@ -93,9 +102,20 @@ router.post("/send-pdf", async (req: Request<{}, {}, SendPdfBody>, res: Response
       message: "PDF inviato con successo",
       email,
     });
-  } catch (err) {
-    console.error("Errore Nodemailer:", err);
+  } catch (err: unknown) {
+    console.error("[ERRORE CRITICO] send-pdf:", err);
     logger.error({ err, email }, "❌ Errore durante l'invio dell'email");
+    if (
+      typeof err === "object" &&
+      err !== null &&
+      "code" in err &&
+      err.code === "EAUTH"
+    ) {
+      res.status(500).json({
+        error: "Servizio email non configurato correttamente. Controlla le credenziali SMTP.",
+      });
+      return;
+    }
     res.status(500).json({
       error: "Errore durante l'invio dell'email. Riprova più tardi.",
     });

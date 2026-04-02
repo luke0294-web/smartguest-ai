@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, Link, useLocation } from "wouter";
 import { ArrowLeft, BookOpen, Loader2, MessageCircle, Bot, Calendar, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { detectNeedsAttention } from "../lib/detectNeedsAttention";
+import { apiUrl } from "@/lib/apiUrl";
 
 interface ChatLog {
   id: number;
@@ -34,8 +35,6 @@ function readHostSession(): { sessionToken: string } | null {
   }
 }
 
-const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
-
 export default function DiarioDiBordo() {
   const params = useParams<{ slug: string }>();
   const [, navigate] = useLocation();
@@ -53,7 +52,7 @@ export default function DiarioDiBordo() {
       return;
     }
     setIsLoading(true);
-    fetch(`${baseUrl}/api/super-diario/${slug}`, {
+    fetch(apiUrl(`/api/super-diario/${slug}`), {
       headers: { Authorization: `Bearer ${auth.sessionToken}` },
     })
       .then((res) => {
@@ -102,7 +101,7 @@ export default function DiarioDiBordo() {
       return;
     }
     try {
-      const res = await fetch(`${baseUrl}/api/super-diario/${slug}/resolve/${id}`, {
+      const res = await fetch(apiUrl(`/api/super-diario/${slug}/resolve/${id}`), {
         method: "PATCH",
         headers: { Authorization: `Bearer ${auth.sessionToken}` },
       });

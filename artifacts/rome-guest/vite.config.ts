@@ -17,6 +17,13 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
+/**
+ * Where Vite forwards `/api/*` in dev (runs on your machine; fine as localhost).
+ * Override if the API listens on another port, e.g. `API_PROXY_TARGET=http://127.0.0.1:3000`
+ */
+const apiProxyTarget =
+  process.env.API_PROXY_TARGET?.trim() || "http://127.0.0.1:8080";
+
 const basePath = process.env.BASE_PATH;
 
 if (!basePath) {
@@ -69,7 +76,7 @@ export default defineConfig({
     },
     proxy: {
       "/api": {
-        target: "http://localhost:8080",
+        target: apiProxyTarget,
         changeOrigin: true,
       },
     },

@@ -193,15 +193,41 @@
   border: 1.5px solid hsl(213 60% 88%);
   box-shadow: 0 1px 3px hsl(213 40% 20% / 0.08), 0 1px 0 hsl(0 0% 100%) inset;
 }
-.quick-reply-btn:hover:not(:disabled) {
-  background: hsl(213, 80%, 38%);
-  color: #fff;
-  border-color: hsl(213, 80%, 38%);
-  box-shadow: 0 2px 8px hsl(213 80% 30% / 0.25);
-  transform: translateY(-1px);
+@media (hover: hover) {
+  .quick-reply-btn:hover:not(:disabled) {
+    background: hsl(213, 80%, 38%);
+    color: #fff;
+    border-color: hsl(213, 80%, 38%);
+    box-shadow: 0 2px 8px hsl(213 80% 30% / 0.25);
+    transform: translateY(-1px);
+  }
 }
 .quick-reply-btn:active:not(:disabled) {
   transform: translateY(0);
+  filter: brightness(0.92);
+}
+
+/* Checkout quick reply: same structure as .quick-reply-btn, warm amber accent */
+.quick-reply-btn-checkout {
+  background: hsl(48 100% 99%);
+  color: hsl(28 45% 32%);
+  border: 1.5px solid hsl(38 55% 82%);
+  box-shadow:
+    0 1px 3px hsl(35 40% 25% / 0.08),
+    0 1px 0 hsl(0 0% 100%) inset;
+}
+@media (hover: hover) {
+  .quick-reply-btn-checkout:hover:not(:disabled) {
+    background: hsl(32 85% 44%);
+    color: #fff;
+    border-color: hsl(32 85% 38%);
+    box-shadow: 0 2px 8px hsl(32 70% 28% / 0.28);
+    transform: translateY(-1px);
+  }
+}
+.quick-reply-btn-checkout:active:not(:disabled) {
+  transform: translateY(0);
+  filter: brightness(0.92);
 }
 
 /* ── Input area ── */

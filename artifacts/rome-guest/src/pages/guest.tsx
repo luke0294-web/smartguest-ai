@@ -1,16 +1,91 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useParams, Link } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { Send, Home, Loader2, Sparkles, AlertCircle, KeyRound } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
-import { useGetProperty, useSendPropertyChat } from "@workspace/api-client-react";
+import {
+  getGetPropertyQueryKey,
+  useGetProperty,
+  useSendPropertyChat,
+  type ChatMessageRequest,
+} from "@workspace/api-client-react";
+import { toast } from "@/hooks/use-toast";
+import { apiUrl } from "@/lib/apiUrl";
 
 // ── Type Definitions ────────────────────────────────────────────────────────
+
+/** When set, property comes from parent (e.g. /demo) — no GET /properties/:slug. */
+export type GuestChatEmbeddedDemo = {
+  property: {
+    id: number | string;
+    slug: string;
+    name: string;
+    content: string;
+    whatsappNumber: string | null;
+    createdAt: string;
+    updatedAt: string;
+  };
+  /** Sent as `city` on POST /api/properties/demo/chat */
+  cityId: string;
+  /** Parent shows limit CTA (e.g. amber banner) instead of in-chat signup bubble */
+  parentHandlesLimitCta?: boolean;
+  /** Synced on every change; counts only `user` messages (excludes welcome bubble). */
+  onDemoUserMessageCountChange?: (userMessageCount: number) => void;
+  /** True when demo input is locked (demo message cap, 429, or sessionStorage lock). */
+  onDemoFlowLockedChange?: (locked: boolean) => void;
+  /** Fill parent flex column instead of fixed 100dvh */
+  compactHeight?: boolean;
+};
+
+type GuestChatProps = {
+  params?: { slug?: string };
+  embeddedDemo?: GuestChatEmbeddedDemo;
+};
 
 export interface ConversationMessage {
   role: "user" | "assistant";
   content: string;
+  sosSuggested?: boolean;
+  sosSent?: boolean;
+  /** Limit-reached CTA (demo only): plain text + signup link in UI */
+  demoCta?: boolean;
+}
+
+/** Public demo (/demo embed + /guest/demo): max user turns per session; must match API demo cap. */
+export const DEMO_USER_MESSAGE_LIMIT = 12;
+const DEMO_CTA_ASSISTANT_TEXT_IT =
+  "Hai raggiunto il limite di messaggi per la demo. Registrati gratis per creare il tuo portiere virtuale!";
+
+/** Demo chat: backend returns 429 when the demo message cap is hit — lock UI on any 429. */
+function isDemoChat429(err: unknown): boolean {
+  return Boolean(err && typeof err === "object" && (err as { status?: number }).status === 429);
+}
+
+function marcoWelcomedStorageKey(slug: string): string {
+  return `marco_welcomed_${slug}`;
+}
+
+function readMarcoWelcomed(slug: string): boolean {
+  if (!slug) return false;
+  try {
+    return sessionStorage.getItem(marcoWelcomedStorageKey(slug)) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function persistMarcoWelcomed(slug: string): void {
+  if (!slug) return;
+  try {
+    sessionStorage.setItem(marcoWelcomedStorageKey(slug), "1");
+  } catch {
+    /* ignore */
+  }
+}
+
+function stripSosToken(text: string): string {
+  return text.replace(/\s*%%SOS%%\s*/g, "").trim();
 }
 
 // ── UI Localization ─────────────────────────────────────────────────────────
@@ -39,7 +114,7 @@ const TRANSLATIONS = {
     notFound: "Proprietà non trovata",
     notFoundDesc: "L'appartamento che stai cercando non esiste o il link non è corretto.",
     goToPanel: "Vai al Pannello",
-    welcome: (name: string) => `Benvenuto a ${name}! Sono Marco, come posso aiutarti oggi? 👋`,
+    welcome: (name: string) => "Benvenuti a " + name + "! Sono Marco, come posso aiutarvi oggi? 👋",
     errorMsg: "Scusa, c'è stato un errore di connessione. Riprova tra poco.",
     helpBtn: "Aiuto",
     whatsappDefault: (name: string) => `Ciao, sono un ospite di ${name} e avrei bisogno di assistenza diretta`,
@@ -50,6 +125,13 @@ const TRANSLATIONS = {
       { label: "🗑️ Rifiuti", question: "Come funziona la raccolta differenziata?" },
       { label: "🕒 Check-out", question: "A che ora è il check-out?" },
     ],
+    arrivalTitle: "Inizia da qui",
+    arrivalButtons: [
+      { label: "🔑 Come entro?", question: "🔑 Come entro?" },
+      { label: "📶 Password Wi-Fi", question: "📶 Password Wi-Fi" },
+      { label: "📍 Posizione casa", question: "📍 Posizione casa" },
+    ],
+    checkoutBtn: { label: "🧳 Sto partendo", question: "voglio fare il check-out" },
   },
   en: {
     placeholder: "Type your question here...",
@@ -71,6 +153,13 @@ const TRANSLATIONS = {
       { label: "🗑️ Recycling", question: "How does the waste/recycling system work?" },
       { label: "🕒 Check-out", question: "What time is check-out?" },
     ],
+    arrivalTitle: "Start here",
+    arrivalButtons: [
+      { label: "🔑 How do I get in?", question: "How do I get into the property?" },
+      { label: "📶 Wi-Fi password", question: "What is the Wi-Fi password?" },
+      { label: "📍 Property location", question: "What is the address or location of the property?" },
+    ],
+    checkoutBtn: { label: "🧳 I'm leaving", question: "I want to check out" },
   },
   de: {
     placeholder: "Ihre Frage hier eingeben...",
@@ -92,6 +181,13 @@ const TRANSLATIONS = {
       { label: "🗑️ Müll", question: "Wie funktioniert die Mülltrennung?" },
       { label: "🕒 Check-out", question: "Um wie viel Uhr ist der Check-out?" },
     ],
+    arrivalTitle: "Hier starten",
+    arrivalButtons: [
+      { label: "🔑 Wie komme ich rein?", question: "Wie komme ich in die Unterkunft?" },
+      { label: "📶 WLAN-Passwort", question: "Wie lautet das WLAN-Passwort?" },
+      { label: "📍 Adresse", question: "Wie lautet die Adresse oder der Standort der Unterkunft?" },
+    ],
+    checkoutBtn: { label: "🧳 Ich reise ab", question: "Ich möchte auschecken" },
   },
   fr: {
     placeholder: "Écrivez votre question ici...",
@@ -113,6 +209,13 @@ const TRANSLATIONS = {
       { label: "🗑️ Déchets", question: "Comment fonctionne le tri des déchets?" },
       { label: "🕒 Check-out", question: "À quelle heure est le check-out?" },
     ],
+    arrivalTitle: "Commencez ici",
+    arrivalButtons: [
+      { label: "🔑 Comment entrer ?", question: "Comment entrer dans le logement ?" },
+      { label: "📶 Mot de passe Wi-Fi", question: "Quel est le mot de passe Wi-Fi ?" },
+      { label: "📍 Adresse du logement", question: "Quelle est l'adresse ou l'emplacement du logement ?" },
+    ],
+    checkoutBtn: { label: "🧳 Je pars", question: "je souhaite faire le check-out" },
   },
   es: {
     placeholder: "Escribe tu pregunta aquí...",
@@ -134,6 +237,13 @@ const TRANSLATIONS = {
       { label: "🗑️ Basura", question: "¿Cómo funciona la recogida de basura?" },
       { label: "🕒 Check-out", question: "¿A qué hora es el check-out?" },
     ],
+    arrivalTitle: "Empieza aquí",
+    arrivalButtons: [
+      { label: "🔑 ¿Cómo entro?", question: "¿Cómo entro en el alojamiento?" },
+      { label: "📶 Contraseña Wi-Fi", question: "¿Cuál es la contraseña del Wi-Fi?" },
+      { label: "📍 Ubicación", question: "¿Cuál es la dirección o ubicación del alojamiento?" },
+    ],
+    checkoutBtn: { label: "🧳 Me voy", question: "quiero hacer el check-out" },
   },
   nl: {
     placeholder: "Typ hier uw vraag...",
@@ -155,6 +265,13 @@ const TRANSLATIONS = {
       { label: "🗑️ Afval", question: "Hoe werkt de afvalscheiding?" },
       { label: "🕒 Check-out", question: "Hoe laat is het check-out?" },
     ],
+    arrivalTitle: "Begin hier",
+    arrivalButtons: [
+      { label: "🔑 Hoe kom ik naar binnen?", question: "Hoe kom ik de accommodatie binnen?" },
+      { label: "📶 Wi-Fi-wachtwoord", question: "Wat is het Wi-Fi-wachtwoord?" },
+      { label: "📍 Locatie", question: "Wat is het adres of de locatie van de accommodatie?" },
+    ],
+    checkoutBtn: { label: "🧳 Ik vertrek", question: "ik wil uitchecken" },
   },
   zh: {
     placeholder: "在这里输入您的问题...",
@@ -176,6 +293,13 @@ const TRANSLATIONS = {
       { label: "🗑️ 垃圾分类", question: "如何进行垃圾分类？" },
       { label: "🕒 退房", question: "退房时间是几点？" },
     ],
+    arrivalTitle: "从这里开始",
+    arrivalButtons: [
+      { label: "🔑 如何进门？", question: "我如何进入房源？" },
+      { label: "📶 Wi-Fi 密码", question: "Wi-Fi 密码是什么？" },
+      { label: "📍 房源位置", question: "房源的地址或位置在哪里？" },
+    ],
+    checkoutBtn: { label: "🧳 我要退房", question: "我要办理退房" },
   },
   ja: {
     placeholder: "ご質問をここに入力してください...",
@@ -197,6 +321,13 @@ const TRANSLATIONS = {
       { label: "🗑️ ゴミ分別", question: "ゴミの分別はどうすればいいですか？" },
       { label: "🕒 チェックアウト", question: "チェックアウトは何時ですか？" },
     ],
+    arrivalTitle: "ここから",
+    arrivalButtons: [
+      { label: "🔑 入り方は？", question: "物件にどうやって入りますか？" },
+      { label: "📶 Wi-Fi パスワード", question: "Wi-Fiのパスワードは何ですか？" },
+      { label: "📍 住所・場所", question: "物件の住所または場所を教えてください" },
+    ],
+    checkoutBtn: { label: "🧳 出発します", question: "チェックアウトしたいです" },
   },
   ko: {
     placeholder: "질문을 여기에 입력하세요...",
@@ -218,6 +349,13 @@ const TRANSLATIONS = {
       { label: "🗑️ 쓰레기 분리", question: "쓰레기 분리수거는 어떻게 하나요?" },
       { label: "🕒 체크아웃", question: "체크아웃은 몇 시인가요?" },
     ],
+    arrivalTitle: "여기서 시작",
+    arrivalButtons: [
+      { label: "🔑 들어가는 방법", question: "숙소에 어떻게 들어가나요?" },
+      { label: "📶 Wi-Fi 비밀번호", question: "Wi-Fi 비밀번호가 무엇인가요?" },
+      { label: "📍 위치", question: "숙소 주소나 위치를 알려주세요" },
+    ],
+    checkoutBtn: { label: "🧳 체크아웃", question: "체크아웃하고 싶어요" },
   },
   pt: {
     placeholder: "Digite sua pergunta aqui...",
@@ -239,6 +377,13 @@ const TRANSLATIONS = {
       { label: "🗑️ Lixo", question: "Como funciona a coleta seletiva de lixo?" },
       { label: "🕒 Check-out", question: "A que horas é o check-out?" },
     ],
+    arrivalTitle: "Comece aqui",
+    arrivalButtons: [
+      { label: "🔑 Como entro?", question: "Como entro na acomodação?" },
+      { label: "📶 Senha do Wi-Fi", question: "Qual é a senha do Wi-Fi?" },
+      { label: "📍 Localização", question: "Qual é o endereço ou localização da acomodação?" },
+    ],
+    checkoutBtn: { label: "🧳 Estou saindo", question: "quero fazer o check-out" },
   },
   pl: {
     placeholder: "Wpisz swoje pytanie tutaj...",
@@ -260,6 +405,13 @@ const TRANSLATIONS = {
       { label: "🗑️ Śmieci", question: "Jak działa segregacja śmieci?" },
       { label: "🕒 Check-out", question: "O której jest check-out?" },
     ],
+    arrivalTitle: "Zacznij tutaj",
+    arrivalButtons: [
+      { label: "🔑 Jak wejść?", question: "Jak wejść do obiektu?" },
+      { label: "📶 Hasło Wi-Fi", question: "Jakie jest hasło do Wi-Fi?" },
+      { label: "📍 Lokalizacja", question: "Jaki jest adres lub lokalizacja obiektu?" },
+    ],
+    checkoutBtn: { label: "🧳 Wyjeżdżam", question: "chcę się wymeldować" },
   },
 } as const;
 
@@ -277,35 +429,78 @@ function resolveInitialLang(): Lang {
 
 // ── Component ───────────────────────────────────────────────────────────────
 
-export default function GuestChat() {
-  const params = useParams<{ slug: string }>();
-  const slug = params?.slug || "";
+export default function GuestChat(props: GuestChatProps = {}) {
+  const { params: routeParams, embeddedDemo } = props;
+  const wouterParams = useParams<{ slug: string }>();
+  const params = routeParams ?? wouterParams;
+  const slug = embeddedDemo?.property.slug ?? params?.slug ?? "";
+  const isDemo = slug === "demo";
 
-  const { data: property, isLoading: isPropertyLoading, isError: isPropertyError } = useGetProperty(slug);
-  const { mutate: sendMessage, isPending } = useSendPropertyChat();
+  const {
+    data: fetchedProperty,
+    isLoading: fetchLoading,
+    isError: fetchError,
+    error: fetchPropertyError,
+  } = useGetProperty(slug, {
+    query: {
+      queryKey: getGetPropertyQueryKey(slug),
+      enabled: !embeddedDemo && Boolean(slug),
+    },
+  });
+  const property = embeddedDemo?.property ?? fetchedProperty;
+  const isPropertyLoading = embeddedDemo ? false : fetchLoading;
+  const isPropertyError = embeddedDemo ? false : fetchError;
+
+  const parentHandlesDemoLimitCta = Boolean(embeddedDemo?.parentHandlesLimitCta);
+  const { mutate: sendMessage, isPending, reset: resetSendChatMutation } =
+    useSendPropertyChat();
 
   const [lang, setLang] = useState<Lang>(resolveInitialLang);
   const t = TRANSLATIONS[lang];
 
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [inputValue, setInputValue] = useState("");
+  const [demoChatLocked, setDemoChatLocked] = useState(false);
+  const [sosSubmittingIndex, setSosSubmittingIndex] = useState<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const demoStartedLoggedRef = useRef(false);
+  const demoLimitReachLoggedRef = useRef(false);
 
-  // Initialize welcome message when property loads
+  const logDemoLimitReached = useCallback(() => {
+    if (demoLimitReachLoggedRef.current) return;
+    demoLimitReachLoggedRef.current = true;
+    console.log("demo_limit_reached");
+  }, []);
+
   useEffect(() => {
-    if (property && messages.length === 0) {
-      setMessages([{ role: "assistant", content: t.welcome(property.name) }]);
-    }
-  }, [property, messages.length, t]);
+    if (!isDemo || !property) return;
+    if (demoStartedLoggedRef.current) return;
+    demoStartedLoggedRef.current = true;
+    console.log("demo_started");
+  }, [isDemo, property]);
 
-  // Persist language choice and update welcome message instantly
+  // Localized welcome: when chat is empty and property is ready, inject once (messages.length === 0 guards re-runs).
+  // Same for demo and real properties: t.welcome(property.name) via current lang.
+  // marco_welcomed_{slug} is not used here — it only controls the large arrival UI (see showBigArrivalActions).
+  useEffect(() => {
+    if (!property || !slug) return;
+    if (messages.length > 0) return;
+    const welcomeText = TRANSLATIONS[lang].welcome(property.name);
+    setMessages([{ role: "assistant", content: welcomeText }]);
+  }, [property, slug, messages.length, lang]);
+
   const handleLangChange = (newLang: Lang) => {
     try { localStorage.setItem(STORAGE_KEY, newLang); } catch {}
+    const previousLang = lang;
     setLang(newLang);
     if (property) {
       setMessages((prev) => {
-        if (prev.length > 0 && prev[0].role === "assistant") {
+        if (prev.length === 0 || prev[0].role !== "assistant") return prev;
+        const hasUser = prev.some((m) => m.role === "user");
+        const oldWelcome = TRANSLATIONS[previousLang].welcome(property.name);
+        const firstIsLocalizedWelcome = prev[0].content === oldWelcome;
+        if (!hasUser || firstIsLocalizedWelcome) {
           return [
             { role: "assistant", content: TRANSLATIONS[newLang].welcome(property.name) },
             ...prev.slice(1),
@@ -324,29 +519,149 @@ export default function GuestChat() {
     scrollToBottom();
   }, [messages, isPending]);
 
+  const historyForApi = (msgs: ConversationMessage[]) =>
+    msgs.map(({ role, content }) => ({ role, content }));
+
+  const userMessageCount = messages.filter((m) => m.role === "user").length;
+  const demoFlowLocked =
+    isDemo &&
+    (demoChatLocked || userMessageCount >= DEMO_USER_MESSAGE_LIMIT);
+
+  useEffect(() => {
+    if (!isDemo || !slug) return;
+    try {
+      if (sessionStorage.getItem(`demo_locked_${slug}`) === "true") {
+        setDemoChatLocked(true);
+      }
+    } catch {}
+  }, [isDemo, slug]);
+
+  useEffect(() => {
+    if (!isDemo || !slug || !demoFlowLocked) return;
+    try {
+      sessionStorage.setItem(`demo_locked_${slug}`, "true");
+    } catch {}
+  }, [isDemo, slug, demoFlowLocked]);
+
+  const onDemoUserMessageCountChange = embeddedDemo?.onDemoUserMessageCountChange;
+  useEffect(() => {
+    if (!isDemo || !onDemoUserMessageCountChange) return;
+    onDemoUserMessageCountChange(userMessageCount);
+  }, [isDemo, onDemoUserMessageCountChange, userMessageCount]);
+
+  const onDemoFlowLockedChange = embeddedDemo?.onDemoFlowLockedChange;
+  useEffect(() => {
+    if (!isDemo || !onDemoFlowLockedChange) return;
+    onDemoFlowLockedChange(demoFlowLocked);
+  }, [isDemo, onDemoFlowLockedChange, demoFlowLocked]);
+
   const handleSend = (text: string) => {
     const userMsg = text.trim();
-    if (!userMsg || isPending || !slug) return;
+    if (!userMsg || isPending || !slug || demoFlowLocked) return;
+    if (isDemo && userMessageCount === 0) {
+      console.log("demo_first_message");
+    }
+    persistMarcoWelcomed(slug);
     setInputValue("");
     const updatedMessages: ConversationMessage[] = [
       ...messages,
       { role: "user", content: userMsg },
     ];
     setMessages(updatedMessages);
+    const chatPayload: ChatMessageRequest = {
+      message: userMsg,
+      conversationHistory: historyForApi(messages),
+    };
+    if (isDemo && embeddedDemo?.cityId) {
+      chatPayload.city = embeddedDemo.cityId;
+    }
     sendMessage(
-      { slug, data: { message: userMsg, conversationHistory: messages } },
+      { slug, data: chatPayload },
       {
         onSuccess: (data) => {
-          setMessages((prev) => [...prev, { role: "assistant", content: data.reply }]);
+          const raw = data.reply;
+          const clean = stripSosToken(raw);
+          const sosSuggested =
+            !isDemo && (Boolean(data.sosSuggested) || raw.includes("%%SOS%%"));
+          setMessages((prev) => {
+            const next: ConversationMessage[] = [
+              ...prev,
+              {
+                role: "assistant",
+                content: clean,
+                ...(sosSuggested ? { sosSuggested: true } : {}),
+              },
+            ];
+            const users = next.filter((m) => m.role === "user").length;
+            if (isDemo && users >= DEMO_USER_MESSAGE_LIMIT) {
+              logDemoLimitReached();
+              if (!parentHandlesDemoLimitCta) {
+                next.push({
+                  role: "assistant",
+                  content: DEMO_CTA_ASSISTANT_TEXT_IT,
+                  demoCta: true,
+                });
+              }
+            }
+            return next;
+          });
         },
-        onError: (err: any) => {
-          // If the server returned a polite rate-limit reply from Marco, show it
-          const marcoMsg: string | undefined = err?.data?.reply;
-          const content = marcoMsg ?? t.errorMsg;
+        onError: (err: unknown) => {
+          if (isDemo && isDemoChat429(err)) {
+            logDemoLimitReached();
+            setDemoChatLocked(true);
+            try {
+              sessionStorage.setItem(`demo_locked_${slug}`, "true");
+            } catch {}
+            resetSendChatMutation();
+            if (parentHandlesDemoLimitCta) {
+              setMessages((prev) => {
+                const copy = [...prev];
+                if (copy.length && copy[copy.length - 1]?.role === "user") copy.pop();
+                return copy;
+              });
+            } else {
+              setMessages((prev) => {
+                const copy = [...prev];
+                if (copy.length && copy[copy.length - 1]?.role === "user") copy.pop();
+                return [
+                  ...copy,
+                  { role: "assistant", content: DEMO_CTA_ASSISTANT_TEXT_IT, demoCta: true },
+                ];
+              });
+            }
+            return;
+          }
+          const marcoMsg: string | undefined =
+            err && typeof err === "object" && "data" in err
+              ? (err as { data?: { reply?: string } }).data?.reply
+              : undefined;
+          const content = stripSosToken(marcoMsg ?? t.errorMsg);
           setMessages((prev) => [...prev, { role: "assistant", content }]);
         },
       }
     );
+  };
+
+  const handleGuestSos = async (messageIndex: number) => {
+    if (!slug || isDemo) return;
+    setSosSubmittingIndex(messageIndex);
+    try {
+      const res = await fetch(apiUrl(`/api/host/${encodeURIComponent(slug)}/sos`), {
+        method: "POST",
+        headers: { Accept: "application/json" },
+      });
+      if (!res.ok) throw new Error("sos failed");
+      setMessages((prev) =>
+        prev.map((m, i) =>
+          i === messageIndex ? { ...m, sosSent: true, sosSuggested: false } : m,
+        ),
+      );
+    } catch {
+      // Host can retry if rate limit or network error
+    } finally {
+      setSosSubmittingIndex(null);
+    }
   };
 
   const handleSubmit = (e?: React.FormEvent) => {
@@ -366,6 +681,8 @@ export default function GuestChat() {
   }
 
   if (isPropertyError || !property) {
+    const detail =
+      fetchPropertyError instanceof Error ? fetchPropertyError.message.trim() : "";
     return (
       <div className="flex h-[100dvh] items-center justify-center p-6">
         <div className="glass-panel p-8 rounded-3xl max-w-md text-center flex flex-col items-center gap-4">
@@ -373,7 +690,7 @@ export default function GuestChat() {
             <AlertCircle className="w-8 h-8" />
           </div>
           <h1 className="text-2xl font-serif font-bold text-foreground">{t.notFound}</h1>
-          <p className="text-muted-foreground">{t.notFoundDesc}</p>
+          <p className="text-muted-foreground">{detail || t.notFoundDesc}</p>
           <Link href="/ceo" className="mt-4 px-6 py-3 bg-primary text-primary-foreground rounded-xl font-medium shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all">
             {t.goToPanel}
           </Link>
@@ -382,30 +699,64 @@ export default function GuestChat() {
     );
   }
 
+  const hasUserMessage = messages.some((m) => m.role === "user");
+  const localizedWelcomeText = t.welcome(property.name);
+  const hasArrivalWelcomeBubble =
+    messages.length > 0 &&
+    messages[0].role === "assistant" &&
+    messages[0].content === localizedWelcomeText;
+  const marcoWelcomedStored = readMarcoWelcomed(slug);
+  /** Large 🔑📶📍 strip: only before user has chatted in this session; marco_welcomed hides it on refresh. */
+  const showBigArrivalActions =
+    !hasUserMessage &&
+    !marcoWelcomedStored &&
+    (hasArrivalWelcomeBubble || messages.length === 0);
+  /** Quick replies row: after welcome exists, after first user msg, or return visit (welcomed flag). */
+  const showQuickRepliesBar = messages.length > 0 || marcoWelcomedStored;
+
+  const checkoutBtnDef = t.checkoutBtn;
+  const checkoutLabel =
+    typeof checkoutBtnDef === "object" && checkoutBtnDef !== null && "label" in checkoutBtnDef
+      ? checkoutBtnDef.label
+      : "🧳 Sto partendo";
+  const checkoutQuestionText =
+    typeof checkoutBtnDef === "object" && checkoutBtnDef !== null && "question" in checkoutBtnDef
+      ? checkoutBtnDef.question
+      : "voglio fare il check-out";
+
   const defaultWhatsappMessage = encodeURIComponent(t.whatsappDefault(property.name));
   const whatsappUrl = property.whatsappNumber
     ? `https://wa.me/${property.whatsappNumber.replace(/[^0-9]/g, "")}?text=${defaultWhatsappMessage}`
     : "#";
 
+  const rootHeightClass = embeddedDemo?.compactHeight
+    ? "flex-1 min-h-0 h-full"
+    : "h-[100dvh]";
+
   return (
-    <div className="flex flex-col h-[100dvh] max-w-2xl mx-auto md:py-6 md:px-4">
+    <div className={`flex flex-col max-w-2xl mx-auto md:py-6 md:px-4 ${rootHeightClass}`}>
       <div className="flex flex-col h-full chat-container md:rounded-3xl overflow-hidden relative">
 
         {/* ── Header ── */}
-        <header className="px-4 py-3 flex items-center justify-between chat-header border-b border-white/10 sticky top-0 z-10">
+        <header className="px-4 py-3 flex items-start sm:items-center justify-between gap-2 chat-header border-b border-white/10 sticky top-0 z-10">
           {/* Left: property name + status */}
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center shadow-inner flex-shrink-0">
+          <div className="flex items-start gap-3 min-w-0 flex-1">
+            <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center shadow-inner flex-shrink-0 mt-0.5 sm:mt-0">
               <Home className="w-4 h-4 text-white" />
             </div>
-            <div className="min-w-0">
-              <h1 className="font-sans text-[15px] font-semibold text-white leading-none tracking-tight truncate max-w-[120px] sm:max-w-[180px]">
+            <div className="min-w-0 flex-1">
+              <h1 className="font-sans text-sm sm:text-base font-semibold text-white tracking-tight whitespace-normal leading-snug line-clamp-2 break-words">
                 {property.name}
               </h1>
-              <p className="text-[11px] text-white/70 flex items-center gap-1 mt-0.5">
+              <p className="text-[10px] sm:text-[11px] text-white/70 flex items-center gap-1 mt-0.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                 {t.onlineStatus}
               </p>
+              {isDemo && (
+                <span className="inline-flex mt-1 text-[8px] sm:text-[9px] font-medium tracking-wide text-white/40 px-1.5 py-px rounded-md bg-white/[0.07] border border-white/10">
+                  Modalità demo
+                </span>
+              )}
             </div>
           </div>
 
@@ -441,6 +792,21 @@ export default function GuestChat() {
                 href={whatsappUrl}
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={
+                  isDemo
+                    ? (e) => {
+                        e.preventDefault();
+                        toast({
+                          title: "Contatto diretto 💬",
+                          description:
+                            "Nella versione reale, i tuoi ospiti ti contatteranno direttamente sul tuo numero WhatsApp con un solo clic!",
+                          duration: 4000,
+                          className:
+                            "mx-auto w-full max-w-md [&_[toast-close]]:opacity-100 [&_[toast-close]]:pointer-events-auto",
+                        });
+                      }
+                    : undefined
+                }
                 className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-white text-[12px] font-semibold px-3 py-1.5 rounded-full transition-all shadow-md shadow-emerald-900/30"
                 title={t.helpBtn}
               >
@@ -451,14 +817,16 @@ export default function GuestChat() {
               </a>
             )}
 
-            {/* Host panel link */}
-            <Link
-              href={`/host/${slug}`}
-              className="p-2 text-white/40 hover:text-white/70 transition-colors rounded-full hover:bg-white/10"
-              title="Host Panel"
-            >
-              <KeyRound className="w-4 h-4" />
-            </Link>
+            {/* Host panel link (hidden on public demo) */}
+            {!isDemo && (
+              <Link
+                href={`/host/${slug}`}
+                className="p-2 text-white/40 hover:text-white/70 transition-colors rounded-full hover:bg-white/10"
+                title="Host Panel"
+              >
+                <KeyRound className="w-4 h-4" />
+              </Link>
+            )}
           </div>
         </header>
 
@@ -486,18 +854,80 @@ export default function GuestChat() {
                   {msg.role === "assistant" && idx === 0 && (
                     <Sparkles className="w-3.5 h-3.5 text-primary mb-1.5 opacity-60" />
                   )}
-                  {msg.role === "assistant" ? (
-                    <div className="markdown-content font-sans break-words text-sm sm:text-base">
-                      <ReactMarkdown
-                        rehypePlugins={[rehypeSanitize]}
-                        components={{
-                          strong: ({ node, children, ...props }) => <b className="font-extrabold text-black" {...props}>{children}</b>,
-                          p: ({ node, children, ...props }) => <p className="mb-2 last:mb-0" {...props}>{children}</p>,
-                        }}
-                      >
-                        {msg.content}
-                      </ReactMarkdown>
-                    </div>
+                      {msg.role === "assistant" ? (
+                    <>
+                      {msg.demoCta ? (
+                        <div className="font-sans break-words text-sm sm:text-base space-y-3">
+                          <p className="mb-0">{msg.content}</p>
+                          <Link
+                            href="/signup"
+                            onClick={() => {
+                              console.log("demo_signup_click");
+                            }}
+                            className="inline-flex items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold text-[13px] px-4 py-2.5 shadow-md hover:opacity-95 transition-opacity"
+                          >
+                            Crea il tuo assistente
+                          </Link>
+                        </div>
+                      ) : (
+                        <div className="markdown-content font-sans break-words text-sm sm:text-base">
+                          <ReactMarkdown
+                            rehypePlugins={[rehypeSanitize]}
+                            components={{
+                              strong: ({ children, ...props }) => (
+                                <b className="font-extrabold text-black" {...props}>
+                                  {children}
+                                </b>
+                              ),
+                              p: ({ children, ...props }) => (
+                                <p className="mb-2 last:mb-0" {...props}>
+                                  {children}
+                                </p>
+                              ),
+                              ul: ({ children, ...props }) => (
+                                <ul className="my-2 space-y-1.5 pl-1 list-none" {...props}>
+                                  {children}
+                                </ul>
+                              ),
+                              ol: ({ children, ...props }) => (
+                                <ol className="my-2 space-y-1.5 pl-4 list-decimal" {...props}>
+                                  {children}
+                                </ol>
+                              ),
+                              li: ({ children, ...props }) => (
+                                <li className="leading-snug pl-0" {...props}>
+                                  {children}
+                                </li>
+                              ),
+                            }}
+                          >
+                            {msg.content}
+                          </ReactMarkdown>
+                        </div>
+                      )}
+                      {msg.sosSuggested && !msg.sosSent && (
+                        <motion.button
+                          type="button"
+                          initial={{ opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.2 }}
+                          disabled={sosSubmittingIndex === idx || isPending}
+                          onClick={() => void handleGuestSos(idx)}
+                          className="mt-3 w-full rounded-2xl bg-red-600 hover:bg-red-700 active:bg-red-800 disabled:opacity-50 disabled:pointer-events-none text-white text-[13px] sm:text-sm font-bold py-3 px-3 shadow-md shadow-red-900/20 transition-colors"
+                        >
+                          {sosSubmittingIndex === idx ? "…" : "🆘 Segnala problema urgente all'Host"}
+                        </motion.button>
+                      )}
+                      {msg.sosSent && (
+                        <motion.p
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          className="mt-2 text-[13px] font-semibold text-emerald-600"
+                        >
+                          ✅ Host notificato!
+                        </motion.p>
+                      )}
+                    </>
                   ) : (
                     <p className="whitespace-pre-wrap font-sans">{msg.content}</p>
                   )}
@@ -533,19 +963,79 @@ export default function GuestChat() {
           <div ref={messagesEndRef} className="h-1" />
         </main>
 
-        {/* ── Quick Replies ── */}
-        <div className="px-4 pt-2 pb-1 flex gap-2 overflow-x-auto no-scrollbar">
-          {t.quickReplies.map((qr) => (
-            <button
-              key={qr.label}
-              onClick={() => handleSend(qr.question)}
-              disabled={isPending}
-              className="quick-reply-btn flex-shrink-0 text-[13px] font-medium px-3.5 py-2 rounded-full transition-all disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+        {/* ── Arrival quick actions (🔑 📶 📍 only; hidden after reload once marco_welcomed_{slug}) ── */}
+        <AnimatePresence>
+          {showBigArrivalActions && (
+            <motion.div
+              key="arrival-actions"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 6 }}
+              transition={{ duration: 0.28, ease: [0.25, 0.46, 0.45, 0.94] }}
+              className="px-4 pt-2 pb-2 border-t border-black/5 border-opacity-50"
             >
-              {qr.label}
-            </button>
-          ))}
-        </div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground text-center mb-2">
+                {t.arrivalTitle}
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {t.arrivalButtons.map((item) => (
+                  <motion.button
+                    key={item.label}
+                    type="button"
+                    whileTap={{ scale: 0.97 }}
+                    onClick={() => handleSend(item.question)}
+                    disabled={isPending || demoFlowLocked}
+                    className="rounded-2xl bg-white/90 text-foreground border border-primary/15 shadow-sm shadow-black/5 hover:bg-white hover:border-primary/30 active:scale-[0.99] disabled:opacity-40 text-[13px] sm:text-sm font-semibold py-3 px-3 text-center transition-colors"
+                  >
+                    {item.label}
+                  </motion.button>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ── Quick Replies (chat state only: after welcome or return visit) ── */}
+        {showQuickRepliesBar && (
+          <motion.div
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.2 }}
+            className="px-4 pt-2 pb-2 mb-2 flex flex-wrap sm:flex-nowrap gap-2 overflow-x-auto no-scrollbar items-center"
+          >
+            {t.quickReplies.map((qr) => (
+              <button
+                key={qr.label}
+                type="button"
+                onClick={(e) => {
+                  const el = e.currentTarget as HTMLButtonElement;
+                  el.blur();
+                  el.style.backgroundColor = "";
+                  handleSend(qr.question);
+                }}
+                disabled={isPending || demoFlowLocked}
+                className="quick-reply-btn flex-shrink-0 text-[13px] font-medium px-3.5 py-2 rounded-full transition-all disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+              >
+                {qr.label}
+              </button>
+            ))}
+            {messages.length > 0 && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  const el = e.currentTarget as HTMLButtonElement;
+                  el.blur();
+                  el.style.backgroundColor = "";
+                  handleSend(checkoutQuestionText);
+                }}
+                disabled={isPending || demoFlowLocked}
+                className="quick-reply-btn quick-reply-btn-checkout flex-shrink-0 text-[13px] font-medium px-3.5 py-2 rounded-2xl transition-all disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap shadow-sm"
+              >
+                {checkoutLabel}
+              </button>
+            )}
+          </motion.div>
+        )}
 
         {/* ── Input ── */}
         <div className="p-4 pt-3 chat-input-area border-t border-black/5">
@@ -557,11 +1047,11 @@ export default function GuestChat() {
               onChange={(e) => setInputValue(e.target.value)}
               placeholder={t.placeholder}
               className="chat-input w-full px-5 py-3.5 pr-14 rounded-2xl text-[14.5px] font-sans focus:outline-none transition-all"
-              disabled={isPending}
+              disabled={isPending || demoFlowLocked}
             />
             <button
               type="submit"
-              disabled={!inputValue.trim() || isPending}
+              disabled={!inputValue.trim() || isPending || demoFlowLocked}
               aria-label={t.send}
               className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 send-btn rounded-xl flex items-center justify-center transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-md"
             >
@@ -572,6 +1062,15 @@ export default function GuestChat() {
               )}
             </button>
           </form>
+          {isDemo &&
+            userMessageCount >= DEMO_USER_MESSAGE_LIMIT - 5 &&
+            userMessageCount < DEMO_USER_MESSAGE_LIMIT &&
+            !demoFlowLocked && (
+              <p className="text-center text-[12px] text-muted-foreground mt-2 px-2">
+                Messaggi rimasti nella demo:{" "}
+                {DEMO_USER_MESSAGE_LIMIT - userMessageCount}/{DEMO_USER_MESSAGE_LIMIT}
+              </p>
+            )}
           <p className="text-center text-[10px] text-muted-foreground/50 mt-2.5 uppercase tracking-widest font-sans">
             {t.powered}
           </p>

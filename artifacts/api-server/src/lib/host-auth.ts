@@ -1,6 +1,5 @@
 import type { Request, Response } from "express";
-import { eq } from "drizzle-orm";
-import { db, propertiesTable } from "@workspace/db";
+import { supabaseAdmin } from "./supabase";
 import {
   getHostSessionSecret,
   verifyHostSessionToken,
@@ -43,18 +42,24 @@ export async function requireHostOwnsPropertySlug(
   session: HostSessionPayload,
   slug: string,
 ): Promise<boolean> {
-  const [property] = await db
-    .select({ email: propertiesTable.email })
-    .from(propertiesTable)
-    .where(eq(propertiesTable.slug, slug))
-    .limit(1);
+  const { data: row, error } = await supabaseAdmin
+    .from("properties")
+    .select("email")
+    .eq("slug", slug)
+    .maybeSingle<{ email: string | null }>();
 
-  if (!property) {
+  if (error) {
+    console.error("[ERRORE CRITICO] requireHostOwnsPropertySlug:", error);
+    res.status(500).json({ error: "Errore interno del server" });
+    return false;
+  }
+
+  if (!row) {
     res.status(404).json({ error: "Proprietà non trovata." });
     return false;
   }
 
-  const owner = property.email?.trim().toLowerCase();
+  const owner = row.email?.trim().toLowerCase();
   if (!owner || owner !== session.email.toLowerCase()) {
     res.status(403).json({ error: "Non sei il proprietario di questa struttura." });
     return false;

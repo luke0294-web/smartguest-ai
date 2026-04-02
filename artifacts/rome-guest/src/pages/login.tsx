@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useLocation, Link } from "wouter";
 import { motion } from "framer-motion";
 import { MessageSquare, KeyRound, Mail, Loader2, AlertCircle, HelpCircle } from "lucide-react";
+import { apiUrl } from "@/lib/apiUrl";
 
 const HOST_SESSION_KEY = "host_session";
 
@@ -12,8 +13,6 @@ export default function HostLogin() {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
-
-  const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,7 +28,7 @@ export default function HostLogin() {
 
     setIsLoading(true);
     try {
-      const res = await fetch(`${baseUrl}/api/auth/host-login`, {
+      const res = await fetch(apiUrl("/api/auth/host-login"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: trimmedEmail, password: trimmedPassword }),

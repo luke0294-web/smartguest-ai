@@ -241,7 +241,11 @@ components:
       type: object
       properties:
         id:
-          type: integer
+          description: Legacy numeric id (Drizzle) or Supabase UUID string
+          oneOf:
+            - type: integer
+            - type: string
+              format: uuid
         slug:
           type: string
         name:

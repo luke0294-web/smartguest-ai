@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, Link } from "wouter";
 import { motion } from "framer-motion";
 import { MessageSquare, KeyRound, Eye, EyeOff, ArrowLeft, Loader2, AlertCircle, CheckCircle2, ShieldAlert } from "lucide-react";
+import { apiUrl } from "@/lib/apiUrl";
 
 export default function ResetPassword() {
   const params = useParams<{ token: string }>();
@@ -19,8 +20,6 @@ export default function ResetPassword() {
   const [success, setSuccess] = useState(false);
   const [successSlug, setSuccessSlug] = useState("");
 
-  const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
-
   useEffect(() => {
     if (!token) {
       setTokenValid(false);
@@ -29,7 +28,7 @@ export default function ResetPassword() {
     }
     (async () => {
       try {
-        const res = await fetch(`${baseUrl}/api/auth/reset-password/${encodeURIComponent(token)}`);
+        const res = await fetch(apiUrl(`/api/auth/reset-password/${encodeURIComponent(token)}`));
         const data = await res.json();
         if (res.ok && data.valid) {
           setTokenValid(true);
@@ -43,7 +42,7 @@ export default function ResetPassword() {
         setTokenError("Errore di connessione durante la verifica del token.");
       }
     })();
-  }, [token, baseUrl]);
+  }, [token]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,7 +59,7 @@ export default function ResetPassword() {
 
     setIsLoading(true);
     try {
-      const res = await fetch(`${baseUrl}/api/auth/reset-password/${encodeURIComponent(token)}`, {
+      const res = await fetch(apiUrl(`/api/auth/reset-password/${encodeURIComponent(token)}`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ newPassword: newPassword.trim() }),

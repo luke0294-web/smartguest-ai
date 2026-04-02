@@ -1,6 +1,21 @@
+import { getOrCreateDemoSessionId, isAiRoute } from "./session";
+
 export type CustomFetchOptions = RequestInit & {
   responseType?: "json" | "text" | "blob" | "auto";
 };
+
+let hasLoggedMissingInternalKey = false;
+
+/** When set (e.g. in rome-guest `.env`), Orval `/api/*` calls hit this origin instead of the dev server. */
+function applyPublicApiOrigin(url: string): string {
+  if (!url.startsWith("/api")) return url;
+  const origin =
+    typeof import.meta !== "undefined" && import.meta.env?.VITE_API_ORIGIN
+      ? String(import.meta.env.VITE_API_ORIGIN).trim().replace(/\/$/, "")
+      : "";
+  if (!origin) return url;
+  return `${origin}${url}`;
+}
 
 export type ErrorType<T = unknown> = ApiError<T>;
 
@@ -279,15 +294,21 @@ export async function customFetch<T = unknown>(
   input: RequestInfo | URL,
   options: CustomFetchOptions = {},
 ): Promise<T> {
+  const resolvedInput =
+    typeof input === "string" ? applyPublicApiOrigin(input) : input;
+
   const { responseType = "auto", headers: headersInit, ...init } = options;
 
-  const method = resolveMethod(input, init.method);
+  const method = resolveMethod(resolvedInput, init.method);
 
   if (init.body != null && (method === "GET" || method === "HEAD")) {
     throw new TypeError(`customFetch: ${method} requests cannot have a body.`);
   }
 
-  const headers = mergeHeaders(isRequest(input) ? input.headers : undefined, headersInit);
+  const headers = mergeHeaders(
+    isRequest(resolvedInput) ? resolvedInput.headers : undefined,
+    headersInit,
+  );
 
   if (
     typeof init.body === "string" &&
@@ -301,9 +322,23 @@ export async function customFetch<T = unknown>(
     headers.set("accept", DEFAULT_JSON_ACCEPT);
   }
 
-  const requestInfo = { method, url: resolveUrl(input) };
+  const requestInfo = { method, url: resolveUrl(resolvedInput) };
 
-  const response = await fetch(input, { ...init, method, headers });
+  if (isAiRoute(requestInfo.url)) {
+    headers.set("x-session-id", getOrCreateDemoSessionId());
+    const internalKey =
+      typeof import.meta !== "undefined" && import.meta.env?.VITE_INTERNAL_API_KEY
+        ? String(import.meta.env.VITE_INTERNAL_API_KEY).trim()
+        : "";
+    if (internalKey) {
+      headers.set("x-api-key", internalKey);
+    } else if (!hasLoggedMissingInternalKey) {
+      console.error("Missing VITE_INTERNAL_API_KEY");
+      hasLoggedMissingInternalKey = true;
+    }
+  }
+
+  const response = await fetch(resolvedInput, { ...init, method, headers });
 
   if (!response.ok) {
     const errorData = await parseErrorBody(response, method);

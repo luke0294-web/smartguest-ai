@@ -10,7 +10,8 @@ export interface HealthStatus {
 }
 
 export interface Property {
-  id: number;
+  /** Legacy Drizzle numeric id or Supabase UUID */
+  id: number | string;
   slug: string;
   name: string;
   content: string;
@@ -55,11 +56,15 @@ export interface ConversationMessage {
 export interface ChatMessageRequest {
   message: string;
   conversationHistory?: ConversationMessage[];
+  /** Demo chat: city id (e.g. roma) */
+  city?: string;
 }
 
 export interface ChatMessageResponse {
   reply: string;
   propertyName: string;
+  /** Present when Marco could not resolve a technical issue from the manual (token stripped from `reply`). */
+  sosSuggested?: boolean;
 }
 
 export interface ErrorResponse {

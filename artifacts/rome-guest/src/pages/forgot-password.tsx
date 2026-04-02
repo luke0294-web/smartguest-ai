@@ -2,14 +2,13 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { motion } from "framer-motion";
 import { MessageSquare, Mail, ArrowLeft, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
+import { apiUrl } from "@/lib/apiUrl";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [sent, setSent] = useState(false);
-
-  const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,7 +22,7 @@ export default function ForgotPassword() {
 
     setIsLoading(true);
     try {
-      const res = await fetch(`${baseUrl}/api/auth/forgot-password`, {
+      const res = await fetch(apiUrl("/api/auth/forgot-password"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: trimmed }),

@@ -4,7 +4,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "wouter";
-import { QRCodeCanvas } from "qrcode.react";
 import { jsPDF } from "jspdf";
 import {
   Building, Plus, Trash2, ExternalLink, KeyRound, Loader2, Save,
@@ -16,6 +15,7 @@ import { format } from "date-fns";
 
 import { useListProperties, useCreateProperty, useDeleteProperty, getListPropertiesQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { apiUrl } from "@/lib/apiUrl";
 
 const createPropertySchema = z.object({
   name: z.string().min(1, "Il nome è obbligatorio"),
@@ -70,28 +70,51 @@ function QrModal({
   ceoSessionHeaders: HeadersInit;
   onClose: () => void;
 }) {
-  const svgRef = useRef<HTMLDivElement>(null);
   const [isCopied, setIsCopied] = useState(false);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [email, setEmail] = useState("");
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const emailTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [qrCodeBase64, setQrCodeBase64] = useState<string>("");
+  const [qrLoading, setQrLoading] = useState(true);
+  const [qrError, setQrError] = useState("");
   const base = import.meta.env.BASE_URL.replace(/\/$/, "");
   const chatUrl = `${window.location.origin}${base}/guest/${property.slug}`;
 
-  const handleDownload = () => {
-    const canvas = svgRef.current?.querySelector("canvas");
-    if (!canvas) return;
+  useEffect(() => {
+    let mounted = true;
+    const loadQr = async () => {
+      setQrLoading(true);
+      setQrError("");
+      try {
+        const res = await fetch(apiUrl(`/api/properties/${property.slug}`), {
+          headers: { ...ceoSessionHeaders },
+        });
+        const json = await res.json();
+        if (!res.ok || !json.qrCodeBase64) {
+          throw new Error("QR non disponibile");
+        }
+        if (mounted) setQrCodeBase64(json.qrCodeBase64);
+      } catch {
+        if (mounted) setQrError("Impossibile caricare il QR. Riprova.");
+      } finally {
+        if (mounted) setQrLoading(false);
+      }
+    };
+    loadQr();
+    return () => {
+      mounted = false;
+    };
+  }, [base, property.slug, ceoSessionHeaders]);
 
-    const qrDataUrl = canvas.toDataURL("image/png");
+  const buildPdfDocument = (): jsPDF => {
+    if (!qrCodeBase64) throw new Error("QR Code non trovato");
 
     const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-
     const pageW = 210;
     const pageH = 297;
 
-    // ── Titolo "Benvenuti a [nome]" ────────────────────────────────────────────
     doc.setFont("helvetica", "bold");
     doc.setFontSize(18);
     doc.setTextColor(17, 24, 39);
@@ -100,37 +123,42 @@ function QrModal({
     const startY = 60;
     doc.text(splitTitle, pageW / 2, startY, { align: "center" });
 
-    // ── Sottotitolo ────────────────────────────────────────────────────────────
     const titleHeight = splitTitle.length * 7;
     doc.setFont("helvetica", "normal");
     doc.setFontSize(11);
     doc.setTextColor(107, 114, 128);
     doc.text("Il tuo Assistente Virtuale 24/7", pageW / 2, startY + titleHeight + 4, { align: "center" });
 
-    // ── QR Code centrato (100x100mm) ───────────────────────────────────────────
     const qrSize = 100;
     const qrX = (pageW - qrSize) / 2;
     const qrY = startY + titleHeight + 18;
-    doc.addImage(qrDataUrl, "PNG", qrX, qrY, qrSize, qrSize);
+    doc.addImage(qrCodeBase64, "PNG", qrX, qrY, qrSize, qrSize);
 
-    // ── Testo in basso ────────────────────────────────────────────────────────
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
     doc.setTextColor(55, 65, 81);
     doc.text(
-      "Inquadra per: Wi-Fi \u2022 Regole \u2022 Consigli \u2022 WhatsApp",
+      "Inquadra per: Wi-Fi • Regole • Consigli • WhatsApp",
       pageW / 2,
       qrY + qrSize + 16,
       { align: "center" },
     );
 
-    // ── Footer fuori dal riquadro ──────────────────────────────────────────────
     doc.setFont("helvetica", "italic");
     doc.setFontSize(8);
     doc.setTextColor(156, 163, 175);
     doc.text("Powered by SmartGuest AI", pageW / 2, pageH - 10, { align: "center" });
 
-    doc.save("Cartello_Benvenuto_SmartGuest.pdf");
+    return doc;
+  };
+
+  const handleDownload = () => {
+    try {
+      const doc = buildPdfDocument();
+      doc.save("Cartello_Benvenuto_SmartGuest.pdf");
+    } catch {
+      alert("QR non disponibile. Riprova.");
+    }
   };
 
   const handleCopyLink = async () => {
@@ -164,52 +192,9 @@ function QrModal({
 
     setIsSendingEmail(true);
     try {
-      const canvas = svgRef.current?.querySelector("canvas");
-      if (!canvas) throw new Error("QR Code non trovato");
+      const pdfBase64 = buildPdfDocument().output("datauristring");
 
-      const qrDataUrl = canvas.toDataURL("image/png");
-
-      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-      const pageW = 210;
-      const pageH = 297;
-
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(18);
-      doc.setTextColor(17, 24, 39);
-      const title = `Benvenuti a ${property.name}`;
-      const splitTitle = doc.splitTextToSize(title, 170);
-      const startY = 60;
-      doc.text(splitTitle, pageW / 2, startY, { align: "center" });
-
-      const titleHeight = splitTitle.length * 7;
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(11);
-      doc.setTextColor(107, 114, 128);
-      doc.text("Il tuo Assistente Virtuale 24/7", pageW / 2, startY + titleHeight + 4, { align: "center" });
-
-      const qrSize = 100;
-      const qrX = (pageW - qrSize) / 2;
-      const qrY = startY + titleHeight + 18;
-      doc.addImage(qrDataUrl, "PNG", qrX, qrY, qrSize, qrSize);
-
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(10);
-      doc.setTextColor(55, 65, 81);
-      doc.text(
-        "Inquadra per: Wi-Fi \u2022 Regole \u2022 Consigli \u2022 WhatsApp",
-        pageW / 2,
-        qrY + qrSize + 16,
-        { align: "center" },
-      );
-
-      doc.setFont("helvetica", "italic");
-      doc.setFontSize(8);
-      doc.setTextColor(156, 163, 175);
-      doc.text("Powered by SmartGuest AI", pageW / 2, pageH - 10, { align: "center" });
-
-      const pdfBase64 = doc.output("datauristring");
-
-      const response = await fetch(`${import.meta.env.BASE_URL.replace(/\/$/, "")}/api/send-pdf`, {
+      const response = await fetch(apiUrl("/api/send-pdf"), {
         method: "POST",
         headers: { "Content-Type": "application/json", ...ceoSessionHeaders },
         body: JSON.stringify({
@@ -264,15 +249,14 @@ function QrModal({
         </div>
 
         <div className="flex flex-col items-center gap-5 p-6">
-          <div ref={svgRef} className="flex justify-center p-3 bg-white border border-gray-200 rounded-2xl shadow-sm">
-            <QRCodeCanvas
-              value={chatUrl}
-              size={200}
-              bgColor="#ffffff"
-              fgColor="#111827"
-              level="M"
-              marginSize={1}
-            />
+          <div className="flex justify-center p-3 bg-white border border-gray-200 rounded-2xl shadow-sm min-h-[224px] items-center">
+            {qrLoading ? (
+              <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+            ) : qrError ? (
+              <p className="text-xs text-red-500 text-center">{qrError}</p>
+            ) : (
+              <img src={qrCodeBase64} alt={`QR ${property.slug}`} className="w-[200px] h-[200px]" />
+            )}
           </div>
 
           <div className="w-full bg-gray-50 rounded-xl px-3 py-2 text-center">
@@ -373,7 +357,7 @@ function HostPasswordModal({
     setSaved(false);
     setIsSaving(true);
     try {
-      const res = await fetch(`${base}/api/properties/${property.slug}/host-password`, {
+      const res = await fetch(apiUrl(`/api/properties/${property.slug}/host-password`), {
         method: "PUT",
         headers: { "Content-Type": "application/json", ...ceoSessionHeaders },
         body: JSON.stringify({ hostPassword: newPassword.trim() }),
@@ -563,7 +547,7 @@ function ContentEditModal({
     setSaved(false);
     setSaving(true);
     try {
-      const res = await fetch(`${base}/api/properties/${property.slug}`, {
+      const res = await fetch(apiUrl(`/api/properties/${property.slug}`), {
         method: "PUT",
         headers: { "Content-Type": "application/json", ...ceoSessionHeaders },
         body: JSON.stringify({ content: text }),
@@ -699,7 +683,7 @@ export default function CeoPanel() {
   const [hostDeleting, setHostDeleting] = useState<Record<string, boolean>>({});
   const queryClient = useQueryClient();
 
-  const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
+  const spaBase = import.meta.env.BASE_URL.replace(/\/$/, "");
 
   const ceoSessionHeaders = { "X-CEO-Session": ceoToken };
 
@@ -746,7 +730,7 @@ export default function CeoPanel() {
     if (!ceoToken) return;
     setLeadsLoading(true);
     try {
-      const res = await fetch(`${baseUrl}/api/leads`, { headers: ceoSessionHeaders });
+      const res = await fetch(apiUrl("/api/leads"), { headers: ceoSessionHeaders });
       const data = await res.json();
       if (res.ok) setLeads(data);
     } finally {
@@ -764,7 +748,7 @@ export default function CeoPanel() {
     if (!ceoToken) return;
     setResetsLoading(true);
     try {
-      const res = await fetch(`${baseUrl}/api/auth/resets`, { headers: ceoSessionHeaders });
+      const res = await fetch(apiUrl("/api/auth/resets"), { headers: ceoSessionHeaders });
       const data = await res.json();
       if (res.ok) setResetRequests(data);
     } finally {
@@ -775,7 +759,7 @@ export default function CeoPanel() {
   const cancelReset = async (slug: string) => {
     setCancellingReset(slug);
     try {
-      await fetch(`${baseUrl}/api/auth/resets/${slug}`, {
+      await fetch(apiUrl(`/api/auth/resets/${slug}`), {
         method: "DELETE",
         headers: { ...ceoSessionHeaders },
       });
@@ -795,7 +779,7 @@ export default function CeoPanel() {
     if (!window.confirm("Sei sicuro? Il lead sarà eliminato definitivamente dal database.")) return;
     setLeadDeleting((prev) => ({ ...prev, [id]: true }));
     try {
-      const res = await fetch(`${baseUrl}/api/leads/${id}`, {
+      const res = await fetch(apiUrl(`/api/leads/${id}`), {
         method: "DELETE",
         headers: { ...ceoSessionHeaders },
       });
@@ -810,7 +794,7 @@ export default function CeoPanel() {
   const updateLeadStatus = async (id: number, status: string) => {
     setLeadStatusSaving((prev) => ({ ...prev, [id]: true }));
     try {
-      const res = await fetch(`${baseUrl}/api/leads/${id}/status`, {
+      const res = await fetch(apiUrl(`/api/leads/${id}/status`), {
         method: "PUT",
         headers: { "Content-Type": "application/json", ...ceoSessionHeaders },
         body: JSON.stringify({ status }),
@@ -827,7 +811,7 @@ export default function CeoPanel() {
     if (!window.confirm(`Converti "${lead.hostName}" in host?\n\nVerra creata la proprietà "${lead.propertyName}".`)) return;
     setConvertingLead((prev) => ({ ...prev, [lead.id]: true }));
     try {
-      const res = await fetch(`${baseUrl}/api/leads/${lead.id}/convert`, {
+      const res = await fetch(apiUrl(`/api/leads/${lead.id}/convert`), {
         method: "POST",
         headers: { "Content-Type": "application/json", ...ceoSessionHeaders },
         body: JSON.stringify({}),
@@ -859,7 +843,7 @@ export default function CeoPanel() {
     if (!ceoToken) return;
     setHostsLoading(true);
     try {
-      const res = await fetch(`${baseUrl}/api/admin/hosts`, { headers: ceoSessionHeaders });
+      const res = await fetch(apiUrl("/api/admin/hosts"), { headers: ceoSessionHeaders });
       const data = await res.json();
       if (res.ok) setHosts(data);
     } finally {
@@ -880,7 +864,7 @@ export default function CeoPanel() {
     setHostFormSaving(true);
     setHostFormMsg(null);
     try {
-      const res = await fetch(`${baseUrl}/api/admin/hosts`, {
+      const res = await fetch(apiUrl("/api/admin/hosts"), {
         method: "POST",
         headers: { "Content-Type": "application/json", ...ceoSessionHeaders },
         body: JSON.stringify({ email: newHostEmail.trim(), hostPassword: newHostPassword.trim() }),
@@ -898,7 +882,7 @@ export default function CeoPanel() {
     if (!window.confirm(`Sei sicuro di voler eliminare l'host ${email}?`)) return;
     setHostDeleting((prev) => ({ ...prev, [email]: true }));
     try {
-      await fetch(`${baseUrl}/api/admin/hosts/${encodeURIComponent(email)}`, {
+      await fetch(apiUrl(`/api/admin/hosts/${encodeURIComponent(email)}`), {
         method: "DELETE",
         headers: { ...ceoSessionHeaders },
       });
@@ -915,7 +899,7 @@ export default function CeoPanel() {
     if (!pwd?.trim()) return;
     setLoginLoading(true);
     try {
-      const res = await fetch(`${baseUrl}/api/auth/ceo-login`, {
+      const res = await fetch(apiUrl("/api/auth/ceo-login"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password: pwd }),
@@ -942,7 +926,7 @@ export default function CeoPanel() {
     setIsCreating(true);
     try {
       const { ownerEmail, ...rest } = data;
-      const res = await fetch(`${baseUrl}/api/properties`, {
+      const res = await fetch(apiUrl("/api/properties"), {
         method: "POST",
         headers: { "Content-Type": "application/json", ...ceoSessionHeaders },
         body: JSON.stringify({ ...rest, ownerEmail: ownerEmail || undefined }),
@@ -988,7 +972,7 @@ export default function CeoPanel() {
   const saveInlineEdit = async (originalSlug: string) => {
     setInlineEdit((prev) => ({ ...prev, saving: true, error: "", saved: false }));
     try {
-      const res = await fetch(`${baseUrl}/api/properties/${originalSlug}/full-edit`, {
+      const res = await fetch(apiUrl(`/api/properties/${originalSlug}/full-edit`), {
         method: "PUT",
         headers: { "Content-Type": "application/json", ...ceoSessionHeaders },
         body: JSON.stringify({
@@ -1083,7 +1067,7 @@ export default function CeoPanel() {
                 <div className="rounded-xl border border-amber-200 bg-white/80 px-4 py-3 text-sm text-amber-900 space-y-1">
                   <p><strong>Email host:</strong> {leadConversionModal.email}</p>
                   <p><strong>Slug proprieta:</strong> {leadConversionModal.slug}</p>
-                  <p className="break-all"><strong>Chat link:</strong> {`${window.location.origin}${baseUrl}/guest/${leadConversionModal.slug}`}</p>
+                  <p className="break-all"><strong>Chat link:</strong> {`${window.location.origin}${spaBase}/guest/${leadConversionModal.slug}`}</p>
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-3">

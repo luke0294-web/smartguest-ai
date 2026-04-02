@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, Link, useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { useForm } from "react-hook-form";
@@ -21,6 +21,8 @@ import {
   ArrowLeft,
   BookOpen,
 } from "lucide-react";
+import { apiUrl, getAiSecurityHeaders } from "@/lib/apiUrl";
+
 const DEFAULT_MANUAL_TEMPLATE = `🏠 MANUALE DI BENVENUTO - [NOME APPARTAMENTO]
 Benvenuti! Ecco tutte le informazioni essenziali per il vostro soggiorno.
 
@@ -101,6 +103,7 @@ interface PropertyData {
   name: string;
   content: string;
   whatsappNumber: string | null;
+  pendingQuestionsCount: number;
 }
 
 type AiState =
@@ -130,39 +133,10 @@ export default function HostDashboard() {
   const audioChunksRef = useRef<Blob[]>([]);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
 
-  const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
-
   const updateForm = useForm<UpdateValues>({
     resolver: zodResolver(updateSchema as any),
     defaultValues: { name: "", content: "", whatsappNumber: "" },
   });
-
-  const loadPendingCount = useCallback(async (sessionToken: string | undefined) => {
-    try {
-      if (!slug || !sessionToken) return;
-      const res = await fetch(`${baseUrl}/api/super-diario/${slug}`, {
-        headers: { Authorization: `Bearer ${sessionToken}` },
-      });
-      if (!res.ok) return;
-      const logs = (await res.json()) as any[];
-      const negativeIndicators = [
-        "non ho questa info", // frase canonica nuova
-        "tasto whatsapp", // parte canonica nuova
-        "accidenti, mi cogli impreparato", // legacy
-        "caught me unprepared", // legacy
-        "mando subito un promemoria all'host", // legacy
-        "no tengo esa información a mano", // legacy
-      ];
-      const count = logs.filter((log: any) => {
-        if (log.resolved) return false;
-        const lower = (log.marcoReply ?? "").toLowerCase();
-        return negativeIndicators.some((p) => lower.includes(p));
-      }).length;
-      setPendingCount((prev) => (prev === count ? prev : count));
-    } catch {
-      // Silently fail — non bloccare l'UI
-    }
-  }, [slug, baseUrl]);
 
   useEffect(() => {
     if (!slug) return;
@@ -173,12 +147,7 @@ export default function HostDashboard() {
     }
     setSession(s);
     loadProperty(s);
-    loadPendingCount(s.sessionToken);
-    const interval = setInterval(() => {
-      const cur = readSession();
-      if (cur?.sessionToken) loadPendingCount(cur.sessionToken);
-    }, 15000);
-    return () => clearInterval(interval);
+    return;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug]);
 
@@ -186,7 +155,7 @@ export default function HostDashboard() {
     setIsLoading(true);
     setLoadError("");
     try {
-      const res = await fetch(`${baseUrl}/api/host/${slug}`, {
+      const res = await fetch(apiUrl(`/api/host/${slug}`), {
         headers: { Authorization: `Bearer ${s.sessionToken}` },
       });
       const json = await res.json();
@@ -199,6 +168,7 @@ export default function HostDashboard() {
         return;
       }
       setProperty(json);
+      setPendingCount(Number(json.pendingQuestionsCount ?? 0));
 
       const initialContent =
         json.content && json.content.trim() !== ""
@@ -217,11 +187,29 @@ export default function HostDashboard() {
     }
   };
 
+  const handleOpenDiario = async () => {
+    if (!session) {
+      navigate("/login");
+      return;
+    }
+    try {
+      await fetch(apiUrl(`/api/host/${slug}/reset-pending-questions`), {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session.sessionToken}` },
+      });
+      setPendingCount(0);
+    } catch {
+      // If reset fails, still let host open Diario.
+    } finally {
+      navigate(`/diario/${slug}`);
+    }
+  };
+
   const handleUpdate = async (data: UpdateValues) => {
     if (!session) return;
     setIsSaving(true);
     try {
-      const res = await fetch(`${baseUrl}/api/host/${slug}`, {
+      const res = await fetch(apiUrl(`/api/host/${slug}`), {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -304,9 +292,12 @@ export default function HostDashboard() {
           ? "mp4"
           : "webm";
       formData.append("audio", blob, `recording.${ext}`);
-      const res = await fetch(`${baseUrl}/api/ai/transcribe`, {
+      const res = await fetch(apiUrl("/api/ai/transcribe"), {
         method: "POST",
-        headers: { Authorization: `Bearer ${session?.sessionToken ?? ""}` },
+        headers: {
+          Authorization: `Bearer ${session?.sessionToken ?? ""}`,
+          ...getAiSecurityHeaders(),
+        },
         body: formData,
       });
       const json = await res.json();
@@ -330,9 +321,12 @@ export default function HostDashboard() {
     try {
       const formData = new FormData();
       formData.append("image", file);
-      const res = await fetch(`${baseUrl}/api/ai/vision`, {
+      const res = await fetch(apiUrl("/api/ai/vision"), {
         method: "POST",
-        headers: { Authorization: `Bearer ${session?.sessionToken ?? ""}` },
+        headers: {
+          Authorization: `Bearer ${session?.sessionToken ?? ""}`,
+          ...getAiSecurityHeaders(),
+        },
         body: formData,
       });
       const json = await res.json();
@@ -426,22 +420,23 @@ export default function HostDashboard() {
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             {/* Diario di Bordo */}
-            <Link
-              href={`/diario/${slug}`}
+            <button
+              type="button"
+              onClick={handleOpenDiario}
               className={`relative flex items-center gap-1 text-xs sm:text-sm font-bold px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-colors ${
                 pendingCount > 0
-                  ? "text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200"
+                  ? "text-red-700 bg-red-50 hover:bg-red-100 border border-red-200"
                   : "text-blue-700 bg-blue-50 hover:bg-blue-100"
               }`}
             >
               <BookOpen className="w-3.5 h-3.5 flex-shrink-0" />
               <span className="hidden sm:inline">Diario</span>
               {pendingCount > 0 && (
-                <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 text-[10px] font-bold bg-amber-500 text-white rounded-full">
+                <span className="inline-flex items-center justify-center min-w-[18px] h-5 px-1.5 text-[10px] font-bold bg-red-600 text-white rounded-full">
                   {pendingCount}
                 </span>
               )}
-            </Link>
+            </button>
             <Link
               href={`/guest/${slug}`}
               className="text-xs sm:text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-colors shadow-sm shadow-blue-200"

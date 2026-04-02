@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -10,6 +10,7 @@ export const propertiesTable = pgTable("properties", {
   whatsappNumber: text("whatsapp_number"),
   hostPassword: text("host_password"),
   email: text("email"),
+  pendingQuestionsCount: integer("pending_questions_count").notNull().default(0),
   resetToken: text("reset_token"),
   resetRequestedAt: timestamp("reset_requested_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

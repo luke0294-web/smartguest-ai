@@ -1,44 +1,184 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
-import { db, propertiesTable, hostsTable } from "@workspace/db";
 import {
   CreatePropertyBody,
   UpdatePropertyBody,
   UpdatePropertyParams,
   GetPropertyParams,
   GetPropertyResponse,
+  ListPropertiesResponseItem,
   UpdatePropertyResponse,
   DeletePropertyParams,
 } from "@workspace/api-zod";
 import { logger } from "../lib/logger";
 import { requireCeoSession } from "../lib/ceo-session";
 import { hashHostPassword } from "../lib/passwords";
+import { generateGuestQrDataUrl } from "../lib/generateQr";
+import { DEMO_SLUG, parseDemoPropertyForGet } from "../lib/demoProperty";
+import { supabase, supabaseAdmin } from "../lib/supabase";
+
+type SupabasePropertyRowPublic = {
+  id: number | string;
+  slug: string;
+  name: string;
+  manual_content?: string | null;
+  content?: string | null;
+  whatsapp_number?: string | null;
+  whatsappNumber?: string | null;
+  email?: string | null;
+  pending_questions_count?: number | null;
+  pendingQuestionsCount?: number | null;
+  created_at?: string;
+  updated_at?: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+function toValidDate(value: unknown, fallbackMs: number): Date {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value;
+  }
+  if (value !== null && value !== undefined && value !== "") {
+    const d = new Date(value as string | number);
+    if (!Number.isNaN(d.getTime())) return d;
+  }
+  return new Date(fallbackMs);
+}
+
+/** Slug URL-safe (allineato al form CEO). */
+function normalizePropertySlug(input: string): string {
+  return input
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+/** Se lo slug non è valorizzato, deriva dal nome come sul frontend. */
+function slugFromPropertyName(name: string): string {
+  const base = name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+  return base || "property";
+}
+
+type PropertyCoreMapped = {
+  id: number | string;
+  slug: string;
+  name: string;
+  content: string;
+  whatsappNumber: string | null;
+  pendingQuestionsCount: number;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+/** Mappa una riga Supabase `properties` al core usato da GetPropertyResponse. */
+function mapSupabaseRowToPropertyCore(row: SupabasePropertyRowPublic): PropertyCoreMapped | null {
+  const rawId = row.id;
+  let id: number | string;
+  if (typeof rawId === "number" && Number.isFinite(rawId)) {
+    id = rawId;
+  } else if (typeof rawId === "string") {
+    const trimmed = rawId.trim();
+    if (!trimmed) return null;
+    id = trimmed;
+  } else {
+    return null;
+  }
+
+  const fallbackMs = Date.now();
+  return {
+    id,
+    slug: row.slug,
+    name: row.name,
+    content: row.manual_content ?? row.content ?? "",
+    whatsappNumber: row.whatsapp_number ?? row.whatsappNumber ?? null,
+    pendingQuestionsCount: row.pending_questions_count ?? row.pendingQuestionsCount ?? 0,
+    createdAt: toValidDate(row.created_at ?? row.createdAt, fallbackMs),
+    updatedAt: toValidDate(
+      row.updated_at ?? row.updatedAt ?? row.created_at ?? row.createdAt,
+      fallbackMs,
+    ),
+  };
+}
 
 const router: IRouter = Router();
 
-// GET /properties — list all (CEO only)
+// GET /properties — list all (CEO only) → Supabase
 router.get("/properties", async (req, res): Promise<void> => {
+  console.log("[ROTTA CEO] Ricevuta richiesta:", req.path);
   if (!requireCeoSession(req, res)) return;
 
-  const rows = await db
-    .select({
-      id: propertiesTable.id,
-      slug: propertiesTable.slug,
-      name: propertiesTable.name,
-      content: propertiesTable.content,
-      whatsappNumber: propertiesTable.whatsappNumber,
-      createdAt: propertiesTable.createdAt,
-      updatedAt: propertiesTable.updatedAt,
-      email: propertiesTable.email,
-    })
-    .from(propertiesTable)
-    .orderBy(propertiesTable.createdAt);
+  try {
+    const { data: rows, error: listError } = await supabaseAdmin
+      .from("properties")
+      .select("*")
+      .order("created_at", { ascending: false });
 
-  res.json(rows);
+    if (listError) {
+      console.error("[ERRORE CRITICO] GET /properties:", listError);
+      logger.error({ listError }, "GET /properties — query Supabase fallita");
+      res.status(500).json({ error: "Impossibile caricare l'elenco proprietà da Supabase." });
+      return;
+    }
+
+    const list = rows ?? [];
+    type ListRow = SupabasePropertyRowPublic & { email?: string | null };
+    type ListPayloadItem = {
+      id: number | string;
+      slug: string;
+      name: string;
+      content: string;
+      whatsappNumber: string | null;
+      createdAt: Date;
+      updatedAt: Date;
+      email?: string | null;
+      pendingQuestionsCount: number;
+    };
+    const payload: ListPayloadItem[] = [];
+
+    for (const raw of list as ListRow[]) {
+      const core = mapSupabaseRowToPropertyCore(raw);
+      if (!core) {
+        logger.warn({ slug: raw.slug }, "GET /properties — riga saltata (id non valido)");
+        continue;
+      }
+
+      const item = ListPropertiesResponseItem.parse({
+        id: core.id,
+        slug: core.slug,
+        name: core.name,
+        content: core.content,
+        whatsappNumber: core.whatsappNumber,
+        createdAt: core.createdAt,
+        updatedAt: core.updatedAt,
+      });
+
+      payload.push({
+        ...item,
+        email: raw.email?.trim() ? raw.email.trim().toLowerCase() : null,
+        pendingQuestionsCount: core.pendingQuestionsCount,
+      });
+    }
+
+    console.log("[DB] Lista recuperata!");
+    res.json(payload);
+  } catch (error) {
+    console.error("[ERRORE CRITICO]", error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Errore interno del server" });
+    }
+  }
 });
 
-// POST /properties — create (CEO only)
+// POST /properties — create (CEO only) → Supabase
 router.post("/properties", async (req, res): Promise<void> => {
+  console.log("[ROTTA CEO] Ricevuta richiesta:", req.path);
   const parsed = CreatePropertyBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -50,24 +190,99 @@ router.post("/properties", async (req, res): Promise<void> => {
   const { slug, name, content, whatsappNumber } = parsed.data;
   const ownerEmail = typeof req.body?.ownerEmail === "string" ? req.body.ownerEmail.trim().toLowerCase() || null : null;
 
-  const existing = await db
-    .select()
-    .from(propertiesTable)
-    .where(eq(propertiesTable.slug, slug))
-    .limit(1);
-
-  if (existing.length > 0) {
-    res.status(409).json({ error: `Lo slug '${slug}' è già in uso. Scegli un altro nome.` });
-    return;
+  let finalSlug = normalizePropertySlug(slug);
+  if (!finalSlug) {
+    finalSlug = slugFromPropertyName(name);
   }
 
-  const [created] = await db
-    .insert(propertiesTable)
-    .values({ slug, name, content: content ?? "", whatsappNumber: whatsappNumber ?? null, email: ownerEmail })
-    .returning();
+  try {
+    console.log("[DB] Inizio inserimento...");
 
-  logger.info({ slug, name }, "Property created");
-  res.status(201).json(GetPropertyResponse.parse(created));
+    const { data: existingRow, error: existingError } = await supabaseAdmin
+      .from("properties")
+      .select("slug")
+      .eq("slug", finalSlug)
+      .maybeSingle();
+
+    if (existingError) {
+      console.error("[ERRORE CRITICO] POST /properties slug check:", existingError);
+      logger.error({ existingError, finalSlug }, "POST /properties — verifica slug su Supabase fallita");
+      res.status(500).json({ error: "Errore durante la verifica dello slug su Supabase." });
+      return;
+    }
+
+    if (existingRow) {
+      res.status(409).json({ error: `Lo slug '${finalSlug}' è già in uso. Scegli un altro nome.` });
+      return;
+    }
+
+    const bodyContent = content ?? "";
+
+    const { data: row, error: insertError } = await supabaseAdmin
+      .from("properties")
+      .insert({
+        slug: finalSlug,
+        name: name.trim(),
+        content: bodyContent,
+        manual_content: bodyContent,
+        whatsapp_number: whatsappNumber?.trim() ? whatsappNumber.trim() : null,
+        email: ownerEmail,
+        pending_questions_count: 0,
+      })
+      .select("*")
+      .single<SupabasePropertyRowPublic>();
+
+    if (insertError || !row) {
+      console.error("[ERRORE CRITICO] POST /properties insert:", insertError);
+      logger.error({ insertError, finalSlug }, "POST /properties — insert Supabase fallito");
+      res.status(500).json({
+        error: "Errore durante la creazione della proprietà su Supabase.",
+      });
+      return;
+    }
+
+    console.log("[DB] Creazione completata!");
+
+    const mappedCore = mapSupabaseRowToPropertyCore(row);
+    if (!mappedCore) {
+      res.status(500).json({ error: "Dati proprietà non validi dopo l'inserimento (id)." });
+      return;
+    }
+
+    let qrCodeBase64: string;
+    try {
+      qrCodeBase64 = await generateGuestQrDataUrl(mappedCore.slug);
+    } catch (qrErr) {
+      console.error(
+        "[ERRORE CRITICO] POST /properties generateGuestQrDataUrl:",
+        qrErr instanceof Error ? qrErr.message : qrErr,
+      );
+      res.status(500).json({
+        error: "Impossibile generare il QR ospite. Verifica FRONTEND_URL nel .env dell'API.",
+      });
+      return;
+    }
+
+    const payload = { ...mappedCore, qrCodeBase64 };
+    const parsedResponse = GetPropertyResponse.safeParse(payload);
+    if (!parsedResponse.success) {
+      console.error("[ERRORE CRITICO] POST /properties Zod GetPropertyResponse:", parsedResponse.error.flatten());
+      logger.error(
+        { zod: parsedResponse.error.flatten(), payloadId: payload.id },
+        "POST /properties — validazione GetPropertyResponse fallita",
+      );
+      res.status(500).json({ error: "Risposta proprietà non valida dopo la creazione." });
+      return;
+    }
+
+    logger.info({ slug: finalSlug, name: name.trim() }, "Property created (Supabase)");
+    res.status(201).json(parsedResponse.data);
+  } catch (error) {
+    console.error("[ERRORE CRITICO]", error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Errore interno del server" });
+    }
+  }
 });
 
 // GET /properties/:slug — get one (public)
@@ -78,22 +293,85 @@ router.get("/properties/:slug", async (req, res): Promise<void> => {
     return;
   }
 
-  const [property] = await db
-    .select()
-    .from(propertiesTable)
-    .where(eq(propertiesTable.slug, params.data.slug))
-    .limit(1);
+  try {
+    if (params.data.slug === DEMO_SLUG) {
+      res.json(parseDemoPropertyForGet());
+      return;
+    }
 
-  if (!property) {
-    res.status(404).json({ error: `Proprietà '${params.data.slug}' non trovata.` });
-    return;
+    const { data: row, error: supabaseError } = await supabase
+      .from("properties")
+      .select("*")
+      .eq("slug", params.data.slug)
+      .single<SupabasePropertyRowPublic>();
+
+    if (supabaseError || !row) {
+      console.error(
+        "[ERRORE CRITICO] GET /properties/:slug Supabase:",
+        params.data.slug,
+        supabaseError ?? "no row",
+      );
+      logger.warn(
+        { slug: params.data.slug, supabaseError },
+        "GET /properties/:slug — nessuna riga su Supabase (slug errato, RLS o tabella vuota)",
+      );
+      res.status(404).json({
+        error: "Proprietà non trovata.",
+      });
+      return;
+    }
+
+    const mapped = mapSupabaseRowToPropertyCore(row);
+    if (!mapped) {
+      res.status(500).json({ error: "Dati proprietà non validi (id)." });
+      return;
+    }
+
+    let qrCodeBase64: string;
+    try {
+      qrCodeBase64 = await generateGuestQrDataUrl(mapped.slug);
+    } catch (qrErr) {
+      console.error(
+        "[ERRORE CRITICO] GET /properties/:slug generateGuestQrDataUrl (FRONTEND_URL):",
+        qrErr instanceof Error ? qrErr.message : qrErr,
+      );
+      res.status(500).json({
+        error:
+          "Impossibile generare il QR ospite. Verifica FRONTEND_URL nel file .env del backend.",
+      });
+      return;
+    }
+
+    const payload = { ...mapped, qrCodeBase64 };
+    const parsed = GetPropertyResponse.safeParse(payload);
+    if (!parsed.success) {
+      console.error("[ERRORE CRITICO] GET /properties/:slug Zod GetPropertyResponse:", parsed.error.flatten());
+      logger.error(
+        { slug: params.data.slug, zod: parsed.error.flatten(), payloadId: payload.id },
+        "GET /properties/:slug — validazione GetPropertyResponse fallita",
+      );
+      res.status(500).json({
+        error:
+          "Impossibile serializzare la proprietà dopo Supabase. Controlla id (numero o UUID) e date valide.",
+      });
+      return;
+    }
+
+    res.json(parsed.data);
+  } catch (err) {
+    console.error(
+      "[ERRORE CRITICO] GET /properties/:slug:",
+      err instanceof Error ? err.stack ?? err.message : err,
+    );
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Errore interno durante il caricamento della proprietà." });
+    }
   }
-
-  res.json(GetPropertyResponse.parse(property));
 });
 
-// PUT /properties/:slug — update (CEO only)
+// PUT /properties/:slug — update (CEO only) → Supabase
 router.put("/properties/:slug", async (req, res): Promise<void> => {
+  console.log("[ROTTA CEO] Ricevuta richiesta:", req.path);
   const params = UpdatePropertyParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -108,120 +386,199 @@ router.put("/properties/:slug", async (req, res): Promise<void> => {
 
   if (!requireCeoSession(req, res)) return;
 
-  const { name, content, whatsappNumber } = body.data;
+  try {
+    const { name, content, whatsappNumber } = body.data;
 
-  const updateData: Partial<{ name: string; content: string; whatsappNumber: string | null }> = {};
-  if (name !== undefined) updateData.name = name;
-  if (content !== undefined) updateData.content = content;
-  if (whatsappNumber !== undefined) updateData.whatsappNumber = whatsappNumber;
+    const patch: Record<string, unknown> = {};
+    if (name !== undefined) patch.name = name;
+    if (content !== undefined) {
+      patch.content = content;
+      patch.manual_content = content;
+    }
+    if (whatsappNumber !== undefined) {
+      patch.whatsapp_number = whatsappNumber?.trim() ? whatsappNumber.trim() : null;
+    }
 
-  const [updated] = await db
-    .update(propertiesTable)
-    .set(updateData)
-    .where(eq(propertiesTable.slug, params.data.slug))
-    .returning();
+    if (Object.keys(patch).length === 0) {
+      res.status(400).json({ error: "Nessun campo da aggiornare." });
+      return;
+    }
 
-  if (!updated) {
-    res.status(404).json({ error: "Proprietà non trovata." });
-    return;
+    const { data: rows, error } = await supabaseAdmin
+      .from("properties")
+      .update(patch)
+      .eq("slug", params.data.slug)
+      .select("*");
+
+    if (error) {
+      console.error("[ERRORE CRITICO] PUT /properties:", error);
+      logger.error({ error, slug: params.data.slug }, "PUT /properties");
+      res.status(500).json({ error: "Aggiornamento su Supabase fallito." });
+      return;
+    }
+
+    const row = rows?.[0] as SupabasePropertyRowPublic | undefined;
+    if (!row) {
+      res.status(404).json({ error: "Proprietà non trovata." });
+      return;
+    }
+
+    const core = mapSupabaseRowToPropertyCore(row);
+    if (!core) {
+      res.status(500).json({ error: "Dati proprietà non validi dopo l'aggiornamento." });
+      return;
+    }
+
+    logger.info({ slug: params.data.slug }, "Property updated");
+    res.json(UpdatePropertyResponse.parse(core));
+  } catch (error) {
+    console.error("[ERRORE CRITICO]", error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Errore interno del server" });
+    }
   }
-
-  logger.info({ slug: params.data.slug }, "Property updated");
-  res.json(UpdatePropertyResponse.parse(updated));
 });
 
-// PUT /properties/:slug/full-edit — inline CEO edit: name, slug, hostPassword (CEO only)
+// PUT /properties/:slug/full-edit — inline CEO edit: name, slug, hostPassword (CEO only) → Supabase
 router.put("/properties/:slug/full-edit", async (req, res): Promise<void> => {
+  console.log("[ROTTA CEO] Ricevuta richiesta:", req.path);
   if (!requireCeoSession(req, res)) return;
 
-  const { slug } = req.params;
-  const { name, newSlug, hostPassword, email } = req.body ?? {};
+  try {
+    const { slug } = req.params;
+    const { name, newSlug, hostPassword, email } = req.body ?? {};
 
-  const [current] = await db
-    .select()
-    .from(propertiesTable)
-    .where(eq(propertiesTable.slug, slug))
-    .limit(1);
+    const { data: currentRow, error: curErr } = await supabaseAdmin
+      .from("properties")
+      .select("*")
+      .eq("slug", slug)
+      .maybeSingle<SupabasePropertyRowPublic>();
 
-  if (!current) {
-    res.status(404).json({ error: "Proprietà non trovata." });
-    return;
-  }
+    if (curErr || !currentRow) {
+      res.status(404).json({ error: "Proprietà non trovata." });
+      return;
+    }
 
-  const updates: Partial<{ name: string; slug: string; hostPassword: string | null; email: string | null }> = {};
+    const propPatch: Record<string, unknown> = {};
 
-  if (name !== undefined && String(name).trim()) {
-    updates.name = String(name).trim();
-  }
+    if (name !== undefined && String(name).trim()) {
+      propPatch.name = String(name).trim();
+    }
 
-  if (newSlug !== undefined) {
-    const trimmed = String(newSlug).trim().toLowerCase().replace(/[^a-z0-9-]/g, "");
-    if (trimmed && trimmed !== slug) {
-      const [conflict] = await db
-        .select({ id: propertiesTable.id })
-        .from(propertiesTable)
-        .where(eq(propertiesTable.slug, trimmed))
-        .limit(1);
-      if (conflict) {
-        res.status(409).json({ error: `Lo slug "${trimmed}" è già usato da un altro appartamento.` });
+    if (newSlug !== undefined) {
+      const trimmed = String(newSlug).trim().toLowerCase().replace(/[^a-z0-9-]/g, "");
+      if (trimmed && trimmed !== slug) {
+        const { data: conflict } = await supabaseAdmin
+          .from("properties")
+          .select("slug")
+          .eq("slug", trimmed)
+          .maybeSingle();
+        if (conflict) {
+          res.status(409).json({ error: `Lo slug "${trimmed}" è già usato da un altro appartamento.` });
+          return;
+        }
+        propPatch.slug = trimmed;
+      }
+    }
+
+    if (hostPassword !== undefined) {
+      const trimmedPw = String(hostPassword).trim();
+      const currentEmail = currentRow.email?.trim().toLowerCase() || null;
+      const effectiveEmail =
+        email !== undefined ? String(email).trim().toLowerCase() || null : currentEmail;
+
+      if (!trimmedPw) {
+        propPatch.host_password = null;
+      } else if (effectiveEmail) {
+        const hashed = await hashHostPassword(trimmedPw);
+        const { data: existingHost } = await supabaseAdmin
+          .from("hosts")
+          .select("email")
+          .eq("email", effectiveEmail)
+          .maybeSingle();
+
+        if (existingHost) {
+          const { error: hErr } = await supabaseAdmin
+            .from("hosts")
+            .update({ host_password: hashed })
+            .eq("email", effectiveEmail);
+          if (hErr) {
+            console.error("[ERRORE CRITICO] full-edit update host:", hErr);
+            logger.error({ hErr }, "full-edit — update host password");
+            res.status(500).json({ error: "Impossibile aggiornare la password host." });
+            return;
+          }
+        } else {
+          const { error: hIns } = await supabaseAdmin
+            .from("hosts")
+            .insert({ email: effectiveEmail, host_password: hashed });
+          if (hIns) {
+            console.error("[ERRORE CRITICO] full-edit insert host:", hIns);
+            logger.error({ hIns }, "full-edit — insert host");
+            res.status(500).json({ error: "Impossibile creare l'host su Supabase." });
+            return;
+          }
+        }
+        propPatch.host_password = null;
+      } else {
+        propPatch.host_password = await hashHostPassword(trimmedPw);
+      }
+    }
+
+    if (email !== undefined) {
+      propPatch.email = String(email).trim().toLowerCase() || null;
+    }
+
+    const targetSlug = (typeof propPatch.slug === "string" ? propPatch.slug : slug) as string;
+
+    if (Object.keys(propPatch).length > 0) {
+      const { error: updErr } = await supabaseAdmin.from("properties").update(propPatch).eq("slug", slug);
+      if (updErr) {
+        console.error("[ERRORE CRITICO] full-edit update property:", updErr);
+        logger.error({ updErr, slug }, "full-edit — update property");
+        res.status(500).json({ error: "Aggiornamento proprietà fallito." });
         return;
       }
-      updates.slug = trimmed;
+    }
+
+    const { data: finalRow, error: finErr } = await supabaseAdmin
+      .from("properties")
+      .select("*")
+      .eq("slug", targetSlug)
+      .maybeSingle<SupabasePropertyRowPublic>();
+
+    if (finErr || !finalRow) {
+      res.status(500).json({ error: "Impossibile ricaricare la proprietà dopo l'aggiornamento." });
+      return;
+    }
+
+    const core = mapSupabaseRowToPropertyCore(finalRow);
+    if (!core) {
+      res.status(500).json({ error: "Dati proprietà non validi." });
+      return;
+    }
+
+    const parsed = GetPropertyResponse.safeParse(core);
+    if (!parsed.success) {
+      console.error("[ERRORE CRITICO] full-edit Zod GetPropertyResponse:", parsed.error.flatten());
+      logger.error({ zod: parsed.error.flatten() }, "full-edit — GetPropertyResponse");
+      res.status(500).json({ error: "Risposta non valida dopo full-edit." });
+      return;
+    }
+
+    logger.info({ slug: targetSlug, updates: Object.keys(propPatch) }, "Property fully edited by CEO");
+    res.json(parsed.data);
+  } catch (error) {
+    console.error("[ERRORE CRITICO]", error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Errore interno del server" });
     }
   }
-
-  if (hostPassword !== undefined) {
-    const trimmed = String(hostPassword).trim();
-    const effectiveEmail =
-      email !== undefined ? String(email).trim().toLowerCase() || null : current.email;
-
-    if (!trimmed) {
-      updates.hostPassword = null;
-    } else if (effectiveEmail) {
-      const hashed = await hashHostPassword(trimmed);
-      const [existingHost] = await db
-        .select()
-        .from(hostsTable)
-        .where(eq(hostsTable.email, effectiveEmail))
-        .limit(1);
-
-      if (existingHost) {
-        await db
-          .update(hostsTable)
-          .set({ hostPassword: hashed })
-          .where(eq(hostsTable.email, effectiveEmail));
-      } else {
-        await db.insert(hostsTable).values({ email: effectiveEmail, hostPassword: hashed });
-      }
-      updates.hostPassword = null;
-    } else {
-      updates.hostPassword = await hashHostPassword(trimmed);
-    }
-  }
-
-  if (email !== undefined) {
-    const trimmed = String(email).trim().toLowerCase();
-    updates.email = trimmed || null;
-  }
-
-  if (Object.keys(updates).length === 0) {
-    res.json(GetPropertyResponse.parse(current));
-    return;
-  }
-
-  const targetSlug = updates.slug ?? slug;
-  const [updated] = await db
-    .update(propertiesTable)
-    .set(updates)
-    .where(eq(propertiesTable.slug, slug))
-    .returning();
-
-  logger.info({ slug: targetSlug, updates: Object.keys(updates) }, "Property fully edited by CEO");
-  res.json(GetPropertyResponse.parse(updated));
 });
 
-// DELETE /properties/:slug — delete (CEO only)
+// DELETE /properties/:slug — delete (CEO only) → Supabase
 router.delete("/properties/:slug", async (req, res): Promise<void> => {
+  console.log("[ROTTA CEO] Ricevuta richiesta:", req.path);
   const params = DeletePropertyParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -230,18 +587,33 @@ router.delete("/properties/:slug", async (req, res): Promise<void> => {
 
   if (!requireCeoSession(req, res)) return;
 
-  const [deleted] = await db
-    .delete(propertiesTable)
-    .where(eq(propertiesTable.slug, params.data.slug))
-    .returning();
+  try {
+    const { data: removed, error } = await supabaseAdmin
+      .from("properties")
+      .delete()
+      .eq("slug", params.data.slug)
+      .select("slug");
 
-  if (!deleted) {
-    res.status(404).json({ error: "Proprietà non trovata." });
-    return;
+    if (error) {
+      console.error("[ERRORE CRITICO] DELETE /properties:", error);
+      logger.error({ error }, "DELETE /properties");
+      res.status(500).json({ error: "Eliminazione su Supabase fallita." });
+      return;
+    }
+
+    if (!removed?.length) {
+      res.status(404).json({ error: "Proprietà non trovata." });
+      return;
+    }
+
+    logger.info({ slug: params.data.slug }, "Property deleted");
+    res.sendStatus(204);
+  } catch (error) {
+    console.error("[ERRORE CRITICO]", error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Errore interno del server" });
+    }
   }
-
-  logger.info({ slug: params.data.slug }, "Property deleted");
-  res.sendStatus(204);
 });
 
 export default router;

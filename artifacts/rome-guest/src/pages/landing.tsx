@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import { motion, AnimatePresence, type Variants } from "framer-motion";
 import {
@@ -16,6 +16,7 @@ import {
   PartyPopper,
   ChevronDown,
 } from "lucide-react";
+import { apiUrl } from "@/lib/apiUrl";
 
 const fadeUp: Variants = {
   hidden: { opacity: 0, y: 28 },
@@ -86,15 +87,13 @@ function RegistrationModal({ onClose }: { onClose: () => void }) {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
 
-  const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setIsSubmitting(true);
 
     try {
-      const res = await fetch(`${baseUrl}/api/leads`, {
+      const res = await fetch(apiUrl("/api/leads"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ hostName, email, propertyName }),
@@ -325,6 +324,21 @@ function FaqSection() {
 export default function Landing() {
   const [showModal, setShowModal] = useState(false);
 
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("register") === "1") {
+        setShowModal(true);
+        params.delete("register");
+        const qs = params.toString();
+        const newUrl = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
+        window.history.replaceState(null, "", newUrl);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
   return (
     <div className="min-h-screen bg-white font-sans antialiased text-gray-900 overflow-x-hidden">
       <AnimatePresence>
@@ -406,6 +420,7 @@ export default function Landing() {
           </motion.p>
 
           <motion.div
+            id="lead-form"
             variants={fadeUp}
             initial="hidden"
             animate="visible"
@@ -420,7 +435,7 @@ export default function Landing() {
               <ArrowRight className="w-4 h-4" />
             </button>
             <Link
-              href="/guest/fleming-1"
+              href="/demo?city=roma"
               className="w-full sm:w-auto inline-flex items-center justify-center gap-2 border border-gray-200 hover:border-gray-300 bg-white text-gray-700 font-semibold text-[14px] px-6 py-4 rounded-2xl transition-all"
             >
               Vedi la demo live

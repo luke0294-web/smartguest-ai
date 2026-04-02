@@ -24,7 +24,7 @@ export const ListPropertiesHeader = zod.object({
 });
 
 export const ListPropertiesResponseItem = zod.object({
-  id: zod.number(),
+  id: zod.union([zod.number(), zod.string().uuid()]),
   slug: zod.string(),
   name: zod.string(),
   content: zod.string(),
@@ -63,11 +63,13 @@ export const GetPropertyParams = zod.object({
 });
 
 export const GetPropertyResponse = zod.object({
-  id: zod.number(),
+  id: zod.union([zod.number(), zod.string().uuid()]),
   slug: zod.string(),
   name: zod.string(),
   content: zod.string(),
   whatsappNumber: zod.string().nullable(),
+  pendingQuestionsCount: zod.number(),
+  qrCodeBase64: zod.string().optional(),
   createdAt: zod.date(),
   updatedAt: zod.date(),
 });
@@ -96,13 +98,27 @@ export const UpdatePropertyBody = zod.object({
 });
 
 export const UpdatePropertyResponse = zod.object({
-  id: zod.number(),
+  id: zod.union([zod.number(), zod.string().uuid()]),
   slug: zod.string(),
   name: zod.string(),
   content: zod.string(),
   whatsappNumber: zod.string().nullable(),
+  pendingQuestionsCount: zod.number(),
   createdAt: zod.date(),
   updatedAt: zod.date(),
+});
+
+export const HostPropertyResponse = zod.object({
+  id: zod.union([zod.number(), zod.string().uuid()]),
+  slug: zod.string(),
+  name: zod.string(),
+  content: zod.string(),
+  whatsappNumber: zod.string().nullable(),
+  pendingQuestionsCount: zod.number(),
+  createdAt: zod.date(),
+  updatedAt: zod.date(),
+  email: zod.string().nullable(),
+  qrCodeBase64: zod.string().optional(),
 });
 
 /**
@@ -135,9 +151,12 @@ export const SendPropertyChatBody = zod.object({
       }),
     )
     .optional(),
+  /** Demo chat only: city id (e.g. roma, milano) for localized AI context */
+  city: zod.string().max(50).optional(),
 });
 
 export const SendPropertyChatResponse = zod.object({
   reply: zod.string(),
   propertyName: zod.string(),
+  sosSuggested: zod.boolean().optional(),
 });

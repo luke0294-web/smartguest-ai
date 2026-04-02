@@ -13,6 +13,8 @@ import ForgotPassword from "./pages/forgot-password";
 import ResetPassword from "./pages/reset-password";
 import PrivacyPolicy from "./pages/privacy";
 import DiarioDiBordo from "./pages/diario";
+import SignupRedirect from "./pages/signup-redirect";
+import DemoPage from "./pages/demo";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -34,7 +36,9 @@ function Router() {
       <Route path="/admin">
         <Redirect to="/ceo" />
       </Route>
+      <Route path="/demo" component={DemoPage} />
       <Route path="/guest/:slug" component={GuestChat} />
+      <Route path="/signup" component={SignupRedirect} />
       <Route path="/host/dashboard" component={HostProperties} />
       <Route path="/host/:slug" component={HostDashboard} />
       <Route path="/diario/:slug" component={DiarioDiBordo} />

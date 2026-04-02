@@ -1,147 +1,288 @@
 import { Router, type IRouter } from "express";
-import { db, leadsTable, hostsTable, propertiesTable } from "@workspace/db";
-import { desc, eq } from "drizzle-orm";
+import { randomBytes } from "node:crypto";
 import { logger } from "../lib/logger";
 import { requireCeoSession } from "../lib/ceo-session";
-import { hashHostPassword } from "../lib/passwords";
 import { authRateLimiter, getClientIp } from "../lib/rateLimiter";
+import { supabase, supabaseAdmin } from "../lib/supabase";
 
 const router: IRouter = Router();
 const VALID_STATUSES = ["Nuovo", "Contattato", "In Trattativa", "Chiuso", "Non Interessato"] as const;
 
+type LeadRow = {
+  id: number;
+  host_name: string;
+  email: string;
+  property_name: string;
+  status: string;
+  created_at: string;
+};
+
+function mapLeadToApi(row: LeadRow) {
+  return {
+    id: row.id,
+    hostName: row.host_name,
+    email: row.email,
+    propertyName: row.property_name,
+    status: row.status,
+    createdAt: row.created_at,
+  };
+}
+
 router.post("/leads", async (req, res): Promise<void> => {
-  const clientIp = getClientIp(req);
-  if (!authRateLimiter.check(clientIp)) {
-    const retryAfter = authRateLimiter.retryAfterSeconds(clientIp);
-    res.status(429).json({ error: "Troppe richieste. Riprova più tardi.", retryAfter });
-    return;
+  console.log("[ROTTA CEO] Ricevuta richiesta (pubblica):", req.path);
+  try {
+    const clientIp = getClientIp(req);
+    if (!authRateLimiter.check(clientIp)) {
+      const retryAfter = authRateLimiter.retryAfterSeconds(clientIp);
+      res.status(429).json({ error: "Troppe richieste. Riprova più tardi.", retryAfter });
+      return;
+    }
+
+    const { hostName, email, propertyName } = req.body ?? {};
+
+    if (!hostName?.trim() || !email?.trim() || !propertyName?.trim()) {
+      res.status(400).json({ error: "Dati non validi. Controlla nome, email e struttura." });
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      res.status(400).json({ error: "Email non valida." });
+      return;
+    }
+
+    const { data: row, error } = await supabaseAdmin
+      .from("leads")
+      .insert({
+        host_name: hostName.trim(),
+        email: email.trim(),
+        property_name: propertyName.trim(),
+        status: "Nuovo",
+      })
+      .select("*")
+      .single<LeadRow>();
+
+    if (error || !row) {
+      console.error("[ERRORE CRITICO] POST /leads insert:", error);
+      logger.error({ error }, "POST /leads — insert Supabase");
+      res.status(500).json({ error: "Impossibile registrare la richiesta. Riprova più tardi." });
+      return;
+    }
+
+    logger.info({ email, propertyName }, "New lead registered");
+    res.status(201).json(mapLeadToApi(row));
+  } catch (error) {
+    console.error("[ERRORE CRITICO]", error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Errore interno del server" });
+    }
   }
-
-  const { hostName, email, propertyName } = req.body ?? {};
-
-  if (!hostName?.trim() || !email?.trim() || !propertyName?.trim()) {
-    res.status(400).json({ error: "Dati non validi. Controlla nome, email e struttura." });
-    return;
-  }
-
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    res.status(400).json({ error: "Email non valida." });
-    return;
-  }
-
-  const [lead] = await db
-    .insert(leadsTable)
-    .values({ hostName: hostName.trim(), email: email.trim(), propertyName: propertyName.trim() })
-    .returning();
-
-  logger.info({ email, propertyName }, "New lead registered");
-  res.status(201).json(lead);
 });
 
 router.get("/leads", async (req, res): Promise<void> => {
+  console.log("[ROTTA CEO] Ricevuta richiesta:", req.path);
   if (!requireCeoSession(req, res)) return;
 
-  const leads = await db.select().from(leadsTable).orderBy(desc(leadsTable.createdAt));
-  res.json(leads);
+  try {
+    const { data: rows, error } = await supabaseAdmin
+      .from("leads")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("[ERRORE CRITICO] GET /leads:", error);
+      logger.error({ error }, "GET /leads");
+      res.status(500).json({ error: "Impossibile caricare i lead." });
+      return;
+    }
+
+    res.json((rows as LeadRow[] | null)?.map(mapLeadToApi) ?? []);
+  } catch (error) {
+    console.error("[ERRORE CRITICO]", error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Errore interno del server" });
+    }
+  }
 });
 
 router.delete("/leads/:id", async (req, res): Promise<void> => {
+  console.log("[ROTTA CEO] Ricevuta richiesta:", req.path);
   if (!requireCeoSession(req, res)) return;
 
-  const id = parseInt(req.params.id, 10);
-  if (isNaN(id)) {
-    res.status(400).json({ error: "ID non valido." });
-    return;
-  }
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) {
+      res.status(400).json({ error: "ID non valido." });
+      return;
+    }
 
-  const [deleted] = await db.delete(leadsTable).where(eq(leadsTable.id, id)).returning();
-  if (!deleted) {
-    res.status(404).json({ error: "Lead non trovato." });
-    return;
-  }
+    const { data: deleted, error } = await supabaseAdmin.from("leads").delete().eq("id", id).select("id");
 
-  logger.info({ id }, "Lead deleted by CEO");
-  res.json({ success: true, id });
+    if (error) {
+      console.error("[ERRORE CRITICO] DELETE /leads:", error);
+      logger.error({ error }, "DELETE /leads");
+      res.status(500).json({ error: "Impossibile eliminare il lead." });
+      return;
+    }
+
+    if (!deleted?.length) {
+      res.status(404).json({ error: "Lead non trovato." });
+      return;
+    }
+
+    logger.info({ id }, "Lead deleted by CEO");
+    res.json({ success: true, id });
+  } catch (error) {
+    console.error("[ERRORE CRITICO]", error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Errore interno del server" });
+    }
+  }
 });
 
 router.put("/leads/:id/status", async (req, res): Promise<void> => {
+  console.log("[ROTTA CEO] Ricevuta richiesta:", req.path);
   if (!requireCeoSession(req, res)) return;
 
-  const { status } = req.body ?? {};
+  try {
+    const { status } = req.body ?? {};
 
-  const id = parseInt(req.params.id, 10);
-  if (isNaN(id)) {
-    res.status(400).json({ error: "ID non valido." });
-    return;
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) {
+      res.status(400).json({ error: "ID non valido." });
+      return;
+    }
+
+    if (typeof status !== "string" || !VALID_STATUSES.includes(status as (typeof VALID_STATUSES)[number])) {
+      res.status(400).json({ error: `Stato non valido. Usa: ${VALID_STATUSES.join(", ")}` });
+      return;
+    }
+
+    const { data: rows, error } = await supabaseAdmin
+      .from("leads")
+      .update({ status })
+      .eq("id", id)
+      .select("*");
+
+    if (error) {
+      console.error("[ERRORE CRITICO] PUT /leads status:", error);
+      logger.error({ error }, "PUT /leads status");
+      res.status(500).json({ error: "Impossibile aggiornare lo stato." });
+      return;
+    }
+
+    const updated = rows?.[0] as LeadRow | undefined;
+    if (!updated) {
+      res.status(404).json({ error: "Lead non trovato." });
+      return;
+    }
+
+    logger.info({ id, status }, "Lead status updated by CEO");
+    res.json(mapLeadToApi(updated));
+  } catch (error) {
+    console.error("[ERRORE CRITICO]", error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Errore interno del server" });
+    }
   }
-
-  if (typeof status !== "string" || !VALID_STATUSES.includes(status as (typeof VALID_STATUSES)[number])) {
-    res.status(400).json({ error: `Stato non valido. Usa: ${VALID_STATUSES.join(", ")}` });
-    return;
-  }
-
-  const [updated] = await db.update(leadsTable).set({ status }).where(eq(leadsTable.id, id)).returning();
-  if (!updated) {
-    res.status(404).json({ error: "Lead non trovato." });
-    return;
-  }
-
-  logger.info({ id, status }, "Lead status updated by CEO");
-  res.json(updated);
 });
 
 router.post("/leads/:id/convert", async (req, res): Promise<void> => {
+  console.log("[ROTTA CEO] Ricevuta richiesta:", req.path);
   if (!requireCeoSession(req, res)) return;
 
-  const id = parseInt(req.params.id, 10);
-  if (isNaN(id)) {
-    res.status(400).json({ error: "ID non valido." });
-    return;
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) {
+      res.status(400).json({ error: "ID non valido." });
+      return;
+    }
+
+    const { data: leadRow, error: leadErr } = await supabaseAdmin
+      .from("leads")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle<LeadRow>();
+
+    if (leadErr || !leadRow) {
+      res.status(404).json({ error: "Lead non trovato." });
+      return;
+    }
+
+    const normalizedEmail = leadRow.email.trim().toLowerCase();
+    const generatedPassword = randomBytes(18).toString("base64url");
+    const { error: signUpError } = await supabase.auth.signUp({
+      email: normalizedEmail,
+      password: generatedPassword,
+      options: {
+        data: { full_name: leadRow.host_name.trim() },
+      },
+    });
+    const authProvisioned = !signUpError;
+    if (signUpError) {
+      logger.warn(
+        { email: normalizedEmail, error: signUpError.message },
+        "Supabase signUp failed during lead conversion",
+      );
+    }
+
+    const { error: profileError } = await supabaseAdmin
+      .from("profiles")
+      .upsert(
+        { email: normalizedEmail, full_name: leadRow.host_name.trim() },
+        { onConflict: "email" },
+      );
+    if (profileError) {
+      logger.warn(
+        { email: normalizedEmail, error: profileError.message },
+        "Supabase profile sync failed during lead conversion",
+      );
+    }
+
+    const baseSlug = leadRow.property_name
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, "")
+      .replace(/\s+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "") || "proprieta";
+
+    let slug = baseSlug;
+    let counter = 1;
+    while (true) {
+      const { data: clash } = await supabaseAdmin.from("properties").select("slug").eq("slug", slug).maybeSingle();
+      if (!clash) break;
+      slug = `${baseSlug}-${counter++}`;
+    }
+
+    const { error: propInsErr } = await supabaseAdmin.from("properties").insert({
+      slug,
+      name: leadRow.property_name.trim(),
+      content: "",
+      manual_content: "",
+      email: normalizedEmail,
+      pending_questions_count: 0,
+    });
+
+    if (propInsErr) {
+      console.error("[ERRORE CRITICO] POST /leads/:id/convert insert property:", propInsErr);
+      logger.error({ propInsErr, slug }, "Lead convert — insert property failed");
+      res.status(500).json({ error: "Impossibile creare la proprietà su Supabase." });
+      return;
+    }
+
+    const { error: leadUpdErr } = await supabaseAdmin.from("leads").update({ status: "Chiuso" }).eq("id", id);
+
+    if (leadUpdErr) {
+      logger.warn({ leadUpdErr, id }, "Lead convert — stato lead non aggiornato");
+    }
+
+    logger.info({ id, email: normalizedEmail, slug, authProvisioned }, "Lead converted to host+property");
+    res.status(201).json({ success: true, email: normalizedEmail, slug, authProvisioned });
+  } catch (error) {
+    console.error("[ERRORE CRITICO]", error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Errore interno del server" });
+    }
   }
-
-  const [lead] = await db.select().from(leadsTable).where(eq(leadsTable.id, id)).limit(1);
-  if (!lead) {
-    res.status(404).json({ error: "Lead non trovato." });
-    return;
-  }
-
-  const DEFAULT_PASSWORD = "Benvenuto2026!";
-  const normalizedEmail = lead.email.trim().toLowerCase();
-  const hashed = await hashHostPassword(DEFAULT_PASSWORD);
-
-  const [existingHost] = await db.select().from(hostsTable).where(eq(hostsTable.email, normalizedEmail)).limit(1);
-  const hostCreated = !existingHost;
-  if (hostCreated) {
-    await db.insert(hostsTable).values({ email: normalizedEmail, hostPassword: hashed });
-  }
-
-  const baseSlug = lead.propertyName
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "") || "proprieta";
-
-  let slug = baseSlug;
-  let counter = 1;
-  while (true) {
-    const [existing] = await db.select().from(propertiesTable).where(eq(propertiesTable.slug, slug)).limit(1);
-    if (!existing) break;
-    slug = `${baseSlug}-${counter++}`;
-  }
-
-  await db.insert(propertiesTable).values({
-    slug,
-    name: lead.propertyName.trim(),
-    content: "",
-    email: normalizedEmail,
-    hostPassword: null,
-  });
-
-  await db.update(leadsTable).set({ status: "Chiuso" }).where(eq(leadsTable.id, id));
-
-  logger.info({ id, email: normalizedEmail, slug, hostCreated }, "Lead converted to host+property");
-  res.status(201).json({ success: true, email: normalizedEmail, slug, hostCreated, password: DEFAULT_PASSWORD });
 });
 
 export default router;
