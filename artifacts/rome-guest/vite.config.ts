@@ -78,6 +78,17 @@ export default defineConfig({
       "/api": {
         target: apiProxyTarget,
         changeOrigin: true,
+        timeout: 0,
+        proxyTimeout: 0,
+        configure(proxy) {
+          proxy.on("proxyRes", (proxyRes) => {
+            const ct = proxyRes.headers["content-type"];
+            if (typeof ct === "string" && ct.includes("text/event-stream")) {
+              proxyRes.headers["cache-control"] = "no-cache, no-transform";
+              delete proxyRes.headers["content-length"];
+            }
+          });
+        },
       },
     },
   },

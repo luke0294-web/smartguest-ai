@@ -200,11 +200,13 @@ paths:
               $ref: "#/components/schemas/ChatMessageRequest"
       responses:
         "200":
-          description: AI response
+          description: |
+            Server-Sent Events stream. Events: `delta` (payload `{"text":"..."}` token chunks),
+            `done` (final `ChatMessageResponse` JSON). Errors after stream start use `error`.
           content:
-            application/json:
+            text/event-stream:
               schema:
-                $ref: "#/components/schemas/ChatMessageResponse"
+                type: string
         "404":
           description: Property not found
           content:
@@ -312,6 +314,9 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ConversationMessage"
+        language:
+          type: string
+          description: UI language code (e.g. en, it) for reply language
       required:
         - message
 
@@ -322,6 +327,8 @@ components:
           type: string
         propertyName:
           type: string
+        sosSuggested:
+          type: boolean
       required:
         - reply
         - propertyName

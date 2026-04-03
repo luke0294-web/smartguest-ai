@@ -10,4 +10,5 @@ import type { ConversationMessage } from "./conversationMessage";
 export interface ChatMessageRequest {
   message: string;
   conversationHistory?: ConversationMessage[];
+  language?: string;
 }

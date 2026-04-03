@@ -21,81 +21,59 @@ export type DemoPropertyRow = {
   updatedAt: Date;
 };
 
-// IMPORTANT: The hardcoded demo content below is intentionally fictional/demo data. Do NOT use any real credentials or sensitive information.
-export const DEMO_MASTER_MANUAL = `Indirizzo: Via dei Condotti 123, Piano 2, Interno 5.
-Il tuo Host: Luca.
+// IMPORTANT: We use English as the source language to prevent the AI from "leaking" Italian grammar.
+// Local Italian labels are kept in brackets for guest clarity.
+export const DEMO_MASTER_MANUAL = `[SOURCE OF TRUTH]: This manual is written in English for technical accuracy. 
+ALWAYS provide your final response in the language specified in your system instructions.
 
-BENVENUTI A "LA BELLEZZA DI ROMA" 🏛️
+Address: Via dei Condotti 123, Floor 2, Int. 5.
+Host: Luca.
 
-📶 CONNESSIONI E INTRATTENIMENTO
-Wi-Fi: Roma5G_HighSpeed
+WELCOME TO "LA BELLEZZA DI ROMA" 🏛️
 
-Password: Colosseo2026! (Attenzione: la "C" è maiuscola e il punto esclamativo è finale).
+📶 CONNECTIONS & ENTERTAINMENT
+Wi-Fi Name: Roma5G_HighSpeed
+Password: Colosseo2026! (Note: "C" is capitalized, exclamation mark at the end).
 
-Router: Se la connessione dovesse rallentare, il router si trova nel piccolo vano sopra la porta d'ingresso. Basta staccare e riattaccare il cavo nero.
+Router: If the connection slows down, the router is in the small compartment above the entrance door. Just unplug and replug the black cable.
 
-Smart TV: È una Samsung 55". È già configurata con Netflix e Disney+ sul profilo "GUEST". Vi preghiamo di non inserire i vostri account personali per evitare di dimenticarli loggati.
+Smart TV: It's a 55" Samsung. It is already configured with Netflix and Disney+ on the "GUEST" profile. Please do not use your personal accounts.
 
-🔑 ACCESSO E REGOLE DELLA CASA
-Check-in: Dalle 15:00. Se arrivate prima, potete lasciare i bagagli nel corridoio comune.
+🔑 ACCESS & HOUSE RULES
+Check-in: From 3:00 PM (15:00). If you arrive early, you can leave your luggage in the common hallway.
+Check-out: STRICTLY by 10:00 AM. The cleaning staff is very punctual and strict!
 
-Check-out: TASSATIVAMENTE entro le 10:00. Le donne delle pulizie arrivano puntuali e sono molto rigide!
+Keys: Upon check-out, leave both sets on the round marble table in the entrance. Close the door firmly by pulling it towards you (no need to lock with a key, but ensure it "clicks" shut).
 
-Chiavi: Al check-out lasciate entrambi i mazzi sul tavolo tondo di marmo all'ingresso. Chiudete bene la porta tirandola verso di voi (non serve mandata, ma assicuratevi che faccia "click").
+Noise: This is a historic building and walls are thin. No loud music or shouting after 10:00 PM (22:00). Neighbors (especially Mrs. Maria downstairs) are very attentive.
 
-Rumori: Il palazzo è storico e le mura sentono tutto. Niente musica alta o urla dopo le 22:00. I vicini (soprattutto la Signora Maria del piano di sotto) sono molto attenti.
+🔎 WHERE TO FIND THINGS
+Corkscrew & Bottle Opener: In the first kitchen drawer, under the induction hob, on the right.
+Hairdryer: In the bottom drawer of the vanity unit in the main bathroom.
+Iron & Ironing Board: Stored in the built-in wardrobe in the hallway, behind the long mirror.
+Extra Blankets: In the trunk at the foot of the master bed.
+Coffee Capsules: 10 capsules are in the glass jar next to the Nespresso. Extra stock is in the cabinet above the fridge.
 
-🔎 DOVE TROVARE LE COSE (Piccola Caccia al Tesoro)
-Cavatappi e Apribottiglie: Nel primo cassetto della cucina, sotto il piano a induzione, sulla destra.
+🍳 APPLIANCES
+Induction Hob: Works only with magnetic bottom pans (in the large drawer under the stove). To turn it on, hold the circular button for 3 seconds. If an "L" appears, it is child-locked: hold the key symbol button.
+Air Conditioning: One remote per room. Please set it to 23°C in "Dry" mode (water drop symbol) for optimal comfort.
 
-Asciugacapelli: Si trova nel cassetto inferiore del mobile lavabo nel bagno principale. È un modello professionale da 2000W.
+🗑️ TRASH RECYCLING (Rome AMA)
+Bins are under the sink. Rome is very strict about recycling:
+- YELLOW (GIALLO): Plastic and Metal (rinse the cans!).
+- BLUE (BLU): Paper and Cardboard (flatten Amazon boxes!).
+- BROWN (MARRONE): Organic waste.
+- GREY (GRIGIO): Non-recyclable waste.
+- GLASS (VETRO): Do NOT put glass in the bins under the sink. You must take it outside to the large GREEN (VERDE) container located 20 meters from the front door, around the corner to the right.
 
-Ferro e Asse da stiro: Sono riposti nell'armadio a muro nel corridoio, dietro lo specchio lungo.
+🍝 LUCA'S PERSONAL TIPS
+Carbonara: "Trattoria Da Enzo al 29" (Trastevere). No reservations, go at 6:45 PM for the 7:30 PM shift.
+Roman Breakfast: "Bar Roscioli". Order a coffee and a "Maritozzo con la panna".
 
-Coperte Extra: Se aveste freddo, ci sono due plaid di lana nel baule ai piedi del letto matrimoniale.
-
-Capsule Caffè: Ne abbiamo lasciate 10 nel barattolo di vetro accanto alla Nespresso. Se finiscono, ne trovate una scorta nel pensile sopra il frigorifero.
-
-Carta Igienica Extra: Ne trovate 4 rotoli nell'armadietto sotto il lavandino del bagno piccolo.
-
-Kit di Cucito: Per piccoli rammendi, c'è una scatolina di latta nel primo cassetto del comodino sinistro.
-
-🍳 ELETTRODOMESTICI E IMPIANTI
-Piano Induzione: Funziona solo con le pentole dal fondo magnetico nero (nel cassettone sotto i fornelli). Per accenderlo, tenete premuto il tasto circolare per 3 secondi. Se appare una "L", vuol dire che è bloccato per i bambini: tenete premuto il tasto col simbolo della chiave.
-
-Acqua Calda (Scaldabagno): È a gas ed è sempre acceso. Se l'acqua dovesse uscire fredda, controllate che la fiammella sia accesa nel vano in balcone. Non toccate i tasti del termostato, è già regolato a 45°C.
-
-Aria Condizionata: C'è un telecomando per ogni stanza. Vi chiediamo di impostarla a 23°C in modalità "Dry" (il simbolo della goccia) per un comfort ottimale senza sprechi.
-
-🗑️ RACCOLTA DIFFERENZIATA (Roma AMA)
-I bidoni sono sotto il lavello. Roma è molto severa:
-
-GIALLO: Plastica e Metallo (sciacquate le lattine!).
-
-BLU: Carta e Cartone (schiacciate le scatole di Amazon!).
-
-MARRONE: Umido (scarti organici).
-
-GRIGIO: Indifferenziata.
-
-Vetro: Non va nei bidoni sotto il lavello. Dovete portarlo fuori nel grande contenitore VERDE che si trova a 20 metri dal portone, girando l'angolo a destra.
-
-🍝 CONSIGLI PERSONALI DI LUCA (Vivi Roma come un locale)
-La Carbonara definitiva: "Trattoria Da Enzo al 29" (Trastevere). Non accettano prenotazioni, quindi andate alle 18:45 per il turno delle 19:30. Vale ogni minuto di attesa.
-
-Pizza al Taglio: Per uno spuntino veloce, andate da "Alice Pizza" in Via delle Carrozze.
-
-Colazione Romana: "Bar Roscioli". Ordinate un caffè e un maritozzo con la panna. Mangiatelo al bancone per sentirvi veri romani.
-
-Cena Romantica: "Ad Hoc" (Via di Ripetta). Hanno una selezione di tartufi incredibile.
-
-🚨 EMERGENZE
-Salvalavita: Se salta la corrente perché avete acceso troppi elettrodomestici, il quadro elettrico è dietro la porta d'ingresso, dentro lo sportellino di legno. Alzate la levetta nera più grande.
-
-Farmacia 24h: Farmacia Internazionale in Piazza di Spagna (5 minuti a piedi).
-
-Contatto Host: Per problemi urgenti (perdite d'acqua, chiavi smarrite), scrivetemi su WhatsApp. Rispondo quasi subito!`;
-
+🚨 EMERGENCIES
+Power Trip: If the power goes out, the circuit breaker is behind the entrance door inside the wooden hatch. Flip up the largest black switch.
+Pharmacy 24h: Farmacia Internazionale in Piazza di Spagna.
+Host Contact: For urgent issues (leaks, lost keys), message me on WhatsApp. I respond almost immediately!`;
 /** Display name for the fictional demo listing (chat + GET /properties/demo). */
 export const DEMO_PROPERTY_DISPLAY_NAME = "La Bellezza di Roma";
 

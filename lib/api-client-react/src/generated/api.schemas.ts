@@ -56,6 +56,8 @@ export interface ConversationMessage {
 export interface ChatMessageRequest {
   message: string;
   conversationHistory?: ConversationMessage[];
+  /** UI language code (e.g. en, it) for reply language */
+  language?: string;
   /** Demo chat: city id (e.g. roma) */
   city?: string;
 }

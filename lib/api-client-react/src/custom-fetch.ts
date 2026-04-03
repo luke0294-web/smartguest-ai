@@ -7,7 +7,7 @@ export type CustomFetchOptions = RequestInit & {
 let hasLoggedMissingInternalKey = false;
 
 /** When set (e.g. in rome-guest `.env`), Orval `/api/*` calls hit this origin instead of the dev server. */
-function applyPublicApiOrigin(url: string): string {
+export function resolveApiUrl(url: string): string {
   if (!url.startsWith("/api")) return url;
   const origin =
     typeof import.meta !== "undefined" && import.meta.env?.VITE_API_ORIGIN
@@ -294,8 +294,7 @@ export async function customFetch<T = unknown>(
   input: RequestInfo | URL,
   options: CustomFetchOptions = {},
 ): Promise<T> {
-  const resolvedInput =
-    typeof input === "string" ? applyPublicApiOrigin(input) : input;
+  const resolvedInput = typeof input === "string" ? resolveApiUrl(input) : input;
 
   const { responseType = "auto", headers: headersInit, ...init } = options;
 

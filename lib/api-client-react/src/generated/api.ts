@@ -27,6 +27,7 @@ import type {
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
+import { sendPropertyChatSse } from "../property-chat-sse";
 import type { ErrorType, BodyType } from "../custom-fetch";
 
 type AwaitedInput<T> = PromiseLike<T> | T;
@@ -536,17 +537,23 @@ export const getSendPropertyChatUrl = (slug: string) => {
   return `/api/properties/${slug}/chat`;
 };
 
+export type SendPropertyChatRequestInit = RequestInit & {
+  /** Called for each streamed token chunk (Server-Sent Events). */
+  onStreamDelta?: (text: string) => void;
+};
+
 export const sendPropertyChat = async (
   slug: string,
   chatMessageRequest: ChatMessageRequest,
-  options?: RequestInit,
+  options?: SendPropertyChatRequestInit,
 ): Promise<ChatMessageResponse> => {
-  return customFetch<ChatMessageResponse>(getSendPropertyChatUrl(slug), {
-    ...options,
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...options?.headers },
-    body: JSON.stringify(chatMessageRequest),
-  });
+  const { onStreamDelta, ...init } = options ?? {};
+  return sendPropertyChatSse(
+    slug,
+    chatMessageRequest,
+    onStreamDelta ?? (() => {}),
+    init,
+  );
 };
 
 export const getSendPropertyChatMutationOptions = <

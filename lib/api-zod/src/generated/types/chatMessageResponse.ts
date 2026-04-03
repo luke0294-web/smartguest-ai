@@ -9,4 +9,5 @@
 export interface ChatMessageResponse {
   reply: string;
   propertyName: string;
+  sosSuggested?: boolean;
 }

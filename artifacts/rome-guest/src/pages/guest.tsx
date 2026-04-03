@@ -1,13 +1,15 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useParams, Link } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
+import { useMutation } from "@tanstack/react-query";
 import { Send, Home, Loader2, Sparkles, AlertCircle, KeyRound } from "lucide-react";
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { type Components } from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
+// Chat: use custom mutation + sendPropertyChatSse — Orval `useSendPropertyChat` does not pass onStreamDelta.
 import {
   getGetPropertyQueryKey,
   useGetProperty,
-  useSendPropertyChat,
+  sendPropertyChatSse,
   type ChatMessageRequest,
 } from "@workspace/api-client-react";
 import { toast } from "@/hooks/use-toast";
@@ -46,6 +48,8 @@ type GuestChatProps = {
 export interface ConversationMessage {
   role: "user" | "assistant";
   content: string;
+  /** Assistant message is receiving SSE deltas */
+  streaming?: boolean;
   sosSuggested?: boolean;
   sosSent?: boolean;
   /** Limit-reached CTA (demo only): plain text + signup link in UI */
@@ -87,6 +91,36 @@ function persistMarcoWelcomed(slug: string): void {
 function stripSosToken(text: string): string {
   return text.replace(/\s*%%SOS%%\s*/g, "").trim();
 }
+
+const ASSISTANT_MARKDOWN_PLUGINS = [rehypeSanitize];
+
+const assistantMarkdownComponents = {
+  strong: ({ children, ...props }) => (
+    <b className="font-extrabold text-black" {...props}>
+      {children}
+    </b>
+  ),
+  p: ({ children, ...props }) => (
+    <p className="mb-2 last:mb-0" {...props}>
+      {children}
+    </p>
+  ),
+  ul: ({ children, ...props }) => (
+    <ul className="my-2 space-y-1.5 pl-1 list-none" {...props}>
+      {children}
+    </ul>
+  ),
+  ol: ({ children, ...props }) => (
+    <ol className="my-2 space-y-1.5 pl-4 list-decimal" {...props}>
+      {children}
+    </ol>
+  ),
+  li: ({ children, ...props }) => (
+    <li className="leading-snug pl-0" {...props}>
+      {children}
+    </li>
+  ),
+} satisfies Components;
 
 // ── UI Localization ─────────────────────────────────────────────────────────
 
@@ -452,13 +486,23 @@ export default function GuestChat(props: GuestChatProps = {}) {
   const isPropertyError = embeddedDemo ? false : fetchError;
 
   const parentHandlesDemoLimitCta = Boolean(embeddedDemo?.parentHandlesLimitCta);
-  const { mutate: sendMessage, isPending, reset: resetSendChatMutation } =
-    useSendPropertyChat();
 
   const [lang, setLang] = useState<Lang>(resolveInitialLang);
   const t = TRANSLATIONS[lang];
 
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
+
+  type GuestChatMutationVars = {
+    slug: string;
+    data: ChatMessageRequest;
+    onStreamDelta: (text: string) => void;
+  };
+
+  const { mutate: sendMessage, isPending, reset: resetSendChatMutation } = useMutation({
+    mutationKey: ["sendPropertyChat"],
+    mutationFn: ({ slug: s, data, onStreamDelta }: GuestChatMutationVars) =>
+      sendPropertyChatSse(s, data, onStreamDelta),
+  });
   const [inputValue, setInputValue] = useState("");
   const [demoChatLocked, setDemoChatLocked] = useState(false);
   const [sosSubmittingIndex, setSosSubmittingIndex] = useState<number | null>(null);
@@ -527,6 +571,14 @@ export default function GuestChat(props: GuestChatProps = {}) {
     isDemo &&
     (demoChatLocked || userMessageCount >= DEMO_USER_MESSAGE_LIMIT);
 
+  const lastMessage = messages[messages.length - 1];
+  const streamingTextStarted =
+    lastMessage?.role === "assistant" &&
+    Boolean(lastMessage.streaming) &&
+    lastMessage.content.length > 0;
+  /** Hide "Marco typing" once streamed text appears in the assistant bubble (not before first token). */
+  const showSeparateTypingIndicator = isPending && !streamingTextStarted;
+
   useEffect(() => {
     if (!isDemo || !slug) return;
     try {
@@ -571,12 +623,29 @@ export default function GuestChat(props: GuestChatProps = {}) {
     const chatPayload: ChatMessageRequest = {
       message: userMsg,
       conversationHistory: historyForApi(messages),
+      language: lang,
     };
     if (isDemo && embeddedDemo?.cityId) {
       chatPayload.city = embeddedDemo.cityId;
     }
     sendMessage(
-      { slug, data: chatPayload },
+      {
+        slug,
+        data: chatPayload,
+        onStreamDelta: (text) => {
+          if (!text) return;
+          setMessages((prev) => {
+            const next = [...prev];
+            const last = next[next.length - 1];
+            if (last?.role === "assistant" && last.streaming) {
+              next[next.length - 1] = { ...last, content: last.content + text };
+            } else {
+              next.push({ role: "assistant", content: text, streaming: true });
+            }
+            return next;
+          });
+        },
+      },
       {
         onSuccess: (data) => {
           const raw = data.reply;
@@ -584,14 +653,23 @@ export default function GuestChat(props: GuestChatProps = {}) {
           const sosSuggested =
             !isDemo && (Boolean(data.sosSuggested) || raw.includes("%%SOS%%"));
           setMessages((prev) => {
-            const next: ConversationMessage[] = [
-              ...prev,
-              {
+            const next: ConversationMessage[] = [...prev];
+            const lastIdx = next.length - 1;
+            const last = next[lastIdx];
+            if (last?.role === "assistant" && last.streaming) {
+              const { streaming: _st, ...rest } = last;
+              next[lastIdx] = {
+                ...rest,
+                content: clean,
+                ...(sosSuggested ? { sosSuggested: true } : {}),
+              };
+            } else {
+              next.push({
                 role: "assistant",
                 content: clean,
                 ...(sosSuggested ? { sosSuggested: true } : {}),
-              },
-            ];
+              });
+            }
             const users = next.filter((m) => m.role === "user").length;
             if (isDemo && users >= DEMO_USER_MESSAGE_LIMIT) {
               logDemoLimitReached();
@@ -614,22 +692,16 @@ export default function GuestChat(props: GuestChatProps = {}) {
               sessionStorage.setItem(`demo_locked_${slug}`, "true");
             } catch {}
             resetSendChatMutation();
-            if (parentHandlesDemoLimitCta) {
-              setMessages((prev) => {
-                const copy = [...prev];
-                if (copy.length && copy[copy.length - 1]?.role === "user") copy.pop();
-                return copy;
-              });
-            } else {
-              setMessages((prev) => {
-                const copy = [...prev];
-                if (copy.length && copy[copy.length - 1]?.role === "user") copy.pop();
-                return [
-                  ...copy,
-                  { role: "assistant", content: DEMO_CTA_ASSISTANT_TEXT_IT, demoCta: true },
-                ];
-              });
-            }
+            setMessages((prev) => {
+              const copy = [...prev];
+              if (copy.length && copy[copy.length - 1]?.streaming) copy.pop();
+              if (copy.length && copy[copy.length - 1]?.role === "user") copy.pop();
+              if (parentHandlesDemoLimitCta) return copy;
+              return [
+                ...copy,
+                { role: "assistant", content: DEMO_CTA_ASSISTANT_TEXT_IT, demoCta: true },
+              ];
+            });
             return;
           }
           const marcoMsg: string | undefined =
@@ -637,7 +709,11 @@ export default function GuestChat(props: GuestChatProps = {}) {
               ? (err as { data?: { reply?: string } }).data?.reply
               : undefined;
           const content = stripSosToken(marcoMsg ?? t.errorMsg);
-          setMessages((prev) => [...prev, { role: "assistant", content }]);
+          setMessages((prev) => {
+            const copy = [...prev];
+            if (copy.length && copy[copy.length - 1]?.streaming) copy.pop();
+            return [...copy, { role: "assistant", content }];
+          });
         },
       }
     );
@@ -734,7 +810,9 @@ export default function GuestChat(props: GuestChatProps = {}) {
     : "h-[100dvh]";
 
   return (
-    <div className={`flex flex-col max-w-2xl mx-auto md:py-6 md:px-4 ${rootHeightClass}`}>
+    <div
+      className={`flex flex-col w-full max-w-2xl mx-auto overflow-x-hidden md:py-6 md:px-4 ${rootHeightClass}`}
+    >
       <div className="flex flex-col h-full chat-container md:rounded-3xl overflow-hidden relative">
 
         {/* ── Header ── */}
@@ -872,37 +950,17 @@ export default function GuestChat(props: GuestChatProps = {}) {
                       ) : (
                         <div className="markdown-content font-sans break-words text-sm sm:text-base">
                           <ReactMarkdown
-                            rehypePlugins={[rehypeSanitize]}
-                            components={{
-                              strong: ({ children, ...props }) => (
-                                <b className="font-extrabold text-black" {...props}>
-                                  {children}
-                                </b>
-                              ),
-                              p: ({ children, ...props }) => (
-                                <p className="mb-2 last:mb-0" {...props}>
-                                  {children}
-                                </p>
-                              ),
-                              ul: ({ children, ...props }) => (
-                                <ul className="my-2 space-y-1.5 pl-1 list-none" {...props}>
-                                  {children}
-                                </ul>
-                              ),
-                              ol: ({ children, ...props }) => (
-                                <ol className="my-2 space-y-1.5 pl-4 list-decimal" {...props}>
-                                  {children}
-                                </ol>
-                              ),
-                              li: ({ children, ...props }) => (
-                                <li className="leading-snug pl-0" {...props}>
-                                  {children}
-                                </li>
-                              ),
-                            }}
+                            rehypePlugins={ASSISTANT_MARKDOWN_PLUGINS}
+                            components={assistantMarkdownComponents}
                           >
                             {msg.content}
                           </ReactMarkdown>
+                          {msg.streaming ? (
+                            <span
+                              className="inline-block w-0.5 h-4 ml-0.5 align-middle bg-primary/80 animate-pulse rounded-sm"
+                              aria-hidden
+                            />
+                          ) : null}
                         </div>
                       )}
                       {msg.sosSuggested && !msg.sosSent && (
@@ -935,8 +993,8 @@ export default function GuestChat(props: GuestChatProps = {}) {
               </motion.div>
             ))}
 
-            {/* Typing indicator */}
-            {isPending && (
+            {/* Typing indicator (hidden while the streaming assistant bubble is visible) */}
+            {showSeparateTypingIndicator && (
               <motion.div
                 key="typing"
                 initial={{ opacity: 0, y: 8 }}
@@ -998,14 +1056,20 @@ export default function GuestChat(props: GuestChatProps = {}) {
         {/* ── Quick Replies (chat state only: after welcome or return visit) ── */}
         {showQuickRepliesBar && (
           <motion.div
+            key={lang}
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.2 }}
-            className="px-4 pt-2 pb-2 mb-2 flex flex-wrap sm:flex-nowrap gap-2 overflow-x-auto no-scrollbar items-center"
+            className={[
+              "flex flex-row w-full max-w-full overflow-x-auto whitespace-nowrap gap-2 px-4 pt-2 pb-2 mb-2 items-center",
+              "[&::-webkit-scrollbar]:hidden",
+              "[-ms-overflow-style:none]",
+              "[scrollbar-width:none]",
+            ].join(" ")}
           >
             {t.quickReplies.map((qr) => (
               <button
-                key={qr.label}
+                key={`${lang}-${qr.label}`}
                 type="button"
                 onClick={(e) => {
                   const el = e.currentTarget as HTMLButtonElement;
@@ -1014,7 +1078,7 @@ export default function GuestChat(props: GuestChatProps = {}) {
                   handleSend(qr.question);
                 }}
                 disabled={isPending || demoFlowLocked}
-                className="quick-reply-btn flex-shrink-0 text-[13px] font-medium px-3.5 py-2 rounded-full transition-all disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+                className="quick-reply-btn shrink-0 whitespace-nowrap text-[13px] font-medium px-3.5 py-2 rounded-full transition-all disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {qr.label}
               </button>
@@ -1029,7 +1093,7 @@ export default function GuestChat(props: GuestChatProps = {}) {
                   handleSend(checkoutQuestionText);
                 }}
                 disabled={isPending || demoFlowLocked}
-                className="quick-reply-btn quick-reply-btn-checkout flex-shrink-0 text-[13px] font-medium px-3.5 py-2 rounded-2xl transition-all disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap shadow-sm"
+                className="quick-reply-btn quick-reply-btn-checkout shrink-0 whitespace-nowrap text-[13px] font-medium px-3.5 py-2 rounded-2xl transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
               >
                 {checkoutLabel}
               </button>

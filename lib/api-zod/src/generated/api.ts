@@ -151,6 +151,7 @@ export const SendPropertyChatBody = zod.object({
       }),
     )
     .optional(),
+  language: zod.string().optional(),
   /** Demo chat only: city id (e.g. roma, milano) for localized AI context */
   city: zod.string().max(50).optional(),
 });
