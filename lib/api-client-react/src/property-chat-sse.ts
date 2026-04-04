@@ -72,24 +72,12 @@ async function readErrorPayload(response: Response): Promise<unknown> {
   }
 }
 
-let loggedMissingInternalKey = false;
-
 function buildChatHeaders(): Headers {
   const headers = new Headers({
     "Content-Type": "application/json",
     Accept: "text/event-stream",
   });
   headers.set("x-session-id", getOrCreateDemoSessionId());
-  const internalKey =
-    typeof import.meta !== "undefined" && import.meta.env?.VITE_INTERNAL_API_KEY
-      ? String(import.meta.env.VITE_INTERNAL_API_KEY).trim()
-      : "";
-  if (internalKey) {
-    headers.set("x-api-key", internalKey);
-  } else if (!loggedMissingInternalKey) {
-    console.error("Missing VITE_INTERNAL_API_KEY");
-    loggedMissingInternalKey = true;
-  }
   return headers;
 }
 

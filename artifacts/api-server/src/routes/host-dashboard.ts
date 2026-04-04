@@ -249,7 +249,10 @@ router.put("/host/:slug", async (req, res): Promise<void> => {
 
     const updates: Record<string, string | null> = {};
     if (name !== undefined) updates.name = String(name).trim();
-    if (content !== undefined) updates.content = String(content);
+    if (content !== undefined) {
+      updates.content = String(content);
+      updates.manual_content = String(content);
+    }
     if (whatsappNumber !== undefined) {
       updates.whatsapp_number = String(whatsappNumber).trim() || null;
     }

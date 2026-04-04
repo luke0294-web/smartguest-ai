@@ -7,7 +7,10 @@ import { logger } from "./lib/logger";
 
 const app: Express = express();
 app.set("trust proxy", 1);
-const allowedOrigins = [process.env.FRONTEND_URL, "http://localhost:5173"].filter(Boolean);
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  ...(process.env.NODE_ENV !== "production" ? ["http://localhost:5173"] : []),
+].filter(Boolean);
 
 /** Allow Vite dev server on typical LAN IPs when NODE_ENV=development (mobile testing). */
 function isPrivateLanDevOrigin(origin: string): boolean {

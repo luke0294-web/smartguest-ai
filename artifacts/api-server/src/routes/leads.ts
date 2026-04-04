@@ -4,6 +4,7 @@ import { logger } from "../lib/logger";
 import { requireCeoSession } from "../lib/ceo-session";
 import { authRateLimiter, getClientIp } from "../lib/rateLimiter";
 import { supabaseAdmin } from "../lib/supabase";
+import { isHostWelcomeEmailConfigured, sendHostWelcomeEmail } from "../lib/hostWelcomeMail";
 
 const router: IRouter = Router();
 const VALID_STATUSES = ["Nuovo", "Contattato", "In Trattativa", "Chiuso", "Non Interessato"] as const;
@@ -251,18 +252,30 @@ router.post("/leads/:id/convert", async (req, res): Promise<void> => {
       logger.warn({ leadUpdErr, id }, "Lead convert — stato lead non aggiornato");
     }
 
-    const frontendBase = (process.env.FRONTEND_URL ?? "").trim().replace(/\/$/, "");
-    const inviteLink = frontendBase
-      ? `${frontendBase}/setup-password/${inviteToken}`
-      : `/setup-password/${inviteToken}`;
+    let emailSent = false;
+    if (isHostWelcomeEmailConfigured()) {
+      try {
+        await sendHostWelcomeEmail({
+          to: normalizedEmail,
+          hostDisplayName: leadRow.host_name.trim(),
+          propertyName: leadRow.property_name.trim(),
+          slug,
+          inviteToken,
+        });
+        emailSent = true;
+      } catch (mailErr) {
+        console.error("[ERRORE CRITICO] Lead convert — welcome email:", mailErr);
+        logger.error({ mailErr, slug, email: normalizedEmail }, "Lead convert — welcome email failed");
+      }
+    } else {
+      logger.warn({ slug }, "Lead convert — email SMTP non configurato, email di benvenuto non inviata");
+    }
 
-    logger.info({ id, email: normalizedEmail, slug }, "Lead converted to property + invite token (no host password yet)");
+    logger.info({ id, email: normalizedEmail, slug, emailSent }, "Lead converted to property + invite token");
     res.status(201).json({
       success: true,
-      email: normalizedEmail,
       slug,
-      hostCreated: false,
-      inviteLink,
+      emailSent,
     });
   } catch (error) {
     console.error("[ERRORE CRITICO]", error);

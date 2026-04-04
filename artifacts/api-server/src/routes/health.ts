@@ -15,21 +15,29 @@ router.get("/healthz/db", async (_req, res): Promise<void> => {
     const { data, error } = await supabaseAdmin.from("properties").select("id").limit(1);
     if (error) {
       console.error("[ERRORE CRITICO] healthz/db:", error);
-      res.status(503).json({
-        status: "error",
-        db: false,
-        error: error.message,
-      });
+      if (process.env.NODE_ENV === "production") {
+        res.status(503).json({ status: "error", message: "Database non disponibile" });
+      } else {
+        res.status(503).json({
+          status: "error",
+          db: false,
+          error: error.message,
+        });
+      }
       return;
     }
     res.json({ status: "ok", db: true, sample: data?.[0] ?? null });
   } catch (err) {
     console.error("[ERRORE CRITICO]", err);
-    res.status(503).json({
-      status: "error",
-      db: false,
-      error: err instanceof Error ? err.message : "Errore sconosciuto",
-    });
+    if (process.env.NODE_ENV === "production") {
+      res.status(503).json({ status: "error", message: "Database non disponibile" });
+    } else {
+      res.status(503).json({
+        status: "error",
+        db: false,
+        error: err instanceof Error ? err.message : "Errore sconosciuto",
+      });
+    }
   }
 });
 

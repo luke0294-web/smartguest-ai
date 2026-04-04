@@ -7,7 +7,7 @@ import {
   aiVisionRateLimiter,
   getClientIp,
 } from "../lib/rateLimiter";
-import { enforceAiMessageLimit, requireAiInternalApiKey } from "../lib/aiGuard";
+import { enforceAiMessageLimit } from "../lib/aiGuard";
 import { requireHostSession } from "../lib/host-auth";
 
 const router: IRouter = Router();
@@ -56,10 +56,6 @@ const requireHostSessionForAi: RequestHandler = (req, res, next) => {
 // POST /ai/transcribe — Whisper speech-to-text
 router.post(
   "/ai/transcribe",
-  (req, res, next) => {
-    if (!requireAiInternalApiKey(req, res)) return;
-    next();
-  },
   rateLimitAiTranscribe,
   requireHostSessionForAi,
   upload.single("audio"),
@@ -98,10 +94,6 @@ router.post(
 // POST /ai/vision — GPT-4o vision: extract info from an image
 router.post(
   "/ai/vision",
-  (req, res, next) => {
-    if (!requireAiInternalApiKey(req, res)) return;
-    next();
-  },
   rateLimitAiVision,
   requireHostSessionForAi,
   upload.single("image"),

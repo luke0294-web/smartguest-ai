@@ -9,13 +9,20 @@ import {
   Building, Plus, Trash2, ExternalLink, KeyRound, Loader2, Save,
   Users, AlertCircle, Sparkles, QrCode, X, Download, Inbox,
   UserCog, Copy, CheckCheck, Link2, Eye, EyeOff, RefreshCw,
-  Mail, ShieldAlert, FileText, ChevronDown, UserCheck,
+  Mail, ShieldAlert, FileText, ChevronDown, UserCheck, MoreVertical,
 } from "lucide-react";
 import { format } from "date-fns";
 
 import { useListProperties, useCreateProperty, useDeleteProperty, getListPropertiesQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { apiUrl } from "@/lib/apiUrl";
+import { toast } from "@/hooks/use-toast";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const createPropertySchema = z.object({
   name: z.string().min(1, "Il nome è obbligatorio"),
@@ -34,12 +41,6 @@ interface Lead {
   propertyName: string;
   status: string;
   createdAt: string;
-}
-
-interface LeadConversionResult {
-  email: string;
-  slug: string;
-  inviteLink: string;
 }
 
 const LEAD_STATUSES = ["Nuovo", "Contattato", "In Trattativa", "Chiuso", "Non Interessato"] as const;
@@ -72,10 +73,6 @@ function QrModal({
 }) {
   const [isCopied, setIsCopied] = useState(false);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [email, setEmail] = useState("");
-  const [isSendingEmail, setIsSendingEmail] = useState(false);
-  const [emailSent, setEmailSent] = useState(false);
-  const emailTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [qrCodeBase64, setQrCodeBase64] = useState<string>("");
   const [qrLoading, setQrLoading] = useState(true);
   const [qrError, setQrError] = useState("");
@@ -187,41 +184,6 @@ function QrModal({
     }
   };
 
-  const handleSendEmail = async () => {
-    if (!email.trim()) return;
-
-    setIsSendingEmail(true);
-    try {
-      const pdfBase64 = buildPdfDocument().output("datauristring");
-
-      const response = await fetch(apiUrl("/api/send-pdf"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...ceoSessionHeaders },
-        body: JSON.stringify({
-          email: email.trim(),
-          propertyName: property.name,
-          pdfBase64,
-          chatLink: chatUrl,
-        }),
-      });
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error((data as { error?: string }).error ?? "Errore nell'invio");
-      }
-
-      setEmailSent(true);
-      if (emailTimerRef.current) clearTimeout(emailTimerRef.current);
-      emailTimerRef.current = setTimeout(() => setEmailSent(false), 3000);
-      setEmail("");
-    } catch (err) {
-      console.error("Errore invio email:", err);
-      alert(`Errore nell'invio: ${err instanceof Error ? err.message : "Riprova."}`);
-    } finally {
-      setIsSendingEmail(false);
-    }
-  };
-
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -282,43 +244,6 @@ function QrModal({
           >
             {isCopied ? "Copiato! ✅" : "Copia link"}
           </button>
-
-          <div className="w-full border-t border-gray-100 pt-4">
-            <label className="text-[12px] font-semibold text-gray-700 mb-2 block">
-              Invia Cartello via Email
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="email@example.com"
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-blue-400 mb-2"
-              disabled={isSendingEmail}
-            />
-            <button
-              onClick={handleSendEmail}
-              disabled={!email.trim() || isSendingEmail}
-              className={`w-full flex items-center justify-center gap-2 font-semibold text-sm py-2.5 rounded-2xl transition-all ${
-                emailSent
-                  ? "bg-emerald-500 text-white"
-                  : "bg-violet-600 hover:bg-violet-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
-              }`}
-            >
-              {isSendingEmail ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Invio in corso...
-                </>
-              ) : emailSent ? (
-                <>
-                  <CheckCheck className="w-4 h-4" />
-                  📧 Email in elaborazione! Arriverà entro pochi secondi.
-                </>
-              ) : (
-                "Invia PDF via Email"
-              )}
-            </button>
-          </div>
         </div>
       </motion.div>
     </div>
@@ -671,9 +596,7 @@ export default function CeoPanel() {
   const [leadDeleting, setLeadDeleting] = useState<Record<number, boolean>>({});
   const [leadStatusSaving, setLeadStatusSaving] = useState<Record<number, boolean>>({});
   const [convertingLead, setConvertingLead] = useState<Record<number, boolean>>({});
-  const [convertSuccess, setConvertSuccess] = useState<Record<number, string | null>>({});
-  const [leadConversionModal, setLeadConversionModal] = useState<LeadConversionResult | null>(null);
-  const [leadInviteLinkCopied, setLeadInviteLinkCopied] = useState(false);
+  const [resendWelcomeLoading, setResendWelcomeLoading] = useState<Record<string, boolean>>({});
   const [hosts, setHosts] = useState<Array<{ id: number; email: string; createdAt: string }>>([]);
   const [hostsLoading, setHostsLoading] = useState(false);
   const [newHostEmail, setNewHostEmail] = useState("");
@@ -682,8 +605,6 @@ export default function CeoPanel() {
   const [hostFormSaving, setHostFormSaving] = useState(false);
   const [hostDeleting, setHostDeleting] = useState<Record<string, boolean>>({});
   const queryClient = useQueryClient();
-
-  const spaBase = import.meta.env.BASE_URL.replace(/\/$/, "");
 
   const ceoSessionHeaders = { "X-CEO-Session": ceoToken };
 
@@ -808,7 +729,7 @@ export default function CeoPanel() {
   };
 
   const convertLead = async (lead: Lead) => {
-    if (!window.confirm(`Converti "${lead.hostName}" in host?\n\nVerra creata la proprietà "${lead.propertyName}".`)) return;
+    if (!window.confirm(`Converti "${lead.hostName}" in host?\n\nVerrà creata la proprietà "${lead.propertyName}".`)) return;
     setConvertingLead((prev) => ({ ...prev, [lead.id]: true }));
     try {
       const res = await fetch(apiUrl(`/api/leads/${lead.id}/convert`), {
@@ -816,24 +737,30 @@ export default function CeoPanel() {
         headers: { "Content-Type": "application/json", ...ceoSessionHeaders },
         body: JSON.stringify({}),
       });
-      const data = await res.json();
+      const data = (await res.json()) as { success?: boolean; slug?: string; emailSent?: boolean; error?: string };
       if (!res.ok) {
-        alert(`Errore: ${data.error ?? "Qualcosa è andato storto."}`);
+        toast({
+          title: "Conversione non riuscita",
+          description: data.error ?? "Qualcosa è andato storto.",
+          variant: "destructive",
+        });
         return;
       }
-      setLeadConversionModal({
-        email: data.email,
-        slug: data.slug,
-        inviteLink: data.inviteLink ?? "",
-      });
-      setLeadInviteLinkCopied(false);
-      setConvertSuccess((prev) => ({ ...prev, [lead.id]: "Lead convertito con successo." }));
-      setTimeout(() => {
-        setConvertSuccess((prev) => { const n = { ...prev }; delete n[lead.id]; return n; });
-      }, 6000);
+      if (data.emailSent) {
+        toast({ title: "Host creato ed email inviata con successo!" });
+      } else {
+        toast({
+          title: "Host creato",
+          description:
+            "La proprietà è pronta ma l'email di benvenuto non è stata inviata. Usa «Rimanda email» dal menu ⋯ sulla riga della proprietà.",
+        });
+      }
       setLeads((prev) => prev.map((l) => l.id === lead.id ? { ...l, status: "Chiuso" } : l));
+      await queryClient.invalidateQueries({ queryKey: getListPropertiesQueryKey() });
+      await fetchLeads();
+      await fetchHosts();
     } catch {
-      alert("Errore di rete. Riprova.");
+      toast({ title: "Errore di rete", description: "Riprova.", variant: "destructive" });
     } finally {
       setConvertingLead((prev) => { const n = { ...prev }; delete n[lead.id]; return n; });
     }
@@ -848,6 +775,41 @@ export default function CeoPanel() {
       if (res.ok) setHosts(data);
     } finally {
       setHostsLoading(false);
+    }
+  };
+
+  const resendHostWelcome = async (slug: string) => {
+    if (slug === "demo") {
+      toast({
+        title: "Non disponibile",
+        description: "Questa azione non è disponibile per la proprietà demo.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setResendWelcomeLoading((prev) => ({ ...prev, [slug]: true }));
+    try {
+      const res = await fetch(apiUrl(`/api/properties/${encodeURIComponent(slug)}/resend-host-welcome`), {
+        method: "POST",
+        headers: { ...ceoSessionHeaders },
+      });
+      const data = (await res.json()) as { success?: boolean; error?: string };
+      if (!res.ok) {
+        toast({
+          title: "Invio non riuscito",
+          description: data.error ?? "Riprova più tardi.",
+          variant: "destructive",
+        });
+        return;
+      }
+      toast({
+        title: "Email reinviata",
+        description: "L'host riceverà di nuovo l'email di benvenuto con il PDF allegato.",
+      });
+    } catch {
+      toast({ title: "Errore di rete", description: "Riprova.", variant: "destructive" });
+    } finally {
+      setResendWelcomeLoading((prev) => { const n = { ...prev }; delete n[slug]; return n; });
     }
   };
 
@@ -1041,58 +1003,6 @@ export default function CeoPanel() {
   return (
     <>
       <AnimatePresence>
-        {leadConversionModal && (
-          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-            <motion.div
-              initial={{ opacity: 0, y: 8, scale: 0.96 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 8, scale: 0.96 }}
-              className="w-full max-w-2xl rounded-2xl border-2 border-amber-400 bg-amber-50 shadow-2xl"
-            >
-              <div className="p-6 sm:p-7 flex flex-col gap-5">
-                <div>
-                  <h3 className="text-xl font-extrabold text-amber-900">Invito host</h3>
-                  <p className="mt-2 text-amber-800 font-semibold">
-                    Invia al lead il link qui sotto: potrà impostare la propria password (valido 48 ore). L&apos;account
-                    host viene creato al completamento del link.
-                  </p>
-                </div>
-
-                <div className="rounded-xl border border-amber-300 bg-white px-4 py-4">
-                  <p className="text-xs uppercase tracking-wider text-amber-700 font-semibold">Link impostazione password</p>
-                  <p className="mt-2 font-mono text-sm sm:text-base font-bold text-amber-900 break-all">
-                    {leadConversionModal.inviteLink}
-                  </p>
-                </div>
-
-                <div className="rounded-xl border border-amber-200 bg-white/80 px-4 py-3 text-sm text-amber-900 space-y-1">
-                  <p><strong>Email host:</strong> {leadConversionModal.email}</p>
-                  <p><strong>Slug proprieta:</strong> {leadConversionModal.slug}</p>
-                  <p className="break-all"><strong>Chat link:</strong> {`${window.location.origin}${spaBase}/guest/${leadConversionModal.slug}`}</p>
-                </div>
-
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <button
-                    onClick={async () => {
-                      await navigator.clipboard.writeText(leadConversionModal.inviteLink);
-                      setLeadInviteLinkCopied(true);
-                      setTimeout(() => setLeadInviteLinkCopied(false), 2000);
-                    }}
-                    className="flex-1 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold px-4 py-3"
-                  >
-                    {leadInviteLinkCopied ? "✅ Copiato!" : "📋 Copia link invito"}
-                  </button>
-                  <button
-                    onClick={() => setLeadConversionModal(null)}
-                    className="flex-1 rounded-xl border-2 border-amber-500 bg-white hover:bg-amber-100 text-amber-900 font-bold px-4 py-3"
-                  >
-                    Chiudi
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
         {qrProperty && (
           <QrModal
             property={qrProperty}
@@ -1401,6 +1311,28 @@ export default function CeoPanel() {
                               >
                                 Chat <ExternalLink className="w-3 h-3" />
                               </Link>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <button
+                                    type="button"
+                                    title="Altre azioni"
+                                    className="flex-1 sm:flex-none w-full sm:w-auto min-w-[2.25rem] px-3 py-2 border border-border/60 bg-background text-muted-foreground hover:bg-muted/80 font-medium rounded-xl transition-all flex items-center justify-center text-[13px] disabled:opacity-50"
+                                    disabled={!!resendWelcomeLoading[prop.slug]}
+                                  >
+                                    {resendWelcomeLoading[prop.slug]
+                                      ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                      : <MoreVertical className="w-3.5 h-3.5" />}
+                                  </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem
+                                    disabled={prop.slug === "demo"}
+                                    onClick={() => void resendHostWelcome(prop.slug)}
+                                  >
+                                    Rimanda email
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                               <button
                                 onClick={() => handleDelete(prop.slug)}
                                 disabled={isDeleting}
@@ -1579,18 +1511,6 @@ export default function CeoPanel() {
                           <span className="text-[11px] text-muted-foreground">
                             {format(new Date(lead.createdAt), "dd MMM yyyy · HH:mm")}
                           </span>
-
-                          {/* Success banner */}
-                          {convertSuccess[lead.id] && (
-                            <motion.div
-                              initial={{ opacity: 0, scale: 0.95 }}
-                              animate={{ opacity: 1, scale: 1 }}
-                              className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg"
-                            >
-                              <CheckCheck className="w-3 h-3 flex-shrink-0" />
-                              {convertSuccess[lead.id]}
-                            </motion.div>
-                          )}
 
                           {/* Status dropdown + action buttons */}
                           <div className="flex items-center gap-2 flex-wrap justify-end">

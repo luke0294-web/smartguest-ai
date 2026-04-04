@@ -6,6 +6,7 @@ import { getHostSessionSecret, verifyHostSessionToken, getHostTokenFromRequest }
 import { hashHostPassword } from "../lib/passwords";
 import { authRateLimiter, getClientIp } from "../lib/rateLimiter";
 import { supabaseAdmin } from "../lib/supabase";
+import { isHostWelcomeEmailConfigured, sendPasswordResetEmail } from "../lib/hostWelcomeMail";
 
 const RESET_TOKEN_TTL_MS = 2 * 60 * 60 * 1000;
 
@@ -127,11 +128,15 @@ router.post("/auth/forgot-password", async (req, res): Promise<void> => {
 
     const normalizedEmail = String(email).trim().toLowerCase();
 
+    // More than one property can share the same owner email — without .limit(1), `.maybeSingle()`
+    // makes PostgREST return an error (multiple rows), which surfaced as 500 to the client.
     const { data: property, error: selErr } = await supabaseAdmin
       .from("properties")
-      .select("id, slug")
+      .select("id, slug, name")
       .eq("email", normalizedEmail)
-      .maybeSingle<{ id: number; slug: string }>();
+      .order("id", { ascending: true })
+      .limit(1)
+      .maybeSingle<{ id: number; slug: string; name: string }>();
 
     if (selErr) {
       console.error("[ERRORE CRITICO] forgot-password select:", selErr);
@@ -162,6 +167,27 @@ router.post("/auth/forgot-password", async (req, res): Promise<void> => {
     }
 
     logger.info({ slug: property.slug, email: normalizedEmail }, "Password reset token generated");
+
+    if (isHostWelcomeEmailConfigured()) {
+      try {
+        await sendPasswordResetEmail({
+          to: normalizedEmail,
+          propertyName: property.name?.trim() || "la tua struttura",
+          resetToken: token,
+        });
+      } catch (mailErr) {
+        console.error("[ERRORE CRITICO] forgot-password send email:", mailErr);
+        logger.error(
+          { mailErr, slug: property.slug, email: normalizedEmail },
+          "Forgot password — email send failed",
+        );
+        res.status(500).json({ error: "Impossibile inviare l'email di recupero. Riprova più tardi." });
+        return;
+      }
+    } else {
+      logger.warn({ slug: property.slug }, "Forgot password — SMTP non configurato, nessuna email inviata");
+    }
+
     res.json({ success: true });
   } catch (error) {
     console.error("[ERRORE CRITICO]", error);

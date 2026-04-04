@@ -10,7 +10,7 @@ import { chatRateLimiter, getClientIp } from "../lib/rateLimiter";
 import { DEMO_SLUG, DEMO_MASTER_MANUAL, demoPropertyRowForChat } from "../lib/demoProperty";
 import { requireHostSession, requireHostOwnsPropertySlug } from "../lib/host-auth";
 import { detectNeedsAttention } from "../lib/detectNeedsAttention";
-import { enforceAiMessageLimit, requireAiInternalApiKey } from "../lib/aiGuard";
+import { enforceAiMessageLimit } from "../lib/aiGuard";
 import { supabaseAdmin } from "../lib/supabase";
 import { chatLogRowToApi, type ChatLogRowSnake } from "../lib/supabaseMaps";
 import {
@@ -175,7 +175,6 @@ const GUEST_CANNED: Record<
 // ─────────────────────────────────────────────
 router.post("/properties/:slug/chat", async (req, res): Promise<void> => {
   console.log("[ROTTA] Ricevuta richiesta per:", req.path);
-  if (!requireAiInternalApiKey(req, res)) return;
   if (!enforceAiMessageLimit(req, res)) return;
 
   const clientIp = getClientIp(req);
@@ -233,8 +232,7 @@ router.post("/properties/:slug/chat", async (req, res): Promise<void> => {
       .single<SupabasePropertyRow>();
 
     console.log("[DB] Query completata!");
-    console.log("Slug ricevuto:", slug);
-    console.log("Dati DB:", propertyRow ?? null, "Errore Supabase:", propertyError ?? null);
+    console.log("[DB] Property loaded:", { slug });
 
     if (propertyError || !propertyRow) {
       console.error("[ERRORE CRITICO] POST /properties/:slug/chat property load:", propertyError ?? "no row");
@@ -277,10 +275,7 @@ router.post("/properties/:slug/chat", async (req, res): Promise<void> => {
 
   const systemPrompt = `
 You are Marco, the AI assistant of "${property.name}".
-CRITICAL: Detect the language of the guest's message and reply in that SAME language, always.
-If the guest writes in German → reply in German.
-If the guest writes in Japanese → reply in Japanese.
-Never reply in Italian unless the guest writes in Italian.
+CRITICAL: Always reply in the exact same language the guest is writing in. If the guest writes in French, reply in French. If Spanish, reply in Spanish. If Dutch, reply in Dutch. This applies to ALL languages without exception.
 Today: ${today}
 
 HOUSE MANUAL (your only source of truth):
@@ -293,7 +288,7 @@ RULES:
 4. For restaurant or local tips → use the manual if available, otherwise use general knowledge and suggest contacting the host.
 5. If information is missing → briefly apologize and suggest contacting the host on WhatsApp.
 6. Emergency → suggest contacting emergency services and the host immediately.
-7. Be clear, friendly, and use **bold** for key info.
+7. BOLD TEXT: You MUST **bold** at least 3-4 important keywords or short phrases in EVERY response to make it skimmable (e.g., times, locations, passwords, objects).
 `.trim();
 
   // 6. Costruzione array messaggi per OpenAI (ultimi 6 per risparmiare token)
@@ -305,7 +300,7 @@ RULES:
     })),
     {
       role: "system",
-      content: `Reply in the same language as the guest's message. Use the manual first. ${SOS_TOKEN} only if needed.`,
+      content: `Reply in the exact same language as the guest's message. Use the manual first. You MUST highlight a MINIMUM of 3-4 keywords in bold. Use ${SOS_TOKEN} ONLY if the manual cannot solve a technical issue.`,
     },
     { role: "user", content: userMessage },
   ];
@@ -316,9 +311,10 @@ RULES:
       stream = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages,
-        max_tokens: 250,
+        max_tokens: 300,
         temperature: 0.4,
         stream: true,
+        stream_options: { include_usage: true },
       });
     } catch (openAiStartError) {
       logger.error({ openAiStartError, slug }, "OpenAI chat stream start failed");
@@ -328,14 +324,37 @@ RULES:
 
     beginChatSse(res);
 
+    let clientClosed = false;
+    req.on("close", () => {
+      clientClosed = true;
+      logger.info({ slug }, "Client disconnected, aborting stream");
+    });
+
     let rawReply = "";
+    let lastChunk: OpenAI.Chat.Completions.ChatCompletionChunk | undefined;
     try {
       for await (const chunk of stream) {
+        lastChunk = chunk;
+        if (clientClosed) break;
         const delta = chunk.choices[0]?.delta?.content ?? "";
         if (delta) {
           rawReply += delta;
           writeChatSseEvent(res, "delta", { text: delta });
         }
+      }
+      if (lastChunk?.usage) {
+        logger.info(
+          {
+            slug,
+            prompt_tokens: lastChunk.usage.prompt_tokens,
+            completion_tokens: lastChunk.usage.completion_tokens,
+            total_tokens: lastChunk.usage.total_tokens,
+          },
+          "OpenAI token usage",
+        );
+      }
+      if (clientClosed) {
+        return;
       }
       if (!rawReply.trim()) {
         rawReply = guestCanned.openAiError;

@@ -22,13 +22,7 @@ export function apiUrl(path: string): string {
  * Do not log or expose the key value.
  */
 export function getAiSecurityHeaders(): Record<string, string> {
-  const headers: Record<string, string> = {
+  return {
     "x-session-id": getOrCreateDemoSessionId(),
   };
-
-  const internalKey = import.meta.env.VITE_INTERNAL_API_KEY?.trim();
-  if (!internalKey) return headers;
-
-  headers["x-api-key"] = internalKey;
-  return headers;
 }

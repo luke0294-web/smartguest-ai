@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, Link, useLocation } from "wouter";
+import ReactMarkdown from "react-markdown";
 import { ArrowLeft, BookOpen, Loader2, MessageCircle, Bot, Calendar, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { detectNeedsAttention } from "../lib/detectNeedsAttention";
 import { apiUrl } from "@/lib/apiUrl";
@@ -12,6 +13,21 @@ interface ChatLog {
   marcoReply: string;
   createdAt: string;
   resolved: boolean;
+}
+
+function MarcoReplyMarkdown({ marcoReply }: { marcoReply: string }) {
+  return (
+    <ReactMarkdown
+      components={{
+        p: ({ children }) => <span className="text-sm">{children}</span>,
+        strong: ({ children }) => (
+          <strong className="font-semibold text-gray-900">{children}</strong>
+        ),
+      }}
+    >
+      {marcoReply}
+    </ReactMarkdown>
+  );
 }
 
 export default function DiarioDiBordo() {
@@ -184,7 +200,9 @@ export default function DiarioDiBordo() {
                           </div>
                           <div className="flex-1">
                             <p className="text-[11px] font-semibold text-red-500 mb-1">Marco AI (Necessita azione)</p>
-                            <p className="text-sm text-gray-600 leading-relaxed italic">{log.marcoReply}</p>
+                            <div className="text-sm text-gray-600 leading-relaxed italic">
+                              <MarcoReplyMarkdown marcoReply={log.marcoReply} />
+                            </div>
                           </div>
                         </div>
                         <button
@@ -234,7 +252,9 @@ export default function DiarioDiBordo() {
                         </div>
                         <div className="flex-1">
                           <p className="text-[11px] font-semibold text-indigo-500 mb-1">Marco AI</p>
-                          <p className="text-sm text-gray-600 leading-relaxed">{log.marcoReply}</p>
+                          <div className="text-sm text-gray-600 leading-relaxed">
+                            <MarcoReplyMarkdown marcoReply={log.marcoReply} />
+                          </div>
                         </div>
                       </div>
                     </div>

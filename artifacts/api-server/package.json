@@ -11,6 +11,7 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.101.1",
     "@types/multer": "^2.1.0",
+    "@types/pdfkit": "^0.17.5",
     "@types/qrcode": "^1.5.6",
     "@workspace/api-zod": "workspace:*",
     "bcryptjs": "^3.0.3",
@@ -21,6 +22,7 @@
     "multer": "^2.1.1",
     "nodemailer": "^8.0.4",
     "openai": "^6.32.0",
+    "pdfkit": "^0.18.0",
     "pino": "^9",
     "pino-http": "^10",
     "qrcode": "^1.5.4"

@@ -4,8 +4,6 @@ export type CustomFetchOptions = RequestInit & {
   responseType?: "json" | "text" | "blob" | "auto";
 };
 
-let hasLoggedMissingInternalKey = false;
-
 /** When set (e.g. in rome-guest `.env`), Orval `/api/*` calls hit this origin instead of the dev server. */
 export function resolveApiUrl(url: string): string {
   if (!url.startsWith("/api")) return url;
@@ -325,16 +323,6 @@ export async function customFetch<T = unknown>(
 
   if (isAiRoute(requestInfo.url)) {
     headers.set("x-session-id", getOrCreateDemoSessionId());
-    const internalKey =
-      typeof import.meta !== "undefined" && import.meta.env?.VITE_INTERNAL_API_KEY
-        ? String(import.meta.env.VITE_INTERNAL_API_KEY).trim()
-        : "";
-    if (internalKey) {
-      headers.set("x-api-key", internalKey);
-    } else if (!hasLoggedMissingInternalKey) {
-      console.error("Missing VITE_INTERNAL_API_KEY");
-      hasLoggedMissingInternalKey = true;
-    }
   }
 
   const response = await fetch(resolvedInput, { ...init, method, headers });

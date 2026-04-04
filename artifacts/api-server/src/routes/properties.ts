@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { Router, type IRouter } from "express";
 import {
   CreatePropertyBody,
@@ -15,6 +16,14 @@ import { hashHostPassword } from "../lib/passwords";
 import { generateGuestQrDataUrl } from "../lib/generateQr";
 import { DEMO_SLUG, parseDemoPropertyForGet } from "../lib/demoProperty";
 import { supabase, supabaseAdmin } from "../lib/supabase";
+import { isHostWelcomeEmailConfigured, sendHostWelcomeEmail } from "../lib/hostWelcomeMail";
+
+function isInviteTokenExpiredForResend(inviteTokenExpiresAt: string | null | undefined): boolean {
+  if (inviteTokenExpiresAt == null || String(inviteTokenExpiresAt).trim() === "") return true;
+  const t = new Date(inviteTokenExpiresAt).getTime();
+  if (Number.isNaN(t)) return true;
+  return Date.now() > t;
+}
 
 type SupabasePropertyRowPublic = {
   id: number | string;
@@ -570,6 +579,99 @@ router.put("/properties/:slug/full-edit", async (req, res): Promise<void> => {
     res.json(parsed.data);
   } catch (error) {
     console.error("[ERRORE CRITICO]", error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Errore interno del server" });
+    }
+  }
+});
+
+// POST /properties/:slug/resend-host-welcome — CEO: reinvia email benvenuto + PDF (fallback)
+router.post("/properties/:slug/resend-host-welcome", async (req, res): Promise<void> => {
+  console.log("[ROTTA CEO] Ricevuta richiesta:", req.path);
+  if (!requireCeoSession(req, res)) return;
+
+  const slug = req.params.slug?.trim();
+  if (!slug) {
+    res.status(400).json({ error: "Slug mancante." });
+    return;
+  }
+
+  if (slug === DEMO_SLUG) {
+    res.status(400).json({ error: "Non disponibile per la demo." });
+    return;
+  }
+
+  try {
+    const { data: row, error } = await supabaseAdmin
+      .from("properties")
+      .select("slug, name, email, invite_token, invite_token_expires_at")
+      .eq("slug", slug)
+      .maybeSingle<{
+        slug: string;
+        name: string;
+        email: string | null;
+        invite_token: string | null;
+        invite_token_expires_at: string | null;
+      }>();
+
+    if (error) {
+      logger.error({ error, slug }, "resend-host-welcome select");
+      res.status(500).json({ error: "Errore database." });
+      return;
+    }
+
+    if (!row?.email?.trim()) {
+      res.status(400).json({ error: "Nessuna email host per questa proprietà." });
+      return;
+    }
+
+    if (!isHostWelcomeEmailConfigured()) {
+      res.status(503).json({ error: "Invio email non configurato sul server." });
+      return;
+    }
+
+    let inviteToken = row.invite_token?.trim() ?? "";
+    const needsNewToken = !inviteToken || isInviteTokenExpiredForResend(row.invite_token_expires_at);
+
+    if (needsNewToken) {
+      inviteToken = randomBytes(32).toString("hex");
+      const inviteTokenExpiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+      const { error: upErr } = await supabaseAdmin
+        .from("properties")
+        .update({
+          invite_token: inviteToken,
+          invite_token_expires_at: inviteTokenExpiresAt,
+        })
+        .eq("slug", slug);
+
+      if (upErr) {
+        logger.error({ upErr, slug }, "resend-host-welcome token update");
+        res.status(500).json({ error: "Impossibile aggiornare il token invito." });
+        return;
+      }
+    }
+
+    const displayName = row.email.trim().split("@")[0] || "Host";
+
+    try {
+      await sendHostWelcomeEmail({
+        to: row.email.trim(),
+        hostDisplayName: displayName,
+        propertyName: row.name.trim(),
+        slug: row.slug,
+        inviteToken,
+      });
+    } catch (sendErr) {
+      console.error("[ERRORE CRITICO] resend-host-welcome sendMail:", sendErr);
+      logger.error({ sendErr, slug }, "resend-host-welcome send failed");
+      res.status(500).json({ error: "Invio email fallito." });
+      return;
+    }
+
+    logger.info({ slug }, "Host welcome email resent by CEO");
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[ERRORE CRITICO]", err);
     if (!res.headersSent) {
       res.status(500).json({ error: "Errore interno del server" });
     }
