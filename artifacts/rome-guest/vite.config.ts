@@ -3,16 +3,9 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 
-const rawPort = process.env.PORT;
-
-if (!rawPort) {
-  throw new Error(
-    "PORT environment variable is required but was not provided.",
-  );
-}
-
+/** Solo per dev server / preview; in build (es. Vercel) PORT non è impostata. */
+const rawPort = process.env.PORT ?? "5173";
 const port = Number(rawPort);
-
 if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
@@ -24,13 +17,8 @@ if (Number.isNaN(port) || port <= 0) {
 const apiProxyTarget =
   process.env.API_PROXY_TARGET?.trim() || "http://127.0.0.1:8080";
 
-const basePath = process.env.BASE_PATH;
-
-if (!basePath) {
-  throw new Error(
-    "BASE_PATH environment variable is required but was not provided.",
-  );
-}
+/** Default `/` per deploy statici (Vercel); opzionale in dev (es. Replit usa BASE_PATH). */
+const basePath = process.env.BASE_PATH?.trim() || "/";
 
 export default defineConfig({
   base: basePath,
