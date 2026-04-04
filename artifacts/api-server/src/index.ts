@@ -17,36 +17,43 @@ console.error("[BOOT] Ambiente caricato — voci critiche:", {
   FRONTEND_URL: process.env.FRONTEND_URL?.trim() || "(MANCANTE: generazione QR / link ospite possono fallire)",
 });
 
-const { default: app } = await import("./app");
+async function startServer(): Promise<void> {
+  const { default: app } = await import("./app");
 
-const rawPort = process.env.PORT ?? "8080";
+  const rawPort = process.env.PORT ?? "8080";
 
-const port = Number(rawPort);
+  const port = Number(rawPort);
 
-if (Number.isNaN(port) || port <= 0) {
-  throw new Error(`Invalid PORT value: "${rawPort}"`);
+  if (Number.isNaN(port) || port <= 0) {
+    throw new Error(`Invalid PORT value: "${rawPort}"`);
+  }
+
+  // 0.0.0.0 — accept connections from other devices on the LAN (not just localhost).
+  const server = app.listen(port, "0.0.0.0", () => {
+    logger.info({ port, host: "0.0.0.0" }, "🚀 Server finalmente visibile all'esterno!");
+  });
+
+  const shutdown = async (signal: string) => {
+    logger.info({ signal }, "Segnale ricevuto, chiusura in corso...");
+    server.close(() => {
+      logger.info("Server HTTP chiuso.");
+      process.exit(0);
+    });
+    setTimeout(() => {
+      logger.error("Timeout chiusura, forzando uscita.");
+      process.exit(1);
+    }, 10000);
+  };
+
+  process.on("SIGTERM", () => {
+    void shutdown("SIGTERM");
+  });
+  process.on("SIGINT", () => {
+    void shutdown("SIGINT");
+  });
 }
 
-// 0.0.0.0 — accept connections from other devices on the LAN (not just localhost).
-const server = app.listen(port, "0.0.0.0", () => {
-  logger.info({ port, host: "0.0.0.0" }, "🚀 Server finalmente visibile all'esterno!");
-});
-
-const shutdown = async (signal: string) => {
-  logger.info({ signal }, "Segnale ricevuto, chiusura in corso...");
-  server.close(() => {
-    logger.info("Server HTTP chiuso.");
-    process.exit(0);
-  });
-  setTimeout(() => {
-    logger.error("Timeout chiusura, forzando uscita.");
-    process.exit(1);
-  }, 10000);
-};
-
-process.on("SIGTERM", () => {
-  void shutdown("SIGTERM");
-});
-process.on("SIGINT", () => {
-  void shutdown("SIGINT");
+startServer().catch((err) => {
+  console.error(err);
+  process.exit(1);
 });
