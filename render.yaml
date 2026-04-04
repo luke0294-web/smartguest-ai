@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: smartguest-api
+    runtime: node
+    rootDir: artifacts/api-server
+    buildCommand: pnpm install --frozen-lockfile && pnpm build
+    startCommand: node dist/index.js
+    envVars:
+      - key: NODE_ENV
+        value: production
