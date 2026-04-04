@@ -64,7 +64,8 @@ app.use(
       if (!origin || allowedOrigins.includes(origin) || isPrivateLanDevOrigin(origin)) {
         callback(null, true);
       } else {
-        callback(new Error("CORS: origine non autorizzata"));
+        console.warn("[CORS] Origine rifiutata:", origin);
+        callback(null, false);
       }
     },
     credentials: true,
