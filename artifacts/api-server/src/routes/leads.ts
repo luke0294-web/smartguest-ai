@@ -70,7 +70,7 @@ router.post("/leads", async (req, res): Promise<void> => {
     }
 
     logger.info({ email, propertyName }, "New lead registered");
-    res.status(201).json(mapLeadToApi(row));
+    res.status(201).json({ success: true });
   } catch (error) {
     console.error("[ERRORE CRITICO]", error);
     if (!res.headersSent) {
