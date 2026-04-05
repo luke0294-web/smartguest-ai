@@ -1,5 +1,8 @@
+-- NOTE: All access via supabaseAdmin (service role).
+-- No anon access granted by design.
+
 -- Tabella log chat Marco (allineata a Drizzle lib/db chat_logs + POST /properties/:slug/chat).
--- Esegui in Supabase → SQL Editor. Poi verifica RLS: il backend usa SUPABASE_ANON_KEY.
+-- Esegui in Supabase → SQL Editor.
 
 create table if not exists public.chat_logs (
   id bigserial primary key,
@@ -18,22 +21,7 @@ create index if not exists chat_logs_property_slug_created_at_idx
 
 alter table public.chat_logs enable row level security;
 
--- Il server API usa la chiave anon: policy permissive (restringi in produzione, es. service_role solo server).
-create policy "chat_logs_anon_insert"
-  on public.chat_logs
-  for insert
-  to anon
-  with check (true);
-
-create policy "chat_logs_anon_select"
-  on public.chat_logs
-  for select
-  to anon
-  using (true);
-
-create policy "chat_logs_anon_update"
-  on public.chat_logs
-  for update
-  to anon
-  using (true)
-  with check (true);
+drop policy if exists "chat_logs_anon_insert" on public.chat_logs;
+drop policy if exists "chat_logs_anon_select" on public.chat_logs;
+drop policy if exists "chat_logs_anon_update" on public.chat_logs;
+drop policy if exists "chat_logs_anon_delete" on public.chat_logs;

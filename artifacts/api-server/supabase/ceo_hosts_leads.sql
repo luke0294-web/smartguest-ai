@@ -1,5 +1,8 @@
+-- NOTE: All access via supabaseAdmin (service role).
+-- No anon access granted by design.
+
 -- Tabelle per Dashboard CEO: hosts, leads + colonne opzionali su properties (reset password).
--- Esegui in Supabase → SQL Editor. Il backend usa SUPABASE_ANON_KEY: policy permissive solo per test.
+-- Esegui in Supabase → SQL Editor.
 
 -- ─── hosts (login host / password gestita dal CEO) ─────────────────────────
 create table if not exists public.hosts (
@@ -17,11 +20,6 @@ drop policy if exists "hosts_anon_select" on public.hosts;
 drop policy if exists "hosts_anon_insert" on public.hosts;
 drop policy if exists "hosts_anon_update" on public.hosts;
 drop policy if exists "hosts_anon_delete" on public.hosts;
-
-create policy "hosts_anon_select" on public.hosts for select to anon using (true);
-create policy "hosts_anon_insert" on public.hosts for insert to anon with check (true);
-create policy "hosts_anon_update" on public.hosts for update to anon using (true) with check (true);
-create policy "hosts_anon_delete" on public.hosts for delete to anon using (true);
 
 -- ─── leads (registrazione / landing) ────────────────────────────────────────
 create table if not exists public.leads (
@@ -41,12 +39,6 @@ drop policy if exists "leads_anon_insert" on public.leads;
 drop policy if exists "leads_anon_select" on public.leads;
 drop policy if exists "leads_anon_update" on public.leads;
 drop policy if exists "leads_anon_delete" on public.leads;
-
--- In produzione limita INSERT al solo form pubblico (es. service role o edge function).
-create policy "leads_anon_insert" on public.leads for insert to anon with check (true);
-create policy "leads_anon_select" on public.leads for select to anon using (true);
-create policy "leads_anon_update" on public.leads for update to anon using (true) with check (true);
-create policy "leads_anon_delete" on public.leads for delete to anon using (true);
 
 -- ─── properties: colonne usate da auth reset / full-edit CEO (se mancano) ─
 alter table public.properties add column if not exists reset_token text;
