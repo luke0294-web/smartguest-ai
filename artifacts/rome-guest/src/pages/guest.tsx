@@ -504,6 +504,8 @@ export default function GuestChat(props: GuestChatProps = {}) {
       sendPropertyChatSse(s, data, onStreamDelta),
   });
   const [inputValue, setInputValue] = useState("");
+  /** SSE assistant reply in flight — cursor + scroll sync; cleared on success/error (stream done). */
+  const [isStreaming, setIsStreaming] = useState(false);
   const [demoChatLocked, setDemoChatLocked] = useState(false);
   const [sosSubmittingIndex, setSosSubmittingIndex] = useState<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -561,7 +563,7 @@ export default function GuestChat(props: GuestChatProps = {}) {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages, isPending]);
+  }, [messages, isPending, isStreaming]);
 
   const historyForApi = (msgs: ConversationMessage[]) =>
     msgs.map(({ role, content }) => ({ role, content }));
@@ -634,6 +636,7 @@ export default function GuestChat(props: GuestChatProps = {}) {
         data: chatPayload,
         onStreamDelta: (text) => {
           if (!text) return;
+          setIsStreaming(true);
           setMessages((prev) => {
             const next = [...prev];
             const last = next[next.length - 1];
@@ -648,6 +651,7 @@ export default function GuestChat(props: GuestChatProps = {}) {
       },
       {
         onSuccess: (data) => {
+          setIsStreaming(false);
           const raw = data.reply;
           const clean = stripSosToken(raw);
           const sosSuggested =
@@ -685,6 +689,7 @@ export default function GuestChat(props: GuestChatProps = {}) {
           });
         },
         onError: (err: unknown) => {
+          setIsStreaming(false);
           if (isDemo && isDemoChat429(err)) {
             logDemoLimitReached();
             setDemoChatLocked(true);
@@ -948,18 +953,22 @@ export default function GuestChat(props: GuestChatProps = {}) {
                           </Link>
                         </div>
                       ) : (
-                        <div className="markdown-content font-sans break-words text-sm sm:text-base">
+                        <div
+                          className={[
+                            "markdown-content font-sans break-words text-sm sm:text-base",
+                            msg.streaming ? "markdown-streaming-container" : "",
+                          ]
+                            .filter(Boolean)
+                            .join(" ")}
+                        >
                           <ReactMarkdown
                             rehypePlugins={ASSISTANT_MARKDOWN_PLUGINS}
                             components={assistantMarkdownComponents}
                           >
                             {msg.content}
                           </ReactMarkdown>
-                          {msg.streaming ? (
-                            <span
-                              className="inline-block w-0.5 h-4 ml-0.5 align-middle bg-primary/80 animate-pulse rounded-sm"
-                              aria-hidden
-                            />
+                          {msg.streaming && isStreaming ? (
+                            <span className="typing-cursor" aria-hidden />
                           ) : null}
                         </div>
                       )}

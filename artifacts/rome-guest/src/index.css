@@ -277,3 +277,28 @@
   border: 1px solid hsl(220 14% 88% / 0.8);
   box-shadow: 0 4px 24px hsl(213 40% 20% / 0.08);
 }
+
+/* ── Guest chat: streaming assistant (Markdown + cursor) ── */
+.markdown-streaming-container {
+  transition: all 0.15s ease-out;
+}
+
+.typing-cursor {
+  display: inline-block;
+  width: 8px;
+  height: 1em;
+  background-color: currentColor;
+  vertical-align: middle;
+  margin-left: 2px;
+  animation: typing-cursor-blink 1s step-end infinite;
+}
+
+@keyframes typing-cursor-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
