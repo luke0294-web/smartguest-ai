@@ -1054,35 +1054,6 @@ export default function GuestChat(props: GuestChatProps = {}) {
           </motion.div>
         )}
 
-        {property.whatsappNumber && (
-          <p className="text-center text-xs text-muted-foreground py-1 px-4">
-            💬 Problema urgente?{" "}
-            <a
-              href={whatsappUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={
-                isDemo
-                  ? (e) => {
-                      e.preventDefault();
-                      toast({
-                        title: "Contatto diretto 💬",
-                        description:
-                          "Nella versione reale, i tuoi ospiti ti contatteranno direttamente sul tuo numero WhatsApp con un solo clic!",
-                        duration: 4000,
-                        className:
-                          "mx-auto w-full max-w-md [&_[toast-close]]:opacity-100 [&_[toast-close]]:pointer-events-auto",
-                      });
-                    }
-                  : undefined
-              }
-              className="text-emerald-600 font-medium underline"
-            >
-              Contatta l'Host su WhatsApp
-            </a>
-          </p>
-        )}
-
         {/* ── Input ── */}
         <div className="p-4 pt-3 chat-input-area border-t border-black/5">
           <form onSubmit={handleSubmit} className="relative flex items-center w-full">
