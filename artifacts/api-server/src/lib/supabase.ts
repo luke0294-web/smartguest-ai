@@ -26,8 +26,7 @@ try {
 console.error(
   "[SUPABASE] Client pronto — host:",
   supabaseHost,
-  "| chiave anon (ultimi 6 caratteri):",
-  `…${SUPABASE_ANON_KEY.slice(-6)}`,
+  "| anon key configurata: yes",
 );
 
 /** Client pubblico: Auth (signInWithPassword) e chiamate dove RLS è sufficiente. */
