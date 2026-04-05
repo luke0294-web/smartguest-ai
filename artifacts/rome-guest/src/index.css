@@ -280,25 +280,21 @@
 
 /* ── Guest chat: streaming assistant (Markdown + cursor) ── */
 .markdown-streaming-container {
-  transition: all 0.15s ease-out;
+  transition: all 0.3s ease-out;
 }
 
 .typing-cursor {
   display: inline-block;
-  width: 8px;
-  height: 1em;
+  width: 2px;
+  height: 0.75em;
   background-color: currentColor;
-  vertical-align: middle;
-  margin-left: 2px;
-  animation: typing-cursor-blink 1s step-end infinite;
+  vertical-align: text-bottom;
+  margin-left: 1px;
+  opacity: 0.4;
+  animation: typing-cursor-blink 1.2s ease-in-out infinite;
 }
 
 @keyframes typing-cursor-blink {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0;
-  }
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0; }
 }
