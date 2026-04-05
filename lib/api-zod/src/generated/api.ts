@@ -52,7 +52,7 @@ export const CreatePropertyBody = zod.object({
   whatsappNumber: zod
     .string()
     .optional()
-    .describe("Host WhatsApp number for SOS button"),
+    .describe("Host WhatsApp number shown to guests"),
 });
 
 /**
@@ -159,5 +159,4 @@ export const SendPropertyChatBody = zod.object({
 export const SendPropertyChatResponse = zod.object({
   reply: zod.string(),
   propertyName: zod.string(),
-  sosSuggested: zod.boolean().optional(),
 });

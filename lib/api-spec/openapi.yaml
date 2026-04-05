@@ -285,7 +285,7 @@ components:
           description: House rules, WiFi info, tips, etc.
         whatsappNumber:
           type: string
-          description: Host WhatsApp number for SOS button
+          description: Host WhatsApp number shown to guests
       required:
         - slug
         - name
@@ -327,8 +327,6 @@ components:
           type: string
         propertyName:
           type: string
-        sosSuggested:
-          type: boolean
       required:
         - reply
         - propertyName

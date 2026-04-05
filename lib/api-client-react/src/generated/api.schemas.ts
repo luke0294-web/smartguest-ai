@@ -28,7 +28,7 @@ export interface CreatePropertyRequest {
   name: string;
   /** House rules, WiFi info, tips, etc. */
   content: string;
-  /** Host WhatsApp number for SOS button */
+  /** Host WhatsApp number shown to guests */
   whatsappNumber?: string;
 }
 
@@ -65,8 +65,6 @@ export interface ChatMessageRequest {
 export interface ChatMessageResponse {
   reply: string;
   propertyName: string;
-  /** Present when Marco could not resolve a technical issue from the manual (token stripped from `reply`). */
-  sosSuggested?: boolean;
 }
 
 export interface ErrorResponse {

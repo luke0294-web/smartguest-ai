@@ -464,7 +464,7 @@ export default function HostDashboard() {
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
                 <Phone className="w-3.5 h-3.5 text-emerald-500" />
-                Numero WhatsApp SOS
+                Numero WhatsApp per gli ospiti
               </label>
               <input
                 {...updateForm.register("whatsappNumber")}

@@ -13,6 +13,6 @@ export interface CreatePropertyRequest {
   name: string;
   /** House rules, WiFi info, tips, etc. */
   content: string;
-  /** Host WhatsApp number for SOS button */
+  /** Host WhatsApp number shown to guests */
   whatsappNumber?: string;
 }

@@ -13,7 +13,6 @@ import {
   type ChatMessageRequest,
 } from "@workspace/api-client-react";
 import { toast } from "@/hooks/use-toast";
-import { apiUrl } from "@/lib/apiUrl";
 
 // ── Type Definitions ────────────────────────────────────────────────────────
 
@@ -50,8 +49,6 @@ export interface ConversationMessage {
   content: string;
   /** Assistant message is receiving SSE deltas */
   streaming?: boolean;
-  sosSuggested?: boolean;
-  sosSent?: boolean;
   /** Limit-reached CTA (demo only): plain text + signup link in UI */
   demoCta?: boolean;
 }
@@ -86,10 +83,6 @@ function persistMarcoWelcomed(slug: string): void {
   } catch {
     /* ignore */
   }
-}
-
-function stripSosToken(text: string): string {
-  return text.replace(/\s*%%SOS%%\s*/g, "").trim();
 }
 
 const ASSISTANT_MARKDOWN_PLUGINS = [rehypeSanitize];
@@ -507,7 +500,6 @@ export default function GuestChat(props: GuestChatProps = {}) {
   /** SSE assistant reply in flight — cursor + scroll sync; cleared on success/error (stream done). */
   const [isStreaming, setIsStreaming] = useState(false);
   const [demoChatLocked, setDemoChatLocked] = useState(false);
-  const [sosSubmittingIndex, setSosSubmittingIndex] = useState<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const demoStartedLoggedRef = useRef(false);
@@ -652,10 +644,7 @@ export default function GuestChat(props: GuestChatProps = {}) {
       {
         onSuccess: (data) => {
           setIsStreaming(false);
-          const raw = data.reply;
-          const clean = stripSosToken(raw);
-          const sosSuggested =
-            !isDemo && (Boolean(data.sosSuggested) || raw.includes("%%SOS%%"));
+          const clean = (data.reply ?? "").trim();
           setMessages((prev) => {
             const next: ConversationMessage[] = [...prev];
             const lastIdx = next.length - 1;
@@ -665,13 +654,11 @@ export default function GuestChat(props: GuestChatProps = {}) {
               next[lastIdx] = {
                 ...rest,
                 content: clean,
-                ...(sosSuggested ? { sosSuggested: true } : {}),
               };
             } else {
               next.push({
                 role: "assistant",
                 content: clean,
-                ...(sosSuggested ? { sosSuggested: true } : {}),
               });
             }
             const users = next.filter((m) => m.role === "user").length;
@@ -713,7 +700,7 @@ export default function GuestChat(props: GuestChatProps = {}) {
             err && typeof err === "object" && "data" in err
               ? (err as { data?: { reply?: string } }).data?.reply
               : undefined;
-          const content = stripSosToken(marcoMsg ?? t.errorMsg);
+          const content = (marcoMsg ?? t.errorMsg).trim();
           setMessages((prev) => {
             const copy = [...prev];
             if (copy.length && copy[copy.length - 1]?.streaming) copy.pop();
@@ -722,27 +709,6 @@ export default function GuestChat(props: GuestChatProps = {}) {
         },
       }
     );
-  };
-
-  const handleGuestSos = async (messageIndex: number) => {
-    if (!slug || isDemo) return;
-    setSosSubmittingIndex(messageIndex);
-    try {
-      const res = await fetch(apiUrl(`/api/host/${encodeURIComponent(slug)}/sos`), {
-        method: "POST",
-        headers: { Accept: "application/json" },
-      });
-      if (!res.ok) throw new Error("sos failed");
-      setMessages((prev) =>
-        prev.map((m, i) =>
-          i === messageIndex ? { ...m, sosSent: true, sosSuggested: false } : m,
-        ),
-      );
-    } catch {
-      // Host can retry if rate limit or network error
-    } finally {
-      setSosSubmittingIndex(null);
-    }
   };
 
   const handleSubmit = (e?: React.FormEvent) => {
@@ -972,28 +938,6 @@ export default function GuestChat(props: GuestChatProps = {}) {
                           ) : null}
                         </div>
                       )}
-                      {msg.sosSuggested && !msg.sosSent && (
-                        <motion.button
-                          type="button"
-                          initial={{ opacity: 0, y: 6 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ duration: 0.2 }}
-                          disabled={sosSubmittingIndex === idx || isPending}
-                          onClick={() => void handleGuestSos(idx)}
-                          className="mt-3 w-full rounded-2xl bg-red-600 hover:bg-red-700 active:bg-red-800 disabled:opacity-50 disabled:pointer-events-none text-white text-[13px] sm:text-sm font-bold py-3 px-3 shadow-md shadow-red-900/20 transition-colors"
-                        >
-                          {sosSubmittingIndex === idx ? "…" : "🆘 Segnala problema urgente all'Host"}
-                        </motion.button>
-                      )}
-                      {msg.sosSent && (
-                        <motion.p
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          className="mt-2 text-[13px] font-semibold text-emerald-600"
-                        >
-                          ✅ Host notificato!
-                        </motion.p>
-                      )}
                     </>
                   ) : (
                     <p className="whitespace-pre-wrap font-sans">{msg.content}</p>
@@ -1108,6 +1052,35 @@ export default function GuestChat(props: GuestChatProps = {}) {
               </button>
             )}
           </motion.div>
+        )}
+
+        {property.whatsappNumber && (
+          <p className="text-center text-xs text-muted-foreground py-1 px-4">
+            💬 Problema urgente?{" "}
+            <a
+              href={whatsappUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={
+                isDemo
+                  ? (e) => {
+                      e.preventDefault();
+                      toast({
+                        title: "Contatto diretto 💬",
+                        description:
+                          "Nella versione reale, i tuoi ospiti ti contatteranno direttamente sul tuo numero WhatsApp con un solo clic!",
+                        duration: 4000,
+                        className:
+                          "mx-auto w-full max-w-md [&_[toast-close]]:opacity-100 [&_[toast-close]]:pointer-events-auto",
+                      });
+                    }
+                  : undefined
+              }
+              className="text-emerald-600 font-medium underline"
+            >
+              Contatta l'Host su WhatsApp
+            </a>
+          </p>
         )}
 
         {/* ── Input ── */}

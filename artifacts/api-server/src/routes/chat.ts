@@ -28,8 +28,6 @@ type SupabasePropertyRow = {
   content?: string | null;
 };
 
-const SOS_TOKEN = "%%SOS%%";
-
 function writeChatSseEvent(res: Response, event: string, data: unknown): void {
   res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
 }
@@ -44,12 +42,6 @@ function beginChatSse(res: Response): void {
   if (typeof r.flushHeaders === "function") {
     r.flushHeaders();
   }
-}
-
-function splitSosFromReply(raw: string): { reply: string; sosSuggested: boolean } {
-  const sosSuggested = raw.includes(SOS_TOKEN);
-  const reply = raw.replace(/\s*%%SOS%%\s*/g, "").trim();
-  return { reply, sosSuggested };
 }
 
 const isLikelyItalian = (text: string): boolean => {
@@ -283,7 +275,7 @@ ${houseManual}
 
 RULES:
 1. If the answer is in the manual → respond clearly using that information.
-2. If the guest reports a technical problem → give step-by-step help from the manual. Add ${SOS_TOKEN} only if the manual cannot solve it.
+2. If the guest reports a technical problem → give step-by-step help from the manual first. If the manual cannot resolve it, say clearly (in the guest's exact language) that you cannot fix it from here and invite them to contact the host directly via the WhatsApp button below for help as soon as possible. For Italian, say exactly: "Mi dispiace, non riesco a risolvere questo problema da qui. Ti invito a contattare l'Host direttamente tramite il tasto WhatsApp qui sotto — riceverai assistenza il prima possibile." Never claim you have notified the host or that the host was automatically alerted.
 3. If the guest wants to check out → create a checklist using only the manual.
 4. For restaurant or local tips → use the manual if available, otherwise use general knowledge and suggest contacting the host.
 5. If information is missing → briefly apologize and suggest contacting the host on WhatsApp.
@@ -300,7 +292,8 @@ RULES:
     })),
     {
       role: "system",
-      content: `Reply in the exact same language as the guest's message. Use the manual first. You MUST highlight a MINIMUM of 3-4 keywords in bold. Use ${SOS_TOKEN} ONLY if the manual cannot solve a technical issue.`,
+      content:
+        "Reply in the exact same language as the guest's message. Use the manual first. You MUST highlight a MINIMUM of 3-4 keywords in bold. If the manual cannot fix a technical issue, clearly direct the guest to contact the host via the WhatsApp button below (same wording rules as RULE 2). Never claim you notified the host.",
     },
     { role: "user", content: userMessage },
   ];
@@ -367,7 +360,7 @@ RULES:
       return;
     }
 
-    const { reply: replyForClient, sosSuggested } = splitSosFromReply(rawReply);
+    const replyForClient = rawReply.trim();
 
     if (languageCode !== "it" && isLikelyItalian(replyForClient)) {
       const leakPayload = {
@@ -449,7 +442,6 @@ RULES:
     const donePayload = SendPropertyChatResponse.parse({
       reply: replyForClient,
       propertyName: property.name,
-      ...(sosSuggested && !isDemo ? { sosSuggested: true } : {}),
     });
     writeChatSseEvent(res, "done", donePayload);
     res.end();
@@ -617,90 +609,6 @@ router.post("/super-diario/:slug/refresh-all", async (req, res): Promise<void> =
     console.error("[ERRORE CRITICO]", err);
     logger.error({ err }, "Errore refresh-all");
     res.status(500).json({ error: "Impossibile fare il refresh." });
-  }
-});
-
-// ─────────────────────────────────────────────
-// POST /host/:slug/sos — guest manual SOS (rate limited, no auth)
-// ─────────────────────────────────────────────
-router.post("/host/:slug/sos", async (req, res): Promise<void> => {
-  const clientIp = getClientIp(req);
-  if (!chatRateLimiter.check(clientIp)) {
-    const retryAfter = chatRateLimiter.retryAfterSeconds(clientIp);
-    logger.warn({ ip: clientIp, retryAfter }, "SOS rate limit exceeded");
-    res.status(429).json({
-      error: "Troppi tentativi. Riprova più tardi.",
-      retryAfter,
-    });
-    return;
-  }
-
-  const slug = String(req.params.slug ?? "").trim();
-  if (!slug) {
-    res.status(400).json({ error: "Slug non valido." });
-    return;
-  }
-
-  if (slug === DEMO_SLUG) {
-    res.status(404).json({ error: "SOS non disponibile nella demo." });
-    return;
-  }
-
-  try {
-    const { data: property, error: propErr } = await supabaseAdmin
-      .from("properties")
-      .select("slug")
-      .eq("slug", slug)
-      .maybeSingle<{ slug: string }>();
-
-    if (propErr || !property) {
-      res.status(404).json({ error: "Proprietà non trovata." });
-      return;
-    }
-
-    const { error: insErr } = await supabaseAdmin.from("chat_logs").insert({
-      property_slug: slug,
-      guest_message: "SOS manuale ospite",
-      marco_reply: "SOS manuale ospite",
-      resolved: false,
-    });
-
-    if (insErr) {
-      console.error("[ERRORE CRITICO] SOS insert log:", insErr);
-      res.status(500).json({ error: "Errore durante la segnalazione." });
-      return;
-    }
-
-    const { data: propRow, error: readErr } = await supabaseAdmin
-      .from("properties")
-      .select("pending_questions_count")
-      .eq("slug", slug)
-      .maybeSingle<{ pending_questions_count: number | null }>();
-
-    if (readErr) {
-      console.error("[ERRORE CRITICO] SOS read pending:", readErr);
-      res.status(500).json({ error: "Errore durante la segnalazione." });
-      return;
-    }
-
-    const current = Number(propRow?.pending_questions_count ?? 0);
-    const { error: updErr } = await supabaseAdmin
-      .from("properties")
-      .update({ pending_questions_count: current + 1 })
-      .eq("slug", slug);
-
-    if (updErr) {
-      console.error("[ERRORE CRITICO] SOS increment pending:", updErr);
-      res.status(500).json({ error: "Errore durante la segnalazione." });
-      return;
-    }
-
-    logger.info({ slug }, "Guest SOS manuale registrato");
-    res.json({ success: true });
-  } catch (err) {
-    console.error("[ERRORE CRITICO]", err);
-    logger.error({ err }, "Errore SOS ospite");
-    res.status(500).json({ error: "Errore durante la segnalazione." });
   }
 });
 
