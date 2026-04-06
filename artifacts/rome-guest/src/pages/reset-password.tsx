@@ -53,8 +53,8 @@ export default function ResetPassword() {
     e.preventDefault();
     setError("");
 
-    if (newPassword.trim().length < 4) {
-      setError("La password deve essere di almeno 4 caratteri.");
+    if (newPassword.trim().length < 8) {
+      setError("La password deve contenere almeno 8 caratteri.");
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -154,7 +154,8 @@ export default function ResetPassword() {
                       type={showPwd ? "text" : "password"}
                       value={newPassword}
                       onChange={(e) => { setNewPassword(e.target.value); setError(""); }}
-                      placeholder="Minimo 4 caratteri"
+                      placeholder="Minimo 8 caratteri"
+                      minLength={8}
                       className="w-full border border-gray-200 rounded-xl pl-10 pr-12 py-3 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
                     />
                     <button

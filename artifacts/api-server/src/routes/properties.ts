@@ -12,7 +12,7 @@ import {
 } from "@workspace/api-zod";
 import { logger } from "../lib/logger";
 import { requireCeoSession } from "../lib/ceo-session";
-import { hashHostPassword } from "../lib/passwords";
+import { hashHostPassword, HOST_PASSWORD_MIN_LENGTH_MESSAGE_IT, MIN_HOST_PASSWORD_LENGTH } from "../lib/passwords";
 import { generateGuestQrDataUrl } from "../lib/generateQr";
 import { DEMO_SLUG, parseDemoPropertyForGet } from "../lib/demoProperty";
 import { supabase, supabaseAdmin } from "../lib/supabase";
@@ -498,6 +498,9 @@ router.put("/properties/:slug/full-edit", async (req, res): Promise<void> => {
 
       if (!trimmedPw) {
         propPatch.host_password = null;
+      } else if (trimmedPw.length < MIN_HOST_PASSWORD_LENGTH) {
+        res.status(400).json({ error: `${HOST_PASSWORD_MIN_LENGTH_MESSAGE_IT}.` });
+        return;
       } else if (effectiveEmail) {
         const hashed = await hashHostPassword(trimmedPw);
         const { data: existingHost } = await supabaseAdmin

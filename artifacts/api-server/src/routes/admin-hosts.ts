@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { logger } from "../lib/logger";
 import { requireCeoSession } from "../lib/ceo-session";
-import { hashHostPassword } from "../lib/passwords";
+import { hashHostPassword, HOST_PASSWORD_MIN_LENGTH_MESSAGE_IT, MIN_HOST_PASSWORD_LENGTH } from "../lib/passwords";
 import { supabaseAdmin } from "../lib/supabase";
 
 const router: IRouter = Router();
@@ -53,12 +53,17 @@ router.post("/admin/hosts", async (req, res): Promise<void> => {
       res.status(400).json({ error: "Email obbligatoria." });
       return;
     }
-    if (!hostPassword?.trim()) {
+    const trimmedPw = String(hostPassword ?? "").trim();
+    if (!trimmedPw) {
       res.status(400).json({ error: "Password obbligatoria." });
       return;
     }
+    if (trimmedPw.length < MIN_HOST_PASSWORD_LENGTH) {
+      res.status(400).json({ error: `${HOST_PASSWORD_MIN_LENGTH_MESSAGE_IT}.` });
+      return;
+    }
 
-    const hashed = await hashHostPassword(String(hostPassword).trim());
+    const hashed = await hashHostPassword(trimmedPw);
 
     const { data: existing, error: selErr } = await supabaseAdmin
       .from("hosts")

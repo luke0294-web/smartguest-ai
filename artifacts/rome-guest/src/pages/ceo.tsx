@@ -277,7 +277,12 @@ function HostPasswordModal({
   const currentPassword = savedPassword ?? property.hostPassword ?? null;
 
   const handleSave = async () => {
-    if (!newPassword.trim()) return;
+    const trimmed = newPassword.trim();
+    if (!trimmed) return;
+    if (trimmed.length < 8) {
+      setError("La password deve contenere almeno 8 caratteri.");
+      return;
+    }
     setError("");
     setSaved(false);
     setIsSaving(true);
@@ -285,13 +290,13 @@ function HostPasswordModal({
       const res = await fetch(apiUrl(`/api/properties/${property.slug}/host-password`), {
         method: "PUT",
         headers: { "Content-Type": "application/json", ...ceoSessionHeaders },
-        body: JSON.stringify({ hostPassword: newPassword.trim() }),
+        body: JSON.stringify({ hostPassword: trimmed }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Errore nel salvataggio.");
-      setSavedPassword(newPassword.trim());
+      setSavedPassword(trimmed);
       setSaved(true);
-      onSaved(newPassword.trim());
+      onSaved(trimmed);
       setNewPassword("");
     } catch (err: any) {
       setError(err.message);
@@ -404,7 +409,8 @@ function HostPasswordModal({
                   type={showNew ? "text" : "password"}
                   value={newPassword}
                   onChange={(e) => { setNewPassword(e.target.value); setSaved(false); setError(""); }}
-                  placeholder="Nuova password..."
+                  placeholder="Minimo 8 caratteri"
+                  minLength={8}
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 pr-9 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all font-mono"
                 />
                 <button
@@ -417,7 +423,7 @@ function HostPasswordModal({
               </div>
               <button
                 onClick={handleSave}
-                disabled={isSaving || !newPassword.trim()}
+                disabled={isSaving || newPassword.trim().length < 8}
                 className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold transition-colors disabled:opacity-50 flex items-center gap-1.5 whitespace-nowrap"
               >
                 {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
@@ -823,6 +829,10 @@ export default function CeoPanel() {
       setHostFormMsg({ type: "err", text: "Email e password sono obbligatori." });
       return;
     }
+    if (newHostPassword.trim().length < 8) {
+      setHostFormMsg({ type: "err", text: "La password deve contenere almeno 8 caratteri." });
+      return;
+    }
     setHostFormSaving(true);
     setHostFormMsg(null);
     try {
@@ -932,6 +942,14 @@ export default function CeoPanel() {
   };
 
   const saveInlineEdit = async (originalSlug: string) => {
+    const trimmedPw = inlineEdit.hostPassword.trim();
+    if (trimmedPw && trimmedPw.length < 8) {
+      setInlineEdit((prev) => ({
+        ...prev,
+        error: "La password deve contenere almeno 8 caratteri.",
+      }));
+      return;
+    }
     setInlineEdit((prev) => ({ ...prev, saving: true, error: "", saved: false }));
     try {
       const res = await fetch(apiUrl(`/api/properties/${originalSlug}/full-edit`), {
@@ -940,7 +958,7 @@ export default function CeoPanel() {
         body: JSON.stringify({
           name: inlineEdit.name,
           newSlug: inlineEdit.slug,
-          hostPassword: inlineEdit.hostPassword,
+          hostPassword: inlineEdit.hostPassword.trim(),
           email: inlineEdit.email,
         }),
       });
@@ -1200,7 +1218,8 @@ export default function CeoPanel() {
                                   value={inlineEdit.hostPassword}
                                   onChange={(e) => setInlineEdit((prev) => ({ ...prev, hostPassword: e.target.value }))}
                                   className="w-full bg-white border border-border px-3 py-2 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50 transition-all"
-                                  placeholder="password host"
+                                  placeholder="Minimo 8 caratteri (vuoto = rimuovi)"
+                                  minLength={8}
                                 />
                               </div>
                             </div>
@@ -1799,7 +1818,8 @@ export default function CeoPanel() {
                           type="text"
                           value={newHostPassword}
                           onChange={(e) => { setNewHostPassword(e.target.value); setHostFormMsg(null); }}
-                          placeholder="Nuova password"
+                          placeholder="Minimo 8 caratteri"
+                          minLength={8}
                           className="w-full bg-background border border-border px-4 py-2.5 rounded-xl focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all font-mono text-sm"
                         />
                       </div>

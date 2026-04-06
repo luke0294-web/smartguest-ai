@@ -87,11 +87,17 @@ export const UpdatePropertyHeader = zod.object({
     .describe("HMAC session token from POST \/auth\/ceo-login"),
 });
 
+export const updatePropertyBodyHostPasswordMin = 8;
+
 export const UpdatePropertyBody = zod.object({
   hostPassword: zod
     .string()
+    .min(
+      updatePropertyBodyHostPasswordMin,
+      "La password deve contenere almeno 8 caratteri",
+    )
     .optional()
-    .describe("Property-specific host password"),
+    .describe("Property-specific host password (minimum 8 characters when provided)"),
   name: zod.string().optional(),
   content: zod.string().optional(),
   whatsappNumber: zod.string().optional(),

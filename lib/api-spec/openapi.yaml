@@ -296,7 +296,8 @@ components:
       properties:
         hostPassword:
           type: string
-          description: Property-specific host password
+          minLength: 8
+          description: Property-specific host password (minimum 8 characters when provided)
         name:
           type: string
         content:

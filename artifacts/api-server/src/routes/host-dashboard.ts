@@ -8,7 +8,12 @@ import {
   issueHostSessionToken,
 } from "../lib/host-session";
 import { requireHostSession, requireHostOwnsPropertySlug } from "../lib/host-auth";
-import { hashHostPassword, verifyHostPassword } from "../lib/passwords";
+import {
+  hashHostPassword,
+  verifyHostPassword,
+  HOST_PASSWORD_MIN_LENGTH_MESSAGE_IT,
+  MIN_HOST_PASSWORD_LENGTH,
+} from "../lib/passwords";
 import { authRateLimiter, getClientIp } from "../lib/rateLimiter";
 import { generateGuestQrDataUrl } from "../lib/generateQr";
 import { supabase, supabaseAdmin } from "../lib/supabase";
@@ -342,12 +347,17 @@ router.put("/properties/:slug/host-password", async (req, res): Promise<void> =>
     const { slug } = req.params;
     const { hostPassword } = req.body ?? {};
 
-    if (!hostPassword?.trim()) {
+    const trimmedHostPw = String(hostPassword ?? "").trim();
+    if (!trimmedHostPw) {
       res.status(400).json({ error: "La password host non può essere vuota." });
       return;
     }
+    if (trimmedHostPw.length < MIN_HOST_PASSWORD_LENGTH) {
+      res.status(400).json({ error: `${HOST_PASSWORD_MIN_LENGTH_MESSAGE_IT}.` });
+      return;
+    }
 
-    const hashed = await hashHostPassword(String(hostPassword).trim());
+    const hashed = await hashHostPassword(trimmedHostPw);
 
     console.log("[DB] Inizio query al database...");
     const { data: property, error: propErr } = await supabaseAdmin

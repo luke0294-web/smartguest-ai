@@ -3,7 +3,7 @@ import { randomBytes } from "crypto";
 import { logger } from "../lib/logger";
 import { requireCeoSession, getCeoPassword, issueCeoToken } from "../lib/ceo-session";
 import { getHostSessionSecret, verifyHostSessionToken, getHostTokenFromRequest } from "../lib/host-session";
-import { hashHostPassword } from "../lib/passwords";
+import { hashHostPassword, HOST_PASSWORD_MIN_LENGTH_MESSAGE_IT, MIN_HOST_PASSWORD_LENGTH } from "../lib/passwords";
 import { authRateLimiter, getClientIp } from "../lib/rateLimiter";
 import { supabaseAdmin } from "../lib/supabase";
 import { isHostWelcomeEmailConfigured, sendPasswordResetEmail } from "../lib/hostWelcomeMail";
@@ -253,8 +253,8 @@ router.post("/auth/reset-password/:token", async (req, res): Promise<void> => {
       return;
     }
 
-    if (!newPassword?.trim() || String(newPassword).trim().length < 4) {
-      res.status(400).json({ error: "La nuova password deve essere di almeno 4 caratteri." });
+    if (!newPassword?.trim() || String(newPassword).trim().length < MIN_HOST_PASSWORD_LENGTH) {
+      res.status(400).json({ error: `${HOST_PASSWORD_MIN_LENGTH_MESSAGE_IT}.` });
       return;
     }
 
@@ -395,8 +395,8 @@ router.post("/auth/setup-password/:token", async (req, res): Promise<void> => {
       return;
     }
 
-    if (!newPassword?.trim() || String(newPassword).trim().length < 4) {
-      res.status(400).json({ error: "La nuova password deve essere di almeno 4 caratteri." });
+    if (!newPassword?.trim() || String(newPassword).trim().length < MIN_HOST_PASSWORD_LENGTH) {
+      res.status(400).json({ error: `${HOST_PASSWORD_MIN_LENGTH_MESSAGE_IT}.` });
       return;
     }
 
