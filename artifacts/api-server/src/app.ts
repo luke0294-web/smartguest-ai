@@ -7,25 +7,11 @@ import { logger } from "./lib/logger";
 
 const app: Express = express();
 app.set("trust proxy", 1);
-const allowedOrigins = [
-  process.env.FRONTEND_URL,
-  ...(process.env.NODE_ENV !== "production" ? ["http://localhost:5173"] : []),
-].filter(Boolean);
 
-/** Allow Vite dev server on typical LAN IPs when NODE_ENV=development (mobile testing). */
-function isPrivateLanDevOrigin(origin: string): boolean {
-  if (process.env.NODE_ENV !== "development") return false;
-  try {
-    const { hostname } = new URL(origin);
-    if (hostname === "localhost" || hostname === "127.0.0.1") return true;
-    if (/^192\.168\.\d{1,3}\.\d{1,3}$/.test(hostname)) return true;
-    if (/^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname)) return true;
-    if (/^172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}$/.test(hostname)) return true;
-    return false;
-  } catch {
-    return false;
-  }
-}
+const allowedOrigins: Array<string | undefined | RegExp> = [
+  process.env.FRONTEND_URL,
+  /\.vercel\.app$/,
+];
 
 app.use(
   pinoHttp({
@@ -61,12 +47,16 @@ app.use(helmet());
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin) || isPrivateLanDevOrigin(origin)) {
-        callback(null, true);
-      } else {
-        console.warn("[CORS] Origine rifiutata:", origin);
-        callback(null, false);
+      if (!origin) return callback(null, true);
+
+      if (
+        allowedOrigins.includes(origin) ||
+        allowedOrigins.some((o) => o instanceof RegExp && o.test(origin))
+      ) {
+        return callback(null, true);
       }
+
+      return callback(new Error("Not allowed by CORS"));
     },
     credentials: true,
   }),
