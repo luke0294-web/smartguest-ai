@@ -15,7 +15,7 @@ import { requireCeoSession } from "../lib/ceo-session";
 import { hashHostPassword, HOST_PASSWORD_MIN_LENGTH_MESSAGE_IT, MIN_HOST_PASSWORD_LENGTH } from "../lib/passwords";
 import { generateGuestQrDataUrl } from "../lib/generateQr";
 import { DEMO_SLUG, parseDemoPropertyForGet } from "../lib/demoProperty";
-import { supabase, supabaseAdmin } from "../lib/supabase";
+import { supabaseAdmin } from "../lib/supabase";
 import { isHostWelcomeEmailConfigured, sendHostWelcomeEmail } from "../lib/hostWelcomeMail";
 
 function isInviteTokenExpiredForResend(inviteTokenExpiresAt: string | null | undefined): boolean {
@@ -114,6 +114,42 @@ function mapSupabaseRowToPropertyCore(row: SupabasePropertyRowPublic): PropertyC
       fallbackMs,
     ),
   };
+}
+
+/** Matches UUID-shaped primary keys (some deployments use uuid for `properties.id`). */
+const UUID_PROPERTY_ID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/**
+ * Public guest read: uses service role (same as chat) so RLS cannot block listing by slug.
+ * Tries `slug` first, then numeric `id`, then UUID `id`.
+ */
+async function loadPropertyBySlugOrId(segment: string): Promise<{
+  row: SupabasePropertyRowPublic | null;
+  error: { message: string } | null;
+}> {
+  const from = () => supabaseAdmin.from("properties").select("*");
+
+  const bySlug = await from().eq("slug", segment).maybeSingle<SupabasePropertyRowPublic>();
+  if (bySlug.data) return { row: bySlug.data, error: null };
+  if (bySlug.error) return { row: null, error: bySlug.error };
+
+  if (/^\d+$/.test(segment)) {
+    const idNum = parseInt(segment, 10);
+    if (!Number.isNaN(idNum) && idNum > 0) {
+      const byId = await from().eq("id", idNum).maybeSingle<SupabasePropertyRowPublic>();
+      if (byId.data) return { row: byId.data, error: null };
+      if (byId.error) return { row: null, error: byId.error };
+    }
+  }
+
+  if (UUID_PROPERTY_ID_RE.test(segment)) {
+    const byUuid = await from().eq("id", segment).maybeSingle<SupabasePropertyRowPublic>();
+    if (byUuid.data) return { row: byUuid.data, error: null };
+    if (byUuid.error) return { row: null, error: byUuid.error };
+  }
+
+  return { row: null, error: null };
 }
 
 const router: IRouter = Router();
@@ -308,21 +344,18 @@ router.get("/properties/:slug", async (req, res): Promise<void> => {
       return;
     }
 
-    const { data: row, error: supabaseError } = await supabase
-      .from("properties")
-      .select("*")
-      .eq("slug", params.data.slug)
-      .single<SupabasePropertyRowPublic>();
+    const segment = params.data.slug.trim();
+    const { row, error: supabaseError } = await loadPropertyBySlugOrId(segment);
 
     if (supabaseError || !row) {
       console.error(
         "[ERRORE CRITICO] GET /properties/:slug Supabase:",
-        params.data.slug,
+        segment,
         supabaseError ?? "no row",
       );
       logger.warn(
-        { slug: params.data.slug, supabaseError },
-        "GET /properties/:slug — nessuna riga su Supabase (slug errato, RLS o tabella vuota)",
+        { slug: segment, supabaseError },
+        "GET /properties/:slug — nessuna riga su Supabase (slug/id errato o tabella vuota)",
       );
       res.status(404).json({
         error: "Proprietà non trovata.",
