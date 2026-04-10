@@ -16,10 +16,11 @@ function getTransporter(): nodemailer.Transporter {
       user: smtpUser,
       pass: smtpPass,
     },
+    family: 4,
     connectionTimeout: 5000,
     greetingTimeout: 5000,
     socketTimeout: 10000,
-  });
+  } as Parameters<typeof nodemailer.createTransport>[0]);
 }
 
 export function isHostWelcomeEmailConfigured(): boolean {

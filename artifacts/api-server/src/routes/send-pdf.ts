@@ -33,10 +33,11 @@ const transporter = nodemailer.createTransport({
     user: smtpUser,
     pass: smtpPass,
   },
+  family: 4,
   connectionTimeout: 5000,
   greetingTimeout: 5000,
   socketTimeout: 10000,
-});
+} as Parameters<typeof nodemailer.createTransport>[0]);
 
 /**
  * Invio email in background: try/catch interno, nessun throw verso il chiamante.

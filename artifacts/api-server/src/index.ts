@@ -1,5 +1,9 @@
+import dns from "node:dns";
 import { logger } from "./lib/logger";
 import { validateEnv } from "./lib/validateEnv";
+
+/** Prefer IPv4 for SMTP (Render IPv6 egress to Gmail often returns ENETUNREACH). */
+dns.setDefaultResultOrder("ipv4first");
 
 try {
   validateEnv();
