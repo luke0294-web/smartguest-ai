@@ -753,7 +753,10 @@ export default function CeoPanel() {
         return;
       }
       if (data.emailSent) {
-        toast({ title: "Host creato ed email inviata con successo!" });
+        toast({
+          title: "Host creato",
+          description: "L'email di benvenuto con PDF è in invio; l'host la riceverà a breve.",
+        });
       } else {
         toast({
           title: "Host creato",
@@ -809,8 +812,8 @@ export default function CeoPanel() {
         return;
       }
       toast({
-        title: "Email reinviata",
-        description: "L'host riceverà di nuovo l'email di benvenuto con il PDF allegato.",
+        title: "Email in invio",
+        description: "L'host riceverà a breve di nuovo l'email di benvenuto con il PDF allegato.",
       });
     } catch {
       toast({ title: "Errore di rete", description: "Riprova.", variant: "destructive" });
