@@ -689,18 +689,22 @@ router.post("/properties/:slug/resend-host-welcome", async (req, res): Promise<v
 
     const displayName = row.email.trim().split("@")[0] || "Host";
 
-    void sendHostWelcomeEmail({
-      to: row.email.trim(),
-      hostDisplayName: displayName,
-      propertyName: row.name.trim(),
-      slug: row.slug,
-      inviteToken,
-    }).catch((sendErr: unknown) => {
-      console.error("Email background error:", sendErr);
-      logger.error({ sendErr, slug }, "resend-host-welcome background send failed");
-    });
+    try {
+      await sendHostWelcomeEmail({
+        to: row.email.trim(),
+        hostDisplayName: displayName,
+        propertyName: row.name.trim(),
+        slug: row.slug,
+        inviteToken,
+      });
+    } catch (sendErr: unknown) {
+      console.error("[resend-host-welcome] sendHostWelcomeEmail:", sendErr);
+      logger.error({ sendErr, slug }, "resend-host-welcome send failed");
+      res.status(500).json({ error: "Invio email fallito. Controlla i log SMTP." });
+      return;
+    }
 
-    logger.info({ slug }, "Host welcome email resend queued (background)");
+    logger.info({ slug }, "Host welcome email resent by CEO");
     res.json({ success: true });
   } catch (err) {
     console.error("[ERRORE CRITICO]", err);

@@ -2,6 +2,7 @@ import nodemailer from "nodemailer";
 import PDFDocument from "pdfkit";
 import QRCode from "qrcode";
 import { logger } from "./logger";
+import { getSmtpFromHeader } from "./smtpFrom";
 
 const smtpUser = process.env.EMAIL_USER?.trim();
 const smtpPass = process.env.EMAIL_PASS?.trim();
@@ -178,11 +179,9 @@ export async function sendPasswordResetEmail(opts: {
   });
 
   const transporter = getTransporter();
-  const fromName = process.env.EMAIL_FROM_NAME ?? "HeyCico";
-  const fromAddress = smtpUser ?? "hello@smartguest.ai";
 
   await transporter.sendMail({
-    from: `"${fromName}" <${fromAddress}>`,
+    from: getSmtpFromHeader(),
     to: opts.to.trim(),
     subject: "Recupero accesso HeyCico — reimposta la password",
     html,
@@ -191,6 +190,10 @@ export async function sendPasswordResetEmail(opts: {
   logger.info({ to: opts.to }, "Password reset email sent");
 }
 
+/**
+ * Invia l’email di benvenuto con PDF allegato. Risolve quando SMTP ha accettato il messaggio;
+ * in caso di errore di `sendMail` la Promise viene rifiutata (propagazione al route handler).
+ */
 export async function sendHostWelcomeEmail(opts: {
   to: string;
   hostDisplayName: string;
@@ -219,11 +222,9 @@ export async function sendHostWelcomeEmail(opts: {
   });
 
   const transporter = getTransporter();
-  const fromName = process.env.EMAIL_FROM_NAME ?? "HeyCico";
-  const fromAddress = smtpUser ?? "hello@smartguest.ai";
 
   await transporter.sendMail({
-    from: `"${fromName}" <${fromAddress}>`,
+    from: getSmtpFromHeader(),
     to: opts.to.trim(),
     subject: "Benvenuto in HeyCico — la tua struttura è pronta ✨",
     html,

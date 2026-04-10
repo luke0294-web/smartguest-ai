@@ -254,17 +254,21 @@ router.post("/leads/:id/convert", async (req, res): Promise<void> => {
 
     let emailSent = false;
     if (isHostWelcomeEmailConfigured()) {
-      emailSent = true;
-      void sendHostWelcomeEmail({
-        to: normalizedEmail,
-        hostDisplayName: leadRow.host_name.trim(),
-        propertyName: leadRow.property_name.trim(),
-        slug,
-        inviteToken,
-      }).catch((mailErr: unknown) => {
-        console.error("Email background error:", mailErr);
+      try {
+        await sendHostWelcomeEmail({
+          to: normalizedEmail,
+          hostDisplayName: leadRow.host_name.trim(),
+          propertyName: leadRow.property_name.trim(),
+          slug,
+          inviteToken,
+        });
+        emailSent = true;
+      } catch (mailErr: unknown) {
+        console.error("[lead convert] sendHostWelcomeEmail:", mailErr);
         logger.error({ mailErr, slug, email: normalizedEmail }, "Lead convert — welcome email failed");
-      });
+        res.status(500).json({ error: "Invio email fallito. Controlla i log SMTP." });
+        return;
+      }
     } else {
       logger.warn({ slug }, "Lead convert — email SMTP non configurato, email di benvenuto non inviata");
     }

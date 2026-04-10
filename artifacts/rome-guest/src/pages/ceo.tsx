@@ -746,8 +746,8 @@ export default function CeoPanel() {
       const data = (await res.json()) as { success?: boolean; slug?: string; emailSent?: boolean; error?: string };
       if (!res.ok) {
         toast({
-          title: "Conversione non riuscita",
-          description: data.error ?? "Qualcosa è andato storto.",
+          title: "Errore",
+          description: "Errore: L'email non è stata inviata. Controlla i log SMTP.",
           variant: "destructive",
         });
         return;
@@ -755,7 +755,7 @@ export default function CeoPanel() {
       if (data.emailSent) {
         toast({
           title: "Host creato",
-          description: "L'email di benvenuto con PDF è in invio; l'host la riceverà a breve.",
+          description: "L'email di benvenuto con PDF è stata accettata dal server SMTP.",
         });
       } else {
         toast({
@@ -805,15 +805,15 @@ export default function CeoPanel() {
       const data = (await res.json()) as { success?: boolean; error?: string };
       if (!res.ok) {
         toast({
-          title: "Invio non riuscito",
-          description: data.error ?? "Riprova più tardi.",
+          title: "Errore",
+          description: "Errore: L'email non è stata inviata. Controlla i log SMTP.",
           variant: "destructive",
         });
         return;
       }
       toast({
-        title: "Email in invio",
-        description: "L'host riceverà a breve di nuovo l'email di benvenuto con il PDF allegato.",
+        title: "Email inviata",
+        description: "Il server SMTP ha accettato l'email di benvenuto con il PDF allegato.",
       });
     } catch {
       toast({ title: "Errore di rete", description: "Riprova.", variant: "destructive" });

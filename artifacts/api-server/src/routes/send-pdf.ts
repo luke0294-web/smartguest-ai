@@ -1,6 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import nodemailer from "nodemailer";
 import { logger } from "../lib/logger";
+import { getSmtpFromHeader } from "../lib/smtpFrom";
 import { requireCeoSession } from "../lib/ceo-session";
 
 const router: IRouter = Router();
@@ -17,8 +18,6 @@ interface SendPdfMailPayload {
   propertyName: string;
   normalizedPdf: string;
   chatLink: string;
-  fromName: string;
-  fromAddress: string;
 }
 
 const smtpUser = process.env.EMAIL_USER?.trim();
@@ -43,10 +42,10 @@ const transporter = nodemailer.createTransport({
  * Invio email in background: try/catch interno, nessun throw verso il chiamante.
  */
 async function sendEmailInBackground(payload: SendPdfMailPayload): Promise<void> {
-  const { email, propertyName, normalizedPdf, chatLink, fromName, fromAddress } = payload;
+  const { email, propertyName, normalizedPdf, chatLink } = payload;
   try {
     await transporter.sendMail({
-      from: `"${fromName}" <${fromAddress}>`,
+      from: getSmtpFromHeader(),
       to: email.trim(),
       subject: "Il tuo Cartello QR HeyCico è pronto! 🖨️",
       html: `
@@ -108,9 +107,6 @@ router.post("/send-pdf", (req: Request<{}, {}, SendPdfBody>, res: Response): voi
     return;
   }
 
-  const fromName = process.env.EMAIL_FROM_NAME ?? "HeyCico";
-  const fromAddress = smtpUser ?? "hello.smartguest@gmail.com";
-
   const base64Data = pdfBase64.includes(",") ? pdfBase64.split(",")[1] : pdfBase64;
   const normalizedPdf = base64Data.trim();
   if (!/^[A-Za-z0-9+/=\r\n]+$/.test(normalizedPdf)) {
@@ -128,8 +124,6 @@ router.post("/send-pdf", (req: Request<{}, {}, SendPdfBody>, res: Response): voi
     propertyName: propertyName.trim(),
     normalizedPdf,
     chatLink: chatLink ?? "",
-    fromName,
-    fromAddress,
   };
 
   void sendEmailInBackground(payload).catch((err: unknown) => {
