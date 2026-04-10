@@ -8,8 +8,14 @@ import { logger } from "./lib/logger";
 const app: Express = express();
 app.set("trust proxy", 1);
 
+/** Production SPA origins — allowlisted for CORS (QR/email links still use `FRONTEND_URL` from env). */
+const PRODUCTION_FRONTEND_ORIGIN = "https://heycico.com";
+const PRODUCTION_FRONTEND_ORIGIN_WWW = "https://www.heycico.com";
+
 const allowedOrigins: Array<string | undefined | RegExp> = [
   process.env.FRONTEND_URL,
+  PRODUCTION_FRONTEND_ORIGIN,
+  PRODUCTION_FRONTEND_ORIGIN_WWW,
   /\.vercel\.app$/,
 ];
 
