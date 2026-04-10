@@ -17,7 +17,7 @@ function buildEmbeddedProperty(): GuestChatEmbeddedDemo["property"] {
     id: 0,
     slug: "demo",
     name: DEMO_PROPERTY_DISPLAY_NAME,
-    content: `Benvenuti a ${DEMO_PROPERTY_DISPLAY_NAME}! Questa è una proprietà demo di SmartGuest AI.`,
+    content: `Benvenuti a ${DEMO_PROPERTY_DISPLAY_NAME}! Questa è una proprietà demo di HeyCico.`,
     whatsappNumber: "+390000000000",
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -66,7 +66,7 @@ export default function DemoPage() {
               Hai visto come funziona Marco? 🎉
             </p>
             <p className="mt-2 text-[13px] sm:text-sm font-medium leading-relaxed text-amber-950/95">
-              Attiva SmartGuest AI nella tua struttura e smetti di rispondere sempre alle stesse domande!
+              Attiva HeyCico nella tua struttura e smetti di rispondere sempre alle stesse domande!
             </p>
             <Link
               href="/#lead-form"

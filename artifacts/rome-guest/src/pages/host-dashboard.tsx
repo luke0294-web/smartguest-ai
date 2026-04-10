@@ -607,7 +607,7 @@ export default function HostDashboard() {
 
                 <div className="flex items-center justify-center gap-1 text-[10px] text-gray-300 pt-0.5">
                   <Sparkles className="w-2.5 h-2.5" />
-                  Powered by SmartGuest AI
+                  Powered by HeyCico
                 </div>
               </div>
             </div>
@@ -645,7 +645,7 @@ export default function HostDashboard() {
         </motion.div>
 
         <p className="text-center text-[11px] text-gray-300 uppercase tracking-widest">
-          Powered by SmartGuest AI
+          Powered by HeyCico
         </p>
       </div>
     </div>

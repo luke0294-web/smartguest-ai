@@ -90,7 +90,7 @@ export default function SetupPassword() {
           <MessageSquare className="w-4 h-4 text-white" />
         </div>
         <span className="font-bold text-[15px] tracking-tight text-gray-800 group-hover:text-blue-600 transition-colors">
-          SmartGuest AI
+          HeyCico
         </span>
       </Link>
 
@@ -246,7 +246,7 @@ export default function SetupPassword() {
       </motion.div>
 
       <p className="text-center text-[11px] text-gray-300 mt-6">
-        Powered by SmartGuest AI · Invito sicuro
+        Powered by HeyCico · Invito sicuro
       </p>
     </div>
   );

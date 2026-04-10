@@ -44,7 +44,7 @@ async function sendEmailInBackground(payload: SendPdfMailPayload): Promise<void>
     await transporter.sendMail({
       from: `"${fromName}" <${fromAddress}>`,
       to: email.trim(),
-      subject: "Il tuo Cartello QR SmartGuest AI è pronto! 🖨️",
+      subject: "Il tuo Cartello QR HeyCico è pronto! 🖨️",
       html: `
         <div style="font-family: sans-serif; color: #333; line-height: 1.5;">
           <h2 style="color: #1d4ed8;">Il tuo Cartello Digitale è pronto! 🖨️</h2>
@@ -55,7 +55,7 @@ async function sendEmailInBackground(payload: SendPdfMailPayload): Promise<void>
             <a href="${chatLink}" style="color: #2563eb; text-decoration: none;"><strong>${chatLink}</strong></a>
           </p>
           <br>
-          <p>Buon lavoro,<br><strong>Il team di SmartGuest AI</strong></p>
+          <p>Buon lavoro,<br><strong>Il team di HeyCico</strong></p>
         </div>
       `,
       attachments: [
@@ -104,7 +104,7 @@ router.post("/send-pdf", (req: Request<{}, {}, SendPdfBody>, res: Response): voi
     return;
   }
 
-  const fromName = process.env.EMAIL_FROM_NAME ?? "SmartGuest AI";
+  const fromName = process.env.EMAIL_FROM_NAME ?? "HeyCico";
   const fromAddress = smtpUser ?? "hello.smartguest@gmail.com";
 
   const base64Data = pdfBase64.includes(",") ? pdfBase64.split(",")[1] : pdfBase64;

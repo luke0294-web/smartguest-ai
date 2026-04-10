@@ -49,7 +49,7 @@ export default function ForgotPassword() {
           <MessageSquare className="w-4 h-4 text-white" />
         </div>
         <span className="font-bold text-[15px] tracking-tight text-gray-800 group-hover:text-blue-600 transition-colors">
-          SmartGuest AI
+          HeyCico
         </span>
       </Link>
 
@@ -91,7 +91,7 @@ export default function ForgotPassword() {
                     />
                   </div>
                   <p className="text-[11px] text-gray-400">
-                    Usa la stessa email che hai comunicato al supporto SmartGuest al momento dell'attivazione.
+                    Usa la stessa email che hai comunicato al supporto HeyCico al momento dell'attivazione.
                   </p>
                 </div>
 
@@ -152,7 +152,7 @@ export default function ForgotPassword() {
       </motion.div>
 
       <p className="text-center text-[11px] text-gray-300 mt-6">
-        Powered by SmartGuest AI · Accesso sicuro
+        Powered by HeyCico · Accesso sicuro
       </p>
     </div>
   );

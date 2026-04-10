@@ -18,7 +18,7 @@ export default function PrivacyPolicy() {
         </p>
 
         <p className="text-gray-600 mb-8 leading-relaxed">
-          Benvenuto su <strong>SmartGuest AI</strong>. La tua privacy è importante per noi.
+          Benvenuto su <strong>HeyCico</strong>. La tua privacy è importante per noi.
           Essendo attualmente in fase di Beta Testing, questa è un'informativa semplificata.
         </p>
 
@@ -69,7 +69,7 @@ export default function PrivacyPolicy() {
         </div>
 
         <div className="mt-10 pt-6 border-t border-gray-100 text-xs text-gray-400">
-          © {new Date().getFullYear()} SmartGuest AI — Tutti i diritti riservati.
+          © {new Date().getFullYear()} HeyCico — Tutti i diritti riservati.
         </div>
       </div>
     </div>

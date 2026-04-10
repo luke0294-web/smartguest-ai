@@ -355,7 +355,7 @@ export default function Landing() {
               <MessageSquare className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-white" />
             </div>
             <span className="font-bold text-[13px] sm:text-[15px] tracking-tight">
-              SmartGuest AI
+              HeyCico
             </span>
           </div>
 
@@ -460,7 +460,7 @@ export default function Landing() {
               ))}
             </div>
             <span className="whitespace-nowrap">
-              <strong className="text-gray-600">+120 host</strong> già usano SmartGuest AI
+              <strong className="text-gray-600">+120 host</strong> già usano HeyCico
             </span>
           </motion.div>
         </div>
@@ -482,13 +482,13 @@ export default function Landing() {
                 <p className="text-white font-semibold text-[13px]">Appartamento Centrale</p>
                 <p className="text-white/70 text-[11px] flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  Marco è online
+                  Cico è online
                 </p>
               </div>
             </div>
             <div className="p-4 flex flex-col gap-3">
               <div className="bg-gray-50 rounded-2xl rounded-tl-sm px-4 py-3 text-[13px] text-gray-700 max-w-[85%]">
-                Benvenuto! Sono Marco 👋 Come posso aiutarti?
+                Benvenuto! Sono Cico 👋 Come posso aiutarti?
               </div>
               <div className="bg-blue-600 rounded-2xl rounded-tr-sm px-4 py-3 text-[13px] text-white self-end max-w-[85%]">
                 What's the Wi-Fi password?
@@ -674,7 +674,7 @@ export default function Landing() {
             <div className="w-6 h-6 rounded-md bg-blue-600 flex items-center justify-center">
               <MessageSquare className="w-3 h-3 text-white" />
             </div>
-            <span className="text-[13px] font-semibold text-gray-700">SmartGuest AI</span>
+            <span className="text-[13px] font-semibold text-gray-700">HeyCico</span>
           </div>
 
           <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-5 text-[13px] text-gray-400">
@@ -688,7 +688,7 @@ export default function Landing() {
           </div>
 
           <p className="text-[12px] text-gray-300">
-            © {new Date().getFullYear()} SmartGuest AI. Tutti i diritti riservati.
+            © {new Date().getFullYear()} HeyCico. Tutti i diritti riservati.
           </p>
         </div>
       </footer>

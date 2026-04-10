@@ -115,7 +115,7 @@ export default function HostProperties() {
             </div>
             <h2 className="font-bold text-gray-700 text-lg mb-2">Nessuna struttura assegnata</h2>
             <p className="text-gray-400 text-sm max-w-xs mx-auto">
-              Contatta il supporto SmartGuest AI per associare le tue strutture a questo account.
+              Contatta il supporto HeyCico per associare le tue strutture a questo account.
             </p>
           </motion.div>
         )}
@@ -170,7 +170,7 @@ export default function HostProperties() {
         )}
 
         <p className="text-center text-[11px] text-gray-300 mt-2 uppercase tracking-widest">
-          Powered by SmartGuest AI
+          Powered by HeyCico
         </p>
       </div>
     </div>

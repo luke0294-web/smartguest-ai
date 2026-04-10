@@ -51,7 +51,7 @@ export async function buildHostWelcomePdfBuffer(slug: string, propertyName: stri
     doc.text(`Benvenuti a ${propertyName}`, m, 72, { width: pageW - 2 * m, align: "center" });
 
     doc.font("Helvetica").fontSize(11).fillColor("#6b7280");
-    doc.text("Assistente ospiti SmartGuest AI — scansiona il QR", m, 108, { width: pageW - 2 * m, align: "center" });
+    doc.text("Assistente ospiti HeyCico — scansiona il QR", m, 108, { width: pageW - 2 * m, align: "center" });
 
     const qrSize = 168;
     const qrX = (pageW - qrSize) / 2;
@@ -64,7 +64,7 @@ export async function buildHostWelcomePdfBuffer(slug: string, propertyName: stri
     });
 
     doc.font("Helvetica-Oblique").fontSize(8).fillColor("#9ca3af");
-    doc.text("Powered by SmartGuest AI", m, doc.page.height - 52, {
+    doc.text("Powered by HeyCico", m, doc.page.height - 52, {
       width: pageW - 2 * m,
       align: "center",
     });
@@ -100,7 +100,7 @@ export function buildHostWelcomeEmailHtml(opts: {
       <table role="presentation" width="100%" style="max-width:560px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
         <tr><td style="font-size:18px;line-height:1.5;color:#111827;padding-bottom:16px;">Ciao ${name},</td></tr>
         <tr><td style="font-size:16px;line-height:1.55;color:#374151;padding-bottom:20px;">
-          Benvenuto in <strong style="color:#111827;">SmartGuest AI</strong>! La struttura <strong>${prop}</strong> è pronta. Imposta la tua password con il pulsante qui sotto e trova in allegato il cartello da tavolo con QR per i tuoi ospiti.
+          Benvenuto in <strong style="color:#111827;">HeyCico</strong>! La struttura <strong>${prop}</strong> è pronta. Imposta la tua password con il pulsante qui sotto e trova in allegato il cartello da tavolo con QR per i tuoi ospiti.
         </td></tr>
         <tr><td align="center" style="padding:12px 0 28px;">
           <a href="${setup}" style="display:inline-block;padding:15px 25px;background:#1e40af;color:#ffffff;font-size:17px;font-weight:bold;text-decoration:none;border-radius:10px;">IMPOSTA LA TUA PASSWORD</a>
@@ -112,7 +112,7 @@ export function buildHostWelcomeEmailHtml(opts: {
           <a href="${guest}" style="font-size:16px;color:#2563eb;word-break:break-all;line-height:1.4;">${guest}</a>
         </td></tr>
         <tr><td style="font-size:15px;line-height:1.5;color:#6b7280;padding-top:8px;">
-          Cordiali saluti,<br/><strong style="color:#111827;">Il team SmartGuest AI</strong>
+          Cordiali saluti,<br/><strong style="color:#111827;">Il team HeyCico</strong>
         </td></tr>
       </table>
     </td></tr>
@@ -137,7 +137,7 @@ export function buildPasswordResetEmailHtml(opts: {
       <table role="presentation" width="100%" style="max-width:560px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
         <tr><td style="font-size:18px;line-height:1.5;color:#111827;padding-bottom:16px;">Ciao,</td></tr>
         <tr><td style="font-size:16px;line-height:1.55;color:#374151;padding-bottom:20px;">
-          Hai richiesto il <strong style="color:#111827;">recupero accesso</strong> alla dashboard host su <strong style="color:#111827;">SmartGuest AI</strong>.
+          Hai richiesto il <strong style="color:#111827;">recupero accesso</strong> alla dashboard host su <strong style="color:#111827;">HeyCico</strong>.
           Per la struttura <strong>${prop}</strong> puoi reimpostare la password con il pulsante qui sotto. Il link è valido per <strong>2 ore</strong>.
         </td></tr>
         <tr><td align="center" style="padding:12px 0 28px;">
@@ -147,7 +147,7 @@ export function buildPasswordResetEmailHtml(opts: {
           Se non hai richiesto tu questo messaggio, ignora questa email: la tua password non verrà modificata.
         </td></tr>
         <tr><td style="font-size:15px;line-height:1.5;color:#6b7280;padding-top:8px;">
-          Cordiali saluti,<br/><strong style="color:#111827;">Il team SmartGuest AI</strong>
+          Cordiali saluti,<br/><strong style="color:#111827;">Il team HeyCico</strong>
         </td></tr>
       </table>
     </td></tr>
@@ -174,13 +174,13 @@ export async function sendPasswordResetEmail(opts: {
   });
 
   const transporter = getTransporter();
-  const fromName = process.env.EMAIL_FROM_NAME ?? "SmartGuest AI";
+  const fromName = process.env.EMAIL_FROM_NAME ?? "HeyCico";
   const fromAddress = smtpUser ?? "hello@smartguest.ai";
 
   await transporter.sendMail({
     from: `"${fromName}" <${fromAddress}>`,
     to: opts.to.trim(),
-    subject: "Recupero accesso SmartGuest AI — reimposta la password",
+    subject: "Recupero accesso HeyCico — reimposta la password",
     html,
   });
 
@@ -215,13 +215,13 @@ export async function sendHostWelcomeEmail(opts: {
   });
 
   const transporter = getTransporter();
-  const fromName = process.env.EMAIL_FROM_NAME ?? "SmartGuest AI";
+  const fromName = process.env.EMAIL_FROM_NAME ?? "HeyCico";
   const fromAddress = smtpUser ?? "hello@smartguest.ai";
 
   await transporter.sendMail({
     from: `"${fromName}" <${fromAddress}>`,
     to: opts.to.trim(),
-    subject: "Benvenuto in SmartGuest AI — la tua struttura è pronta ✨",
+    subject: "Benvenuto in HeyCico — la tua struttura è pronta ✨",
     html,
     attachments: [
       {

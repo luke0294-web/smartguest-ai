@@ -135,17 +135,17 @@ const TRANSLATIONS = {
   it: {
     placeholder: "Scrivi la tua domanda...",
     send: "Invia",
-    typing: "Marco sta scrivendo",
-    onlineStatus: "Marco è online",
+    typing: "Cico sta scrivendo",
+    onlineStatus: "Cico è online",
     loading: "Caricamento assistente...",
     notFound: "Proprietà non trovata",
     notFoundDesc: "L'appartamento che stai cercando non esiste o il link non è corretto.",
     goToPanel: "Vai al Pannello",
-    welcome: (name: string) => "Benvenuti a " + name + "! Sono Marco, come posso aiutarvi oggi? 👋",
+    welcome: (name: string) => "Benvenuti a " + name + "! Sono Cico, come posso aiutarvi oggi? 👋",
     errorMsg: "Scusa, c'è stato un errore di connessione. Riprova tra poco.",
     helpBtn: "Aiuto",
     whatsappDefault: (name: string) => `Ciao, sono un ospite di ${name} e avrei bisogno di assistenza diretta`,
-    powered: "Powered by SmartGuest AI · Marco",
+    powered: "Powered by HeyCico",
     quickReplies: [
       { label: "🔑 WiFi", question: "Qual è la password del WiFi?" },
       { label: "🍕 Ristoranti", question: "Quali ristoranti o posti per mangiare consigli nei dintorni?" },
@@ -163,17 +163,17 @@ const TRANSLATIONS = {
   en: {
     placeholder: "Type your question here...",
     send: "Send",
-    typing: "Marco is typing",
-    onlineStatus: "Marco is online",
+    typing: "Cico is typing",
+    onlineStatus: "Cico is online",
     loading: "Loading assistant...",
     notFound: "Property not found",
     notFoundDesc: "The accommodation you're looking for doesn't exist or the link is incorrect.",
     goToPanel: "Go to Panel",
-    welcome: (name: string) => `Welcome to ${name}! I'm Marco, how can I help you today? 👋`,
+    welcome: (name: string) => `Welcome to ${name}! I'm Cico, how can I help you today? 👋`,
     errorMsg: "Sorry, there was a connection error. Please try again.",
     helpBtn: "Help",
     whatsappDefault: (name: string) => `Hello, I'm a guest at ${name} and I need direct assistance`,
-    powered: "Powered by SmartGuest AI · Marco",
+    powered: "Powered by HeyCico",
     quickReplies: [
       { label: "🔑 WiFi", question: "What is the WiFi password?" },
       { label: "🍕 Restaurants", question: "What restaurants or places to eat do you recommend nearby?" },
@@ -191,17 +191,17 @@ const TRANSLATIONS = {
   de: {
     placeholder: "Ihre Frage hier eingeben...",
     send: "Senden",
-    typing: "Marco schreibt",
-    onlineStatus: "Marco ist online",
+    typing: "Cico schreibt",
+    onlineStatus: "Cico ist online",
     loading: "Assistent wird geladen...",
     notFound: "Unterkunft nicht gefunden",
     notFoundDesc: "Die gesuchte Unterkunft existiert nicht oder der Link ist falsch.",
     goToPanel: "Zum Panel",
-    welcome: (name: string) => `Willkommen in ${name}! Ich bin Marco, wie kann ich Ihnen helfen? 👋`,
+    welcome: (name: string) => `Willkommen in ${name}! Ich bin Cico, wie kann ich Ihnen helfen? 👋`,
     errorMsg: "Entschuldigung, es gab einen Verbindungsfehler. Bitte versuchen Sie es erneut.",
     helpBtn: "Hilfe",
     whatsappDefault: (name: string) => `Hallo, ich bin ein Gast in ${name} und benötige direkte Hilfe`,
-    powered: "Powered by SmartGuest AI · Marco",
+    powered: "Powered by HeyCico",
     quickReplies: [
       { label: "🔑 WLAN", question: "Was ist das WLAN-Passwort?" },
       { label: "🍕 Restaurants", question: "Welche Restaurants empfehlen Sie in der Nähe?" },
@@ -219,17 +219,17 @@ const TRANSLATIONS = {
   fr: {
     placeholder: "Écrivez votre question ici...",
     send: "Envoyer",
-    typing: "Marco est en train d'écrire",
-    onlineStatus: "Marco est en ligne",
+    typing: "Cico est en train d'écrire",
+    onlineStatus: "Cico est en ligne",
     loading: "Chargement de l'assistant...",
     notFound: "Propriété introuvable",
     notFoundDesc: "Le logement que vous recherchez n'existe pas ou le lien est incorrect.",
     goToPanel: "Panneau de contrôle",
-    welcome: (name: string) => `Bienvenue à ${name}! Je suis Marco, comment puis-je vous aider? 👋`,
+    welcome: (name: string) => `Bienvenue à ${name}! Je suis Cico, comment puis-je vous aider? 👋`,
     errorMsg: "Désolé, une erreur de connexion s'est produite. Veuillez réessayer.",
     helpBtn: "Aide",
     whatsappDefault: (name: string) => `Bonjour, je suis un hôte de ${name} et j'ai besoin d'assistance directe`,
-    powered: "Powered by SmartGuest AI · Marco",
+    powered: "Powered by HeyCico",
     quickReplies: [
       { label: "🔑 WiFi", question: "Quel est le mot de passe WiFi?" },
       { label: "🍕 Restaurants", question: "Quels restaurants recommandez-vous aux alentours ?" },
@@ -247,17 +247,17 @@ const TRANSLATIONS = {
   es: {
     placeholder: "Escribe tu pregunta aquí...",
     send: "Enviar",
-    typing: "Marco está escribiendo",
-    onlineStatus: "Marco está en línea",
+    typing: "Cico está escribiendo",
+    onlineStatus: "Cico está en línea",
     loading: "Cargando asistente...",
     notFound: "Propiedad no encontrada",
     notFoundDesc: "El alojamiento que buscas no existe o el enlace es incorrecto.",
     goToPanel: "Ir al Panel",
-    welcome: (name: string) => `¡Bienvenido a ${name}! Soy Marco, ¿cómo puedo ayudarte hoy? 👋`,
+    welcome: (name: string) => `¡Bienvenido a ${name}! Soy Cico, ¿cómo puedo ayudarte hoy? 👋`,
     errorMsg: "Lo siento, hubo un error de conexión. Por favor, inténtalo de nuevo.",
     helpBtn: "Ayuda",
     whatsappDefault: (name: string) => `Hola, soy un huésped de ${name} y necesito asistencia directa`,
-    powered: "Powered by SmartGuest AI · Marco",
+    powered: "Powered by HeyCico",
     quickReplies: [
       { label: "🔑 WiFi", question: "¿Cuál es la contraseña del WiFi?" },
       { label: "🍕 Restaurantes", question: "¿Qué restaurantes o lugares para comer recomiendas cerca?" },
@@ -275,17 +275,17 @@ const TRANSLATIONS = {
   nl: {
     placeholder: "Typ hier uw vraag...",
     send: "Versturen",
-    typing: "Marco typt",
-    onlineStatus: "Marco is online",
+    typing: "Cico typt",
+    onlineStatus: "Cico is online",
     loading: "Assistent laden...",
     notFound: "Accommodatie niet gevonden",
     notFoundDesc: "De accommodatie die u zoekt bestaat niet of de link is onjuist.",
     goToPanel: "Naar het paneel",
-    welcome: (name: string) => `Welkom bij ${name}! Ik ben Marco, hoe kan ik u vandaag helpen? 👋`,
+    welcome: (name: string) => `Welkom bij ${name}! Ik ben Cico, hoe kan ik u vandaag helpen? 👋`,
     errorMsg: "Sorry, er is een verbindingsfout opgetreden. Probeer het opnieuw.",
     helpBtn: "Hulp",
     whatsappDefault: (name: string) => `Hallo, ik ben een gast bij ${name} en heb directe hulp nodig`,
-    powered: "Powered by SmartGuest AI · Marco",
+    powered: "Powered by HeyCico",
     quickReplies: [
       { label: "🔑 WiFi", question: "Wat is het WiFi-wachtwoord?" },
       { label: "🍕 Restaurants", question: "Welke restaurants raad je aan in de buurt?" },
@@ -303,17 +303,17 @@ const TRANSLATIONS = {
   zh: {
     placeholder: "在这里输入您的问题...",
     send: "发送",
-    typing: "Marco 正在输入",
-    onlineStatus: "Marco 在线",
+    typing: "Cico 正在输入",
+    onlineStatus: "Cico 在线",
     loading: "正在加载助手...",
     notFound: "未找到房源",
     notFoundDesc: "您正在寻找的住所不存在或链接不正确。",
     goToPanel: "前往管理面板",
-    welcome: (name: string) => `欢迎来到 ${name}！我是 Marco，今天有什么可以帮助您的？👋`,
+    welcome: (name: string) => `欢迎来到 ${name}！我是 Cico，今天有什么可以帮助您的？👋`,
     errorMsg: "抱歉，发生了连接错误，请稍后重试。",
     helpBtn: "帮助",
     whatsappDefault: (name: string) => `您好，我是 ${name} 的住客，需要直接帮助`,
-    powered: "Powered by SmartGuest AI · Marco",
+    powered: "Powered by HeyCico",
     quickReplies: [
       { label: "🔑 WiFi", question: "WiFi密码是什么？" },
       { label: "🍕 餐厅", question: "您推荐附近有哪些餐厅？" },
@@ -331,17 +331,17 @@ const TRANSLATIONS = {
   ja: {
     placeholder: "ご質問をここに入力してください...",
     send: "送信",
-    typing: "Marcoが入力中",
-    onlineStatus: "Marcoはオンライン",
+    typing: "Cicoが入力中",
+    onlineStatus: "Cicoはオンライン",
     loading: "アシスタントを読み込み中...",
     notFound: "物件が見つかりません",
     notFoundDesc: "お探しの宿泊先は存在しないか、リンクが正しくありません。",
     goToPanel: "パネルへ",
-    welcome: (name: string) => `${name}へようこそ！私はMarcoです。本日はどのようにお手伝いできますか？👋`,
+    welcome: (name: string) => `${name}へようこそ！私はCicoです。本日はどのようにお手伝いできますか？👋`,
     errorMsg: "申し訳ありません、接続エラーが発生しました。もう一度お試しください。",
     helpBtn: "ヘルプ",
     whatsappDefault: (name: string) => `こんにちは、${name}のゲストです。直接サポートが必要です`,
-    powered: "Powered by SmartGuest AI · Marco",
+    powered: "Powered by HeyCico",
     quickReplies: [
       { label: "🔑 WiFi", question: "WiFiのパスワードは何ですか？" },
       { label: "🍕 レストラン", question: "近くのおすすめのレストランはどこですか？" },
@@ -359,17 +359,17 @@ const TRANSLATIONS = {
   ko: {
     placeholder: "질문을 여기에 입력하세요...",
     send: "보내기",
-    typing: "Marco가 입력 중",
-    onlineStatus: "Marco 온라인",
+    typing: "Cico가 입력 중",
+    onlineStatus: "Cico 온라인",
     loading: "어시스턴트 로딩 중...",
     notFound: "숙소를 찾을 수 없음",
     notFoundDesc: "찾으시는 숙소가 존재하지 않거나 링크가 올바르지 않습니다.",
     goToPanel: "패널로 이동",
-    welcome: (name: string) => `${name}에 오신 것을 환영합니다! 저는 Marco입니다. 오늘 무엇을 도와드릴까요? 👋`,
+    welcome: (name: string) => `${name}에 오신 것을 환영합니다! 저는 Cico입니다. 오늘 무엇을 도와드릴까요? 👋`,
     errorMsg: "죄송합니다. 연결 오류가 발생했습니다. 다시 시도해 주세요.",
     helpBtn: "도움말",
     whatsappDefault: (name: string) => `안녕하세요, 저는 ${name}의 투숙객입니다. 직접 도움이 필요합니다`,
-    powered: "Powered by SmartGuest AI · Marco",
+    powered: "Powered by HeyCico",
     quickReplies: [
       { label: "🔑 WiFi", question: "WiFi 비밀번호가 무엇인가요?" },
       { label: "🍕 레스토랑", question: "근처에 추천할 만한 식당이 있나요?" },
@@ -387,17 +387,17 @@ const TRANSLATIONS = {
   pt: {
     placeholder: "Digite sua pergunta aqui...",
     send: "Enviar",
-    typing: "Marco está digitando",
-    onlineStatus: "Marco está online",
+    typing: "Cico está digitando",
+    onlineStatus: "Cico está online",
     loading: "Carregando assistente...",
     notFound: "Propriedade não encontrada",
     notFoundDesc: "A acomodação que você procura não existe ou o link está incorreto.",
     goToPanel: "Ir para o Painel",
-    welcome: (name: string) => `Bem-vindo(a) a ${name}! Sou o Marco, como posso ajudá-lo(a) hoje? 👋`,
+    welcome: (name: string) => `Bem-vindo(a) a ${name}! Sou o Cico, como posso ajudá-lo(a) hoje? 👋`,
     errorMsg: "Desculpe, ocorreu um erro de conexão. Por favor, tente novamente.",
     helpBtn: "Ajuda",
     whatsappDefault: (name: string) => `Olá, sou hóspede em ${name} e preciso de assistência direta`,
-    powered: "Powered by SmartGuest AI · Marco",
+    powered: "Powered by HeyCico",
     quickReplies: [
       { label: "🔑 WiFi", question: "Qual é a senha do WiFi?" },
       { label: "🍕 Restaurantes", question: "Quais restaurantes você recomenda por perto?" },
@@ -415,17 +415,17 @@ const TRANSLATIONS = {
   pl: {
     placeholder: "Wpisz swoje pytanie tutaj...",
     send: "Wyślij",
-    typing: "Marco pisze",
-    onlineStatus: "Marco jest online",
+    typing: "Cico pisze",
+    onlineStatus: "Cico jest online",
     loading: "Ładowanie asystenta...",
     notFound: "Nie znaleziono nieruchomości",
     notFoundDesc: "Szukane zakwaterowanie nie istnieje lub link jest nieprawidłowy.",
     goToPanel: "Przejdź do panelu",
-    welcome: (name: string) => `Witamy w ${name}! Jestem Marco, jak mogę Ci dzisiaj pomóc? 👋`,
+    welcome: (name: string) => `Witamy w ${name}! Jestem Cico, jak mogę Ci dzisiaj pomóc? 👋`,
     errorMsg: "Przepraszamy, wystąpił błąd połączenia. Spróbuj ponownie.",
     helpBtn: "Pomoc",
     whatsappDefault: (name: string) => `Cześć, jestem gościem w ${name} i potrzebuję bezpośredniej pomocy`,
-    powered: "Powered by SmartGuest AI · Marco",
+    powered: "Powered by HeyCico",
     quickReplies: [
       { label: "🔑 WiFi", question: "Jakie jest hasło do WiFi?" },
       { label: "🍕 Restauracje", question: "Jakie restauracje polecasz w pobliżu?" },
@@ -570,7 +570,7 @@ export default function GuestChat(props: GuestChatProps = {}) {
     lastMessage?.role === "assistant" &&
     Boolean(lastMessage.streaming) &&
     lastMessage.content.length > 0;
-  /** Hide "Marco typing" once streamed text appears in the assistant bubble (not before first token). */
+  /** Hide "Cico typing" once streamed text appears in the assistant bubble (not before first token). */
   const showSeparateTypingIndicator = isPending && !streamingTextStarted;
 
   useEffect(() => {
@@ -892,7 +892,7 @@ export default function GuestChat(props: GuestChatProps = {}) {
               >
                 {msg.role === "assistant" && (
                   <div className="w-7 h-7 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center mr-2 mt-0.5 flex-shrink-0 text-[11px] font-bold text-primary">
-                    M
+                    C
                   </div>
                 )}
                 <div
@@ -956,7 +956,7 @@ export default function GuestChat(props: GuestChatProps = {}) {
                 className="flex justify-start items-end gap-2"
               >
                 <div className="w-7 h-7 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center flex-shrink-0 text-[11px] font-bold text-primary">
-                  M
+                  C
                 </div>
                 <div className="assistant-bubble px-4 py-3 flex items-center gap-2">
                   <span className="text-[13px] text-muted-foreground font-sans italic">
