@@ -89,7 +89,12 @@ A multi-property RAG-based AI chat platform. Hosts log in with email+password an
 
 - `OPENAI_API_KEY` — OpenAI API key (required)
 - `CEO_PASSWORD` — CEO panel password (default: `fleming2026`)
-- `DATABASE_URL` — PostgreSQL connection string (auto-provisioned by Replit)
+- `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` — Supabase project (required for API)
+- `FRONTEND_URL` — Public frontend URL (`https://...`) for CORS, QR, and email links
+- `RESEND_API_KEY` — [Resend](https://resend.com) API key (transactional email)
+- `RESEND_FROM_EMAIL` — Verified sender address in Resend
+- `EMAIL_FROM_NAME` — Optional display name (e.g. HeyCico)
+- `HOST_SESSION_SECRET` or `SESSION_SECRET` — Host session signing
 
 ### Key Constraints
 

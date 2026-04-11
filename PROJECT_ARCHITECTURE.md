@@ -43,7 +43,7 @@ High-level technical reference for architectural review, deployment planning, an
 | Data access | **Drizzle ORM** + **`pg`** pool (`@workspace/db`) |
 | Validation (shared) | **Zod** schemas from **`@workspace/api-zod`** |
 | AI | **OpenAI** official SDK (`openai` package) — chat completions, Whisper, vision |
-| Email | **Nodemailer** (SMTP; Gmail-compatible defaults) |
+| Email | **Resend** HTTP API (`resend` SDK; `RESEND_API_KEY`, `RESEND_FROM_EMAIL`) |
 | QR (deterministic, server-side) | **`qrcode`** → PNG **data URL** (`data:image/png;base64,...`) |
 | Security middleware | **helmet**, **cors** (allowlist), **trust proxy** |
 | Logging | **pino** + **pino-http** (sensitive fields redacted) |
@@ -136,13 +136,13 @@ Routes are registered in `artifacts/api-server/src/routes/index.ts` and mounted 
 4. **PDF composition (client):** CEO UI uses **jsPDF** to lay out title, subtitle, and **`doc.addImage(qrCodeBase64, 'PNG', ...)`** centered. Output is typically a **data URI** string passed to the email endpoint.
 5. **Determinism:** Same slug + same `FRONTEND_URL` + fixed QR options ⇒ predictable bitmap (modulo library patch updates).
 
-### 4.2 Secure SMTP email sending (`POST /api/send-pdf`)
+### 4.2 Resend email sending (`POST /api/send-pdf` and transactional mail)
 
-1. **Authorization:** **`requireCeoSession`** — only the CEO session can trigger send (see §6).
-2. **Payload:** JSON with recipient `email`, `propertyName`, `pdfBase64` (full data URI or raw base64), optional `chatLink`.
+1. **Authorization:** **`requireCeoSession`** — only the CEO session can trigger `send-pdf` (see §6). Host welcome, lead convert, and password flows use **`sendResendEmail`** / **`hostWelcomeMail.ts`** with the same Resend configuration.
+2. **Payload (`/api/send-pdf`):** JSON with recipient `email`, `propertyName`, `pdfBase64` (full data URI or raw base64), optional `chatLink`.
 3. **Validation:** Base64 segment normalized and validated before `Buffer.from(..., "base64")` for the attachment.
-4. **Transport:** **Nodemailer** with env-driven `EMAIL_SMTP_HOST`, `EMAIL_SMTP_PORT`, **`EMAIL_USER`**, **`EMAIL_PASS`** (required at startup via `validateEnv`). `secure` aligns with port (e.g. 465).
-5. **Errors:** Responses use **generic Italian messages**; no raw `err.message` leaked to clients. Logs use **pino**; sensitive bodies/headers redacted in HTTP logger config.
+4. **Provider:** **`resend`** SDK — **`RESEND_API_KEY`**, **`RESEND_FROM_EMAIL`** (verified sender), optional **`EMAIL_FROM_NAME`** for display name (default HeyCico). Implemented in **`artifacts/api-server/src/lib/resend.ts`**.
+5. **Errors:** API responses use **generic Italian messages**; details stay in **pino** server logs only.
 
 ### 4.3 AI chat, logging, and `pending_questions_count` badge
 
@@ -214,7 +214,10 @@ Logical model (PostgreSQL, Drizzle). **Foreign keys** are not always declared in
 
 `artifacts/api-server/src/lib/validateEnv.ts` requires (non-empty after trim):
 
-- `DATABASE_URL`, `OPENAI_API_KEY`, `CEO_PASSWORD`, `HOST_SESSION_SECRET`, `FRONTEND_URL`, `EMAIL_USER`, `EMAIL_PASS`
+- **`SUPABASE_URL`**, **`SUPABASE_ANON_KEY`**, **`SUPABASE_SERVICE_ROLE_KEY`**, **`OPENAI_API_KEY`**, **`CEO_PASSWORD`**, **`FRONTEND_URL`**, **`RESEND_API_KEY`**, **`RESEND_FROM_EMAIL`**
+- Plus **`HOST_SESSION_SECRET`** or **`SESSION_SECRET`**
+
+**Optional (not in `validateEnv`):** **`EMAIL_FROM_NAME`** — display name in the Resend `From` header.
 
 Failure logs Italian messages and aborts boot. **`PORT`** is enforced in `index.ts` separately.
 
@@ -245,7 +248,9 @@ Failure logs Italian messages and aborts boot. **`PORT`** is enforced in `index.
 | `CEO_PASSWORD` | CEO login + signing key input |
 | `HOST_SESSION_SECRET` | Host JWT-like session signing |
 | `FRONTEND_URL` | CORS, QR links, email/chat links |
-| `EMAIL_*` | SMTP + From |
+| `RESEND_API_KEY` | Resend API key |
+| `RESEND_FROM_EMAIL` | Verified sender address in Resend |
+| `EMAIL_FROM_NAME` | Optional display name (HeyCico) for `From` |
 | `PORT` | HTTP listen port |
 | `BASE_PATH`, `PORT` (frontend) | Vite base URL and dev server port |
 

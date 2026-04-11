@@ -185,7 +185,7 @@ router.post("/auth/forgot-password", async (req, res): Promise<void> => {
         return;
       }
     } else {
-      logger.warn({ slug: property.slug }, "Forgot password — SMTP non configurato, nessuna email inviata");
+      logger.warn({ slug: property.slug }, "Forgot password — invio email non configurato (Resend), nessuna email inviata");
     }
 
     res.json({ success: true });

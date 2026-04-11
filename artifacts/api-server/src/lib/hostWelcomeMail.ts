@@ -7,12 +7,42 @@ export function isHostWelcomeEmailConfigured(): boolean {
   return isResendEmailConfigured();
 }
 
-/** QR + simple A4 tent card (PDFKit). */
-export async function buildHostWelcomePdfBuffer(slug: string, propertyName: string): Promise<Buffer> {
-  const frontendBase = (process.env.FRONTEND_URL ?? "").trim().replace(/\/$/, "");
-  if (!frontendBase) {
-    throw new Error("FRONTEND_URL mancante: impossibile generare il PDF.");
+/**
+ * Public frontend base URL for email links and QR in the welcome PDF.
+ * Throws with Render-oriented hints if missing or not a valid http(s) URL.
+ */
+export function getFrontendBaseUrlForEmail(context: string): string {
+  const raw = (process.env.FRONTEND_URL ?? "").trim();
+  if (!raw) {
+    throw new Error(
+      `${context}: FRONTEND_URL mancante. Imposta su Render l'URL pubblico del frontend (es. https://www.heycico.com). Senza questo valore il QR nel PDF e i link nelle email non sono validi.`,
+    );
   }
+  const base = raw.replace(/\/$/, "");
+  try {
+    const u = new URL(base);
+    if (u.protocol !== "http:" && u.protocol !== "https:") {
+      throw new Error(
+        `${context}: FRONTEND_URL deve usare http:// o https:// (valore attuale: ${base.slice(0, 96)})`,
+      );
+    }
+    return base;
+  } catch (e) {
+    if (e instanceof Error && e.message.includes("FRONTEND_URL")) {
+      throw e;
+    }
+    throw new Error(
+      `${context}: FRONTEND_URL non valido o incompleto. Usa un URL assoluto con https (es. https://tuodominio.com), non solo il path. Valore attuale: ${raw.slice(0, 120)}`,
+    );
+  }
+}
+
+/** QR + simple A4 tent card (PDFKit). `frontendBase` must come from {@link getFrontendBaseUrlForEmail}. */
+export async function buildHostWelcomePdfBuffer(
+  slug: string,
+  propertyName: string,
+  frontendBase: string,
+): Promise<Buffer> {
   const guestUrl = `${frontendBase}/guest/${slug}`;
   const dataUrl = await QRCode.toDataURL(guestUrl, {
     type: "image/png",
@@ -146,10 +176,11 @@ export async function sendPasswordResetEmail(opts: {
   resetToken: string;
 }): Promise<void> {
   if (!isHostWelcomeEmailConfigured()) {
-    throw new Error("Email non configurata (RESEND_API_KEY / RESEND_FROM_EMAIL).");
+    throw new Error(
+      "Email non configurata: imposta RESEND_API_KEY e RESEND_FROM_EMAIL sul server (Render → Environment).",
+    );
   }
-  const frontendBase = (process.env.FRONTEND_URL ?? "").trim().replace(/\/$/, "");
-  if (!frontendBase) throw new Error("FRONTEND_URL mancante");
+  const frontendBase = getFrontendBaseUrlForEmail("Recupero password");
 
   const resetPasswordUrl = `${frontendBase}/reset-password/${opts.resetToken}`;
   const html = buildPasswordResetEmailHtml({
@@ -179,10 +210,11 @@ export async function sendHostWelcomeEmail(opts: {
   inviteToken: string;
 }): Promise<void> {
   if (!isHostWelcomeEmailConfigured()) {
-    throw new Error("Email non configurata (RESEND_API_KEY / RESEND_FROM_EMAIL).");
+    throw new Error(
+      "Email non configurata: imposta RESEND_API_KEY e RESEND_FROM_EMAIL sul server (Render → Environment).",
+    );
   }
-  const frontendBase = (process.env.FRONTEND_URL ?? "").trim().replace(/\/$/, "");
-  if (!frontendBase) throw new Error("FRONTEND_URL mancante");
+  const frontendBase = getFrontendBaseUrlForEmail("Email benvenuto host");
 
   const setupPasswordUrl = `${frontendBase}/setup-password/${opts.inviteToken}`;
   const guestAssistantUrl = `${frontendBase}/guest/${opts.slug}`;
@@ -190,7 +222,7 @@ export async function sendHostWelcomeEmail(opts: {
   const parts = opts.hostDisplayName.trim().split(/\s+/).filter(Boolean);
   const hostFirstName = parts[0] ?? "Host";
 
-  const pdfBuf = await buildHostWelcomePdfBuffer(opts.slug, opts.propertyName);
+  const pdfBuf = await buildHostWelcomePdfBuffer(opts.slug, opts.propertyName, frontendBase);
   const html = buildHostWelcomeEmailHtml({
     hostFirstName,
     propertyName: opts.propertyName,

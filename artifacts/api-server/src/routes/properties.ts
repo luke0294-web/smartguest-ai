@@ -698,9 +698,9 @@ router.post("/properties/:slug/resend-host-welcome", async (req, res): Promise<v
         inviteToken,
       });
     } catch (sendErr: unknown) {
-      console.error("[resend-host-welcome] sendHostWelcomeEmail:", sendErr);
-      logger.error({ sendErr, slug }, "resend-host-welcome send failed");
-      res.status(500).json({ error: "Invio email fallito. Controlla i log SMTP." });
+      const errMessage = sendErr instanceof Error ? sendErr.message : String(sendErr);
+      logger.error({ slug, errMessage }, "resend-host-welcome send failed");
+      res.status(500).json({ error: "Invio email fallito. Controlla i log di sistema." });
       return;
     }
 

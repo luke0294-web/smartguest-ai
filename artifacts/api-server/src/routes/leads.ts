@@ -264,13 +264,13 @@ router.post("/leads/:id/convert", async (req, res): Promise<void> => {
         });
         emailSent = true;
       } catch (mailErr: unknown) {
-        console.error("[lead convert] sendHostWelcomeEmail:", mailErr);
-        logger.error({ mailErr, slug, email: normalizedEmail }, "Lead convert — welcome email failed");
-        res.status(500).json({ error: "Invio email fallito. Controlla i log SMTP." });
+        const errMessage = mailErr instanceof Error ? mailErr.message : String(mailErr);
+        logger.error({ slug, email: normalizedEmail, errMessage }, "Lead convert — welcome email failed");
+        res.status(500).json({ error: "Invio email fallito. Controlla i log di sistema." });
         return;
       }
     } else {
-      logger.warn({ slug }, "Lead convert — email SMTP non configurato, email di benvenuto non inviata");
+      logger.warn({ slug }, "Lead convert — invio email non configurato (Resend), email di benvenuto non inviata");
     }
 
     logger.info({ id, email: normalizedEmail, slug, emailSent }, "Lead converted to property + invite token");

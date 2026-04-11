@@ -103,7 +103,7 @@ Rileva se la risposta di Marco indica che non ha saputo rispondere (e l'ospite h
 
 ## Artifact 2 — Backend (`artifacts/api-server`)
 
-**Stack:** Express 5, TypeScript, Drizzle ORM, OpenAI SDK, Pino (logger), Multer (upload file), Nodemailer (email), pino-http.
+**Stack:** Express 5, TypeScript, **Supabase** (PostgreSQL), OpenAI SDK, Pino (logger), Multer (upload file), **Resend** (email transazionale), pino-http.
 
 Il server ascolta sulla porta definita da `process.env.PORT` (default 8080). Tutte le route sono prefissate `/api`.
 
@@ -166,7 +166,7 @@ Tutte le route richiedono `ceoPassword` nel body o nei query params.
 
 Flusso reset: l'host inserisce email → viene generato un token UUID → viene inviata un'email con link (`/reset-password/:token`) → l'host clicca e imposta nuova password → il token viene cancellato.
 
-Il token è salvato in `properties.resetToken` e `properties.resetRequestedAt`. L'email è inviata via Nodemailer (Gmail App Password in env `EMAIL_PASS`, mittente in `EMAIL_USER`).
+Il token è salvato in `properties.resetToken` e `properties.resetRequestedAt`. L'email è inviata tramite **Resend** (`RESEND_API_KEY`, mittente verificato in `RESEND_FROM_EMAIL`, nome visualizzato opzionale `EMAIL_FROM_NAME`).
 
 Il CEO può vedere tutti i token in sospeso (`GET /api/auth/resets`) e cancellarli (`DELETE /api/auth/resets/:slug`).
 
@@ -185,13 +185,15 @@ CRUD sugli account host. `POST /api/admin/hosts` è idempotente: se l'host esist
 
 #### `routes/send-pdf.ts` — Email PDF
 
-`POST /api/send-pdf` riceve il PDF codificato base64 + email destinatario → invia via Nodemailer con il PDF allegato. Usato dal `QrModal` nel CEO panel.
+`POST /api/send-pdf` riceve il PDF codificato base64 + email destinatario → invia tramite **Resend** con il PDF allegato. Usato dal `QrModal` nel CEO panel.
 
 ### Lib files backend
 
 | File | Descrizione |
 |---|---|
 | `lib/logger.ts` | Istanza Pino con pino-http |
+| `lib/resend.ts` | Client Resend (`RESEND_API_KEY`), `getResendFromHeader()`, `sendResendEmail()` |
+| `lib/hostWelcomeMail.ts` | Email benvenuto host, reset password, PDF allegato (PDFKit + QR) |
 | `lib/rateLimiter.ts` | Rate limiter in-memory (mappa IP → contatore) — 30 req/ora |
 | `lib/detectNeedsAttention.ts` | Stessa logica del frontend (copia isomorfica) |
 | `lib/categorizeMessage.ts` | Categorizza il messaggio come FLEXIBLE (tourism) o STRICT (house management) |
@@ -266,14 +268,21 @@ Tabella originale per la knowledge base globale. Il sistema attuale usa `propert
 
 ## Variabili d'Ambiente
 
-| Variabile | Descrizione | Default |
+Variabili richieste all’avvio dell’API (`validateEnv` in `artifacts/api-server/src/lib/validateEnv.ts`), oltre a **`HOST_SESSION_SECRET`** o **`SESSION_SECRET`**.
+
+| Variabile | Descrizione | Note |
 |---|---|---|
-| `DATABASE_URL` | Stringa connessione Postgres | (impostata da Replit) |
+| `SUPABASE_URL` | URL progetto Supabase | Obbligatoria |
+| `SUPABASE_ANON_KEY` | Chiave anon Supabase | Obbligatoria |
+| `SUPABASE_SERVICE_ROLE_KEY` | Service role (solo server) | Obbligatoria |
 | `OPENAI_API_KEY` | Chiave API OpenAI | Obbligatoria |
-| `CEO_PASSWORD` | Password per il pannello CEO | `"fleming2026"` |
-| `EMAIL_USER` | Account Gmail mittente (email reset + PDF) | Opzionale |
-| `EMAIL_PASS` | Gmail App Password | Opzionale |
-| `PORT` | Porta API server | `8080` |
+| `CEO_PASSWORD` | Password pannello CEO | Obbligatoria |
+| `FRONTEND_URL` | URL pubblico del frontend (CORS, QR, link nelle email) | Obbligatoria — deve essere `https://...` completo |
+| `RESEND_API_KEY` | Chiave API [Resend](https://resend.com) | Obbligatoria |
+| `RESEND_FROM_EMAIL` | Mittente verificato in Resend (es. dominio o sandbox Resend) | Obbligatoria |
+| `EMAIL_FROM_NAME` | Nome visualizzato nel mittente (es. HeyCico) | Opzionale |
+| `HOST_SESSION_SECRET` / `SESSION_SECRET` | Firma sessioni host | Obbligatoria (una delle due) |
+| `PORT` | Porta HTTP API | Default `8080` |
 
 ---
 

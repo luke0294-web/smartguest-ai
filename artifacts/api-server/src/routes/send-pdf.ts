@@ -82,9 +82,9 @@ router.post("/send-pdf", async (req: Request<{}, {}, SendPdfBody>, res: Response
       ],
     });
   } catch (err: unknown) {
-    console.error("[send-pdf] Resend send failed:", err);
-    logger.error({ err, email: email.trim() }, "Invio email PDF fallito");
-    res.status(500).json({ error: "Invio email fallito. Controlla i log Resend." });
+    const errMessage = err instanceof Error ? err.message : String(err);
+    logger.error({ email: email.trim(), errMessage }, "Invio email PDF fallito");
+    res.status(500).json({ error: "Invio email fallito. Controlla i log di sistema." });
     return;
   }
 

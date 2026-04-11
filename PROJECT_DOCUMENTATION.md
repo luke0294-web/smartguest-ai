@@ -105,7 +105,7 @@ OpenAI API              Supabase (PostgreSQL)
 | Data | **Supabase** anon + service-role clients (`src/lib/supabase.ts`) |
 | Validation | **Zod** via `@workspace/api-zod` |
 | AI | **OpenAI** SDK — chat stream, Whisper, vision (`openai`) |
-| Email | **Nodemailer** |
+| Email | **Resend** (`resend` SDK — `lib/resend.ts`, `lib/hostWelcomeMail.ts`) |
 | QR | **qrcode**; PDF kit **pdfkit** (e.g. welcome PDF) |
 | Security | **helmet**, **cors** (allowlist), `trust proxy: 1` |
 | Logging | **pino** + **pino-http** (redacted fields) |
@@ -577,10 +577,10 @@ If UI language ≠ `it` but reply looks Italian → **`AI_LANGUAGE_LEAK`** log (
 
 ### 9.1 Boot — `lib/validateEnv.ts`
 
-Required: **`SUPABASE_URL`**, **`SUPABASE_ANON_KEY`**, **`SUPABASE_SERVICE_ROLE_KEY`**, **`OPENAI_API_KEY`**, **`CEO_PASSWORD`**, **`FRONTEND_URL`**, **`EMAIL_USER`**, **`EMAIL_PASS`**.  
+Required: **`SUPABASE_URL`**, **`SUPABASE_ANON_KEY`**, **`SUPABASE_SERVICE_ROLE_KEY`**, **`OPENAI_API_KEY`**, **`CEO_PASSWORD`**, **`FRONTEND_URL`**, **`RESEND_API_KEY`**, **`RESEND_FROM_EMAIL`**.  
 Plus **`HOST_SESSION_SECRET`** or **`SESSION_SECRET`**.
 
-**Optional at validate:** `EMAIL_SMTP_HOST`, `EMAIL_SMTP_PORT`, `EMAIL_FROM_NAME` — defaults exist in mail modules.
+**Optional (not in `validateEnv`):** **`EMAIL_FROM_NAME`** — display name in the Resend `From` header (default HeyCico).
 
 ### 9.2 Supabase logging
 

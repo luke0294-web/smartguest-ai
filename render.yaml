@@ -1,3 +1,5 @@
+# Web service API — set secret values in the Render dashboard (Environment).
+# Required at runtime: validateEnv in artifacts/api-server/src/lib/validateEnv.ts
 services:
   - type: web
     name: smartguest-api
@@ -8,3 +10,8 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      # Email (Resend) — required; no SMTP / EMAIL_USER / EMAIL_PASS
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM_EMAIL
+        sync: false
