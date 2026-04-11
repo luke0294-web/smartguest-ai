@@ -8,7 +8,6 @@ const router: IRouter = Router();
 
 // GET /admin/hosts — list all hosts (CEO only)
 router.get("/admin/hosts", async (req, res): Promise<void> => {
-  console.log("[ROTTA CEO] Ricevuta richiesta:", req.path);
   if (!requireCeoSession(req, res)) return;
 
   try {
@@ -25,12 +24,11 @@ router.get("/admin/hosts", async (req, res): Promise<void> => {
     }
 
     const hosts = (rows ?? []).map((r) => ({
-      id: r.id as number,
+      id: r.id,
       email: r.email,
       createdAt: r.created_at,
     }));
 
-    console.log("[ROTTA CEO] Lista host recuperata");
     res.json(hosts);
   } catch (error) {
     console.error("[ERRORE CRITICO]", error);
@@ -42,7 +40,6 @@ router.get("/admin/hosts", async (req, res): Promise<void> => {
 
 // POST /admin/hosts — create or update host (CEO only)
 router.post("/admin/hosts", async (req, res): Promise<void> => {
-  console.log("[ROTTA CEO] Ricevuta richiesta:", req.path);
   if (!requireCeoSession(req, res)) return;
 
   try {
@@ -155,7 +152,6 @@ router.delete("/admin/hosts/:email", async (req, res): Promise<void> => {
 
 // GET /admin/properties-by-email — properties for a given owner email (CEO only)
 router.get("/admin/properties-by-email", async (req, res): Promise<void> => {
-  console.log("[ROTTA CEO] Ricevuta richiesta:", req.path);
   if (!requireCeoSession(req, res)) return;
 
   try {
