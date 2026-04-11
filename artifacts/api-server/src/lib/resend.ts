@@ -68,6 +68,6 @@ export async function sendResendEmail(params: {
   } catch (err: unknown) {
     const message = safeResendFailureMessage(err);
     logger.error({ message }, "Resend emails.send failed");
-    throw new Error(message);
+    throw new Error("EMAIL_SEND_FAILED");
   }
 }

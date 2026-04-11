@@ -747,7 +747,7 @@ export default function CeoPanel() {
       if (!res.ok) {
         toast({
           title: "Invio non riuscito",
-          description: "Non è stato possibile inviare l'email. Controllare i log di sistema o riprovare più tardi.",
+          description: "Non è stato possibile inviare l'email tramite il servizio email (Resend). Riprova più tardi.",
           variant: "destructive",
         });
         return;
@@ -755,7 +755,7 @@ export default function CeoPanel() {
       if (data.emailSent) {
         toast({
           title: "Host creato",
-          description: "Email inviata con successo. L'host riceverà l'email di benvenuto con il PDF allegato.",
+          description: "Email inviata con successo tramite Resend. L'host riceverà l'email di benvenuto con il PDF allegato.",
         });
       } else {
         toast({
@@ -806,14 +806,14 @@ export default function CeoPanel() {
       if (!res.ok) {
         toast({
           title: "Invio non riuscito",
-          description: "Non è stato possibile inviare l'email. Controllare i log di sistema o riprovare più tardi.",
+          description: "Non è stato possibile inviare l'email tramite il servizio email (Resend). Riprova più tardi.",
           variant: "destructive",
         });
         return;
       }
       toast({
         title: "Email inviata con successo",
-        description: "L'email di benvenuto con PDF allegato è stata inviata correttamente.",
+        description: "L'email di benvenuto con PDF allegato è stata inviata correttamente tramite Resend.",
       });
     } catch {
       toast({ title: "Errore di rete", description: "Riprova.", variant: "destructive" });

@@ -30,7 +30,6 @@ function mapLeadToApi(row: LeadRow) {
 }
 
 router.post("/leads", async (req, res): Promise<void> => {
-  console.log("[ROTTA CEO] Ricevuta richiesta (pubblica):", req.path);
   try {
     const clientIp = getClientIp(req);
     if (!authRateLimiter.check(clientIp)) {
@@ -63,7 +62,6 @@ router.post("/leads", async (req, res): Promise<void> => {
       .single<LeadRow>();
 
     if (error || !row) {
-      console.error("[ERRORE CRITICO] POST /leads insert:", error);
       logger.error({ error }, "POST /leads — insert Supabase");
       res.status(500).json({ error: "Impossibile registrare la richiesta. Riprova più tardi." });
       return;
@@ -72,7 +70,7 @@ router.post("/leads", async (req, res): Promise<void> => {
     logger.info({ email, propertyName }, "New lead registered");
     res.status(201).json({ success: true });
   } catch (error) {
-    console.error("[ERRORE CRITICO]", error);
+    logger.error({ err: error }, "POST /leads — eccezione non gestita");
     if (!res.headersSent) {
       res.status(500).json({ error: "Errore interno del server" });
     }
@@ -80,7 +78,6 @@ router.post("/leads", async (req, res): Promise<void> => {
 });
 
 router.get("/leads", async (req, res): Promise<void> => {
-  console.log("[ROTTA CEO] Ricevuta richiesta:", req.path);
   if (!requireCeoSession(req, res)) return;
 
   try {
@@ -90,7 +87,6 @@ router.get("/leads", async (req, res): Promise<void> => {
       .order("created_at", { ascending: false });
 
     if (error) {
-      console.error("[ERRORE CRITICO] GET /leads:", error);
       logger.error({ error }, "GET /leads");
       res.status(500).json({ error: "Impossibile caricare i lead." });
       return;
@@ -98,7 +94,7 @@ router.get("/leads", async (req, res): Promise<void> => {
 
     res.json((rows as LeadRow[] | null)?.map(mapLeadToApi) ?? []);
   } catch (error) {
-    console.error("[ERRORE CRITICO]", error);
+    logger.error({ err: error }, "GET /leads — eccezione non gestita");
     if (!res.headersSent) {
       res.status(500).json({ error: "Errore interno del server" });
     }
@@ -106,7 +102,6 @@ router.get("/leads", async (req, res): Promise<void> => {
 });
 
 router.delete("/leads/:id", async (req, res): Promise<void> => {
-  console.log("[ROTTA CEO] Ricevuta richiesta:", req.path);
   if (!requireCeoSession(req, res)) return;
 
   try {
@@ -119,7 +114,6 @@ router.delete("/leads/:id", async (req, res): Promise<void> => {
     const { data: deleted, error } = await supabaseAdmin.from("leads").delete().eq("id", id).select("id");
 
     if (error) {
-      console.error("[ERRORE CRITICO] DELETE /leads:", error);
       logger.error({ error }, "DELETE /leads");
       res.status(500).json({ error: "Impossibile eliminare il lead." });
       return;
@@ -133,7 +127,7 @@ router.delete("/leads/:id", async (req, res): Promise<void> => {
     logger.info({ id }, "Lead deleted by CEO");
     res.json({ success: true, id });
   } catch (error) {
-    console.error("[ERRORE CRITICO]", error);
+    logger.error({ err: error }, "DELETE /leads — eccezione non gestita");
     if (!res.headersSent) {
       res.status(500).json({ error: "Errore interno del server" });
     }
@@ -141,7 +135,6 @@ router.delete("/leads/:id", async (req, res): Promise<void> => {
 });
 
 router.put("/leads/:id/status", async (req, res): Promise<void> => {
-  console.log("[ROTTA CEO] Ricevuta richiesta:", req.path);
   if (!requireCeoSession(req, res)) return;
 
   try {
@@ -165,7 +158,6 @@ router.put("/leads/:id/status", async (req, res): Promise<void> => {
       .select("*");
 
     if (error) {
-      console.error("[ERRORE CRITICO] PUT /leads status:", error);
       logger.error({ error }, "PUT /leads status");
       res.status(500).json({ error: "Impossibile aggiornare lo stato." });
       return;
@@ -180,7 +172,7 @@ router.put("/leads/:id/status", async (req, res): Promise<void> => {
     logger.info({ id, status }, "Lead status updated by CEO");
     res.json(mapLeadToApi(updated));
   } catch (error) {
-    console.error("[ERRORE CRITICO]", error);
+    logger.error({ err: error }, "PUT /leads status — eccezione non gestita");
     if (!res.headersSent) {
       res.status(500).json({ error: "Errore interno del server" });
     }
@@ -188,7 +180,6 @@ router.put("/leads/:id/status", async (req, res): Promise<void> => {
 });
 
 router.post("/leads/:id/convert", async (req, res): Promise<void> => {
-  console.log("[ROTTA CEO] Ricevuta richiesta:", req.path);
   if (!requireCeoSession(req, res)) return;
 
   try {
@@ -240,7 +231,6 @@ router.post("/leads/:id/convert", async (req, res): Promise<void> => {
     });
 
     if (propInsErr) {
-      console.error("[ERRORE CRITICO] POST /leads/:id/convert insert property:", propInsErr);
       logger.error({ propInsErr, slug }, "Lead convert — insert property failed");
       res.status(500).json({ error: "Impossibile creare la proprietà su Supabase." });
       return;
@@ -264,9 +254,8 @@ router.post("/leads/:id/convert", async (req, res): Promise<void> => {
         });
         emailSent = true;
       } catch (mailErr: unknown) {
-        const errMessage = mailErr instanceof Error ? mailErr.message : String(mailErr);
-        logger.error({ slug, email: normalizedEmail, errMessage }, "Lead convert — welcome email failed");
-        res.status(500).json({ error: "Invio email fallito. Controlla i log di sistema." });
+        logger.error({ slug, email: normalizedEmail, err: mailErr }, "Lead convert — welcome email failed");
+        res.status(500).json({ error: "Errore durante l'invio dell'email. Riprova più tardi." });
         return;
       }
     } else {
@@ -280,7 +269,7 @@ router.post("/leads/:id/convert", async (req, res): Promise<void> => {
       emailSent,
     });
   } catch (error) {
-    console.error("[ERRORE CRITICO]", error);
+    logger.error({ err: error }, "POST /leads/:id/convert — eccezione non gestita");
     if (!res.headersSent) {
       res.status(500).json({ error: "Errore interno del server" });
     }

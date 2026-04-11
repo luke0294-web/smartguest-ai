@@ -64,7 +64,7 @@ Rules for anyone changing **SmartGuest AI**. Treat violations as **blockers** fo
 
 ## 2. System architecture (high-level)
 
-Typical **production** topology (hosts may vary; **Vercel** / **Render** are the stack referenced in-repo, e.g. `rome-guest/vercel.json`, `render.yaml`).
+Typical **production** topology (hosts may vary; **Vercel** / **Render** are the stack referenced in-repo, e.g. `rome-guest/vercel.json`). Backend env vars are configured in the **Render Dashboard** (no blueprint file in-repo).
 
 ```
 Guest (browser)
@@ -162,7 +162,6 @@ Guest-Assistant-AI/
 ├── package.json                 # root: typecheck, dev:api, dev:web
 ├── pnpm-workspace.yaml
 ├── tsconfig.base.json
-├── render.yaml                  # example Render service definition
 └── PROJECT_ARCHITECTURE.md      # narrative doc; reconcile with this file if drift
 ```
 
@@ -659,7 +658,7 @@ Token headers: **`getCeoTokenFromRequest` / `getHostTokenFromRequest`** — cust
 
 ### Backend (Render example)
 
-**`render.yaml`:** service `smartguest-api`, `rootDir` **`artifacts/api-server`**, `pnpm install --frozen-lockfile && pnpm build`, **`node dist/index.js`**, `NODE_ENV=production`. **Secrets** (Supabase, OpenAI, email, sessions, CEO password) must be set in the platform — not all appear in YAML.
+Deploy **`artifacts/api-server`** as a Node web service: **`pnpm install --frozen-lockfile && pnpm build`**, start **`node dist/index.js`**, **`NODE_ENV=production`**. **Secrets** (Supabase, OpenAI, Resend, sessions, CEO password, `FRONTEND_URL`, `RESEND_*`, …) must be set in the **Render Dashboard** (Environment) — avoid blueprint sync conflicts.
 
 ### Local
 

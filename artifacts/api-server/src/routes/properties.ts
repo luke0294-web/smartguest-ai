@@ -156,7 +156,6 @@ const router: IRouter = Router();
 
 // GET /properties — list all (CEO only) → Supabase
 router.get("/properties", async (req, res): Promise<void> => {
-  console.log("[ROTTA CEO] Ricevuta richiesta:", req.path);
   if (!requireCeoSession(req, res)) return;
 
   try {
@@ -166,7 +165,6 @@ router.get("/properties", async (req, res): Promise<void> => {
       .order("created_at", { ascending: false });
 
     if (listError) {
-      console.error("[ERRORE CRITICO] GET /properties:", listError);
       logger.error({ listError }, "GET /properties — query Supabase fallita");
       res.status(500).json({ error: "Impossibile caricare l'elenco proprietà da Supabase." });
       return;
@@ -211,10 +209,9 @@ router.get("/properties", async (req, res): Promise<void> => {
       });
     }
 
-    console.log("[DB] Lista recuperata!");
     res.json(payload);
   } catch (error) {
-    console.error("[ERRORE CRITICO]", error);
+    logger.error({ err: error }, "GET /properties — eccezione non gestita");
     if (!res.headersSent) {
       res.status(500).json({ error: "Errore interno del server" });
     }
@@ -223,7 +220,6 @@ router.get("/properties", async (req, res): Promise<void> => {
 
 // POST /properties — create (CEO only) → Supabase
 router.post("/properties", async (req, res): Promise<void> => {
-  console.log("[ROTTA CEO] Ricevuta richiesta:", req.path);
   const parsed = CreatePropertyBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -241,8 +237,6 @@ router.post("/properties", async (req, res): Promise<void> => {
   }
 
   try {
-    console.log("[DB] Inizio inserimento...");
-
     const { data: existingRow, error: existingError } = await supabaseAdmin
       .from("properties")
       .select("slug")
@@ -250,7 +244,6 @@ router.post("/properties", async (req, res): Promise<void> => {
       .maybeSingle();
 
     if (existingError) {
-      console.error("[ERRORE CRITICO] POST /properties slug check:", existingError);
       logger.error({ existingError, finalSlug }, "POST /properties — verifica slug su Supabase fallita");
       res.status(500).json({ error: "Errore durante la verifica dello slug su Supabase." });
       return;
@@ -278,15 +271,12 @@ router.post("/properties", async (req, res): Promise<void> => {
       .single<SupabasePropertyRowPublic>();
 
     if (insertError || !row) {
-      console.error("[ERRORE CRITICO] POST /properties insert:", insertError);
       logger.error({ insertError, finalSlug }, "POST /properties — insert Supabase fallito");
       res.status(500).json({
         error: "Errore durante la creazione della proprietà su Supabase.",
       });
       return;
     }
-
-    console.log("[DB] Creazione completata!");
 
     const mappedCore = mapSupabaseRowToPropertyCore(row);
     if (!mappedCore) {
@@ -298,9 +288,9 @@ router.post("/properties", async (req, res): Promise<void> => {
     try {
       qrCodeBase64 = await generateGuestQrDataUrl(mappedCore.slug);
     } catch (qrErr) {
-      console.error(
-        "[ERRORE CRITICO] POST /properties generateGuestQrDataUrl:",
-        qrErr instanceof Error ? qrErr.message : qrErr,
+      logger.error(
+        { err: qrErr },
+        "POST /properties — generateGuestQrDataUrl fallita",
       );
       res.status(500).json({
         error: "Impossibile generare il QR ospite. Verifica FRONTEND_URL nel .env dell'API.",
@@ -311,7 +301,6 @@ router.post("/properties", async (req, res): Promise<void> => {
     const payload = { ...mappedCore, qrCodeBase64 };
     const parsedResponse = GetPropertyResponse.safeParse(payload);
     if (!parsedResponse.success) {
-      console.error("[ERRORE CRITICO] POST /properties Zod GetPropertyResponse:", parsedResponse.error.flatten());
       logger.error(
         { zod: parsedResponse.error.flatten(), payloadId: payload.id },
         "POST /properties — validazione GetPropertyResponse fallita",
@@ -323,7 +312,7 @@ router.post("/properties", async (req, res): Promise<void> => {
     logger.info({ slug: finalSlug, name: name.trim() }, "Property created (Supabase)");
     res.status(201).json(parsedResponse.data);
   } catch (error) {
-    console.error("[ERRORE CRITICO]", error);
+    logger.error({ err: error }, "POST /properties — eccezione non gestita");
     if (!res.headersSent) {
       res.status(500).json({ error: "Errore interno del server" });
     }
@@ -348,11 +337,6 @@ router.get("/properties/:slug", async (req, res): Promise<void> => {
     const { row, error: supabaseError } = await loadPropertyBySlugOrId(segment);
 
     if (supabaseError || !row) {
-      console.error(
-        "[ERRORE CRITICO] GET /properties/:slug Supabase:",
-        segment,
-        supabaseError ?? "no row",
-      );
       logger.warn(
         { slug: segment, supabaseError },
         "GET /properties/:slug — nessuna riga su Supabase (slug/id errato o tabella vuota)",
@@ -373,10 +357,7 @@ router.get("/properties/:slug", async (req, res): Promise<void> => {
     try {
       qrCodeBase64 = await generateGuestQrDataUrl(mapped.slug);
     } catch (qrErr) {
-      console.error(
-        "[ERRORE CRITICO] GET /properties/:slug generateGuestQrDataUrl (FRONTEND_URL):",
-        qrErr instanceof Error ? qrErr.message : qrErr,
-      );
+      logger.error({ err: qrErr, slug: params.data.slug }, "GET /properties/:slug — generateGuestQrDataUrl fallita");
       res.status(500).json({
         error:
           "Impossibile generare il QR ospite. Verifica FRONTEND_URL nel file .env del backend.",
@@ -387,7 +368,6 @@ router.get("/properties/:slug", async (req, res): Promise<void> => {
     const payload = { ...mapped, qrCodeBase64 };
     const parsed = GetPropertyResponse.safeParse(payload);
     if (!parsed.success) {
-      console.error("[ERRORE CRITICO] GET /properties/:slug Zod GetPropertyResponse:", parsed.error.flatten());
       logger.error(
         { slug: params.data.slug, zod: parsed.error.flatten(), payloadId: payload.id },
         "GET /properties/:slug — validazione GetPropertyResponse fallita",
@@ -401,10 +381,7 @@ router.get("/properties/:slug", async (req, res): Promise<void> => {
 
     res.json(parsed.data);
   } catch (err) {
-    console.error(
-      "[ERRORE CRITICO] GET /properties/:slug:",
-      err instanceof Error ? err.stack ?? err.message : err,
-    );
+    logger.error({ err }, "GET /properties/:slug — eccezione non gestita");
     if (!res.headersSent) {
       res.status(500).json({ error: "Errore interno durante il caricamento della proprietà." });
     }
@@ -413,7 +390,6 @@ router.get("/properties/:slug", async (req, res): Promise<void> => {
 
 // PUT /properties/:slug — update (CEO only) → Supabase
 router.put("/properties/:slug", async (req, res): Promise<void> => {
-  console.log("[ROTTA CEO] Ricevuta richiesta:", req.path);
   const params = UpdatePropertyParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -453,7 +429,6 @@ router.put("/properties/:slug", async (req, res): Promise<void> => {
       .select("*");
 
     if (error) {
-      console.error("[ERRORE CRITICO] PUT /properties:", error);
       logger.error({ error, slug: params.data.slug }, "PUT /properties");
       res.status(500).json({ error: "Aggiornamento su Supabase fallito." });
       return;
@@ -474,7 +449,7 @@ router.put("/properties/:slug", async (req, res): Promise<void> => {
     logger.info({ slug: params.data.slug }, "Property updated");
     res.json(UpdatePropertyResponse.parse(core));
   } catch (error) {
-    console.error("[ERRORE CRITICO]", error);
+    logger.error({ err: error }, "PUT /properties — eccezione non gestita");
     if (!res.headersSent) {
       res.status(500).json({ error: "Errore interno del server" });
     }
@@ -483,7 +458,6 @@ router.put("/properties/:slug", async (req, res): Promise<void> => {
 
 // PUT /properties/:slug/full-edit — inline CEO edit: name, slug, hostPassword (CEO only) → Supabase
 router.put("/properties/:slug/full-edit", async (req, res): Promise<void> => {
-  console.log("[ROTTA CEO] Ricevuta richiesta:", req.path);
   if (!requireCeoSession(req, res)) return;
 
   try {
@@ -548,7 +522,6 @@ router.put("/properties/:slug/full-edit", async (req, res): Promise<void> => {
             .update({ host_password: hashed })
             .eq("email", effectiveEmail);
           if (hErr) {
-            console.error("[ERRORE CRITICO] full-edit update host:", hErr);
             logger.error({ hErr }, "full-edit — update host password");
             res.status(500).json({ error: "Impossibile aggiornare la password host." });
             return;
@@ -558,7 +531,6 @@ router.put("/properties/:slug/full-edit", async (req, res): Promise<void> => {
             .from("hosts")
             .insert({ email: effectiveEmail, host_password: hashed });
           if (hIns) {
-            console.error("[ERRORE CRITICO] full-edit insert host:", hIns);
             logger.error({ hIns }, "full-edit — insert host");
             res.status(500).json({ error: "Impossibile creare l'host su Supabase." });
             return;
@@ -579,7 +551,6 @@ router.put("/properties/:slug/full-edit", async (req, res): Promise<void> => {
     if (Object.keys(propPatch).length > 0) {
       const { error: updErr } = await supabaseAdmin.from("properties").update(propPatch).eq("slug", slug);
       if (updErr) {
-        console.error("[ERRORE CRITICO] full-edit update property:", updErr);
         logger.error({ updErr, slug }, "full-edit — update property");
         res.status(500).json({ error: "Aggiornamento proprietà fallito." });
         return;
@@ -605,7 +576,6 @@ router.put("/properties/:slug/full-edit", async (req, res): Promise<void> => {
 
     const parsed = GetPropertyResponse.safeParse(core);
     if (!parsed.success) {
-      console.error("[ERRORE CRITICO] full-edit Zod GetPropertyResponse:", parsed.error.flatten());
       logger.error({ zod: parsed.error.flatten() }, "full-edit — GetPropertyResponse");
       res.status(500).json({ error: "Risposta non valida dopo full-edit." });
       return;
@@ -614,7 +584,7 @@ router.put("/properties/:slug/full-edit", async (req, res): Promise<void> => {
     logger.info({ slug: targetSlug, updates: Object.keys(propPatch) }, "Property fully edited by CEO");
     res.json(parsed.data);
   } catch (error) {
-    console.error("[ERRORE CRITICO]", error);
+    logger.error({ err: error }, "full-edit — eccezione non gestita");
     if (!res.headersSent) {
       res.status(500).json({ error: "Errore interno del server" });
     }
@@ -623,7 +593,6 @@ router.put("/properties/:slug/full-edit", async (req, res): Promise<void> => {
 
 // POST /properties/:slug/resend-host-welcome — CEO: reinvia email benvenuto + PDF (fallback)
 router.post("/properties/:slug/resend-host-welcome", async (req, res): Promise<void> => {
-  console.log("[ROTTA CEO] Ricevuta richiesta:", req.path);
   if (!requireCeoSession(req, res)) return;
 
   const slug = req.params.slug?.trim();
@@ -698,16 +667,15 @@ router.post("/properties/:slug/resend-host-welcome", async (req, res): Promise<v
         inviteToken,
       });
     } catch (sendErr: unknown) {
-      const errMessage = sendErr instanceof Error ? sendErr.message : String(sendErr);
-      logger.error({ slug, errMessage }, "resend-host-welcome send failed");
-      res.status(500).json({ error: "Invio email fallito. Controlla i log di sistema." });
+      logger.error({ slug, err: sendErr }, "resend-host-welcome send failed");
+      res.status(500).json({ error: "Errore durante l'invio dell'email. Riprova più tardi." });
       return;
     }
 
     logger.info({ slug }, "Host welcome email resent by CEO");
     res.json({ success: true });
   } catch (err) {
-    console.error("[ERRORE CRITICO]", err);
+    logger.error({ err, slug: req.params.slug }, "resend-host-welcome — eccezione non gestita");
     if (!res.headersSent) {
       res.status(500).json({ error: "Errore interno del server" });
     }
@@ -716,7 +684,6 @@ router.post("/properties/:slug/resend-host-welcome", async (req, res): Promise<v
 
 // DELETE /properties/:slug — delete (CEO only) → Supabase
 router.delete("/properties/:slug", async (req, res): Promise<void> => {
-  console.log("[ROTTA CEO] Ricevuta richiesta:", req.path);
   const params = DeletePropertyParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -733,7 +700,6 @@ router.delete("/properties/:slug", async (req, res): Promise<void> => {
       .select("slug");
 
     if (error) {
-      console.error("[ERRORE CRITICO] DELETE /properties:", error);
       logger.error({ error }, "DELETE /properties");
       res.status(500).json({ error: "Eliminazione su Supabase fallita." });
       return;
@@ -747,7 +713,7 @@ router.delete("/properties/:slug", async (req, res): Promise<void> => {
     logger.info({ slug: params.data.slug }, "Property deleted");
     res.sendStatus(204);
   } catch (error) {
-    console.error("[ERRORE CRITICO]", error);
+    logger.error({ err: error }, "DELETE /properties — eccezione non gestita");
     if (!res.headersSent) {
       res.status(500).json({ error: "Errore interno del server" });
     }
