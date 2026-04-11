@@ -53,14 +53,18 @@ const requireHostSessionForAi: RequestHandler = (req, res, next) => {
   if (session) next();
 };
 
+const enforceAiLimit: RequestHandler = (req, res, next) => {
+  if (enforceAiMessageLimit(req, res)) next();
+};
+
 // POST /ai/transcribe — Whisper speech-to-text
 router.post(
   "/ai/transcribe",
   rateLimitAiTranscribe,
   requireHostSessionForAi,
+  enforceAiLimit,
   upload.single("audio"),
   async (req, res): Promise<void> => {
-    if (!enforceAiMessageLimit(req, res)) return;
     if (!req.file) {
       res.status(400).json({ error: "Nessun file audio ricevuto." });
       return;
@@ -96,9 +100,9 @@ router.post(
   "/ai/vision",
   rateLimitAiVision,
   requireHostSessionForAi,
+  enforceAiLimit,
   upload.single("image"),
   async (req, res): Promise<void> => {
-    if (!enforceAiMessageLimit(req, res)) return;
     if (!req.file) {
       res.status(400).json({ error: "Nessuna immagine ricevuta." });
       return;
@@ -126,7 +130,7 @@ router.post(
             content: [
               {
                 type: "image_url",
-                image_url: { url: dataUrl, detail: "high" },
+                image_url: { url: dataUrl, detail: "low" },
               },
               {
                 type: "text",
