@@ -1,31 +1,10 @@
-import nodemailer from "nodemailer";
 import PDFDocument from "pdfkit";
 import QRCode from "qrcode";
 import { logger } from "./logger";
-import { getSmtpFromHeader } from "./smtpFrom";
-
-const smtpUser = process.env.EMAIL_USER?.trim();
-const smtpPass = process.env.EMAIL_PASS?.trim();
-const smtpPort = Number(process.env.EMAIL_SMTP_PORT ?? 465);
-
-function getTransporter(): nodemailer.Transporter {
-  return nodemailer.createTransport({
-    host: process.env.EMAIL_SMTP_HOST ?? "smtp.gmail.com",
-    port: smtpPort,
-    secure: smtpPort === 465,
-    auth: {
-      user: smtpUser,
-      pass: smtpPass,
-    },
-    family: 4,
-    connectionTimeout: 5000,
-    greetingTimeout: 5000,
-    socketTimeout: 10000,
-  } as Parameters<typeof nodemailer.createTransport>[0]);
-}
+import { getResendFromHeader, isResendEmailConfigured, sendResendEmail } from "./resend";
 
 export function isHostWelcomeEmailConfigured(): boolean {
-  return Boolean(smtpUser && smtpPass);
+  return isResendEmailConfigured();
 }
 
 /** QR + simple A4 tent card (PDFKit). */
@@ -167,7 +146,7 @@ export async function sendPasswordResetEmail(opts: {
   resetToken: string;
 }): Promise<void> {
   if (!isHostWelcomeEmailConfigured()) {
-    throw new Error("Email non configurata (EMAIL_USER / EMAIL_PASS).");
+    throw new Error("Email non configurata (RESEND_API_KEY / RESEND_FROM_EMAIL).");
   }
   const frontendBase = (process.env.FRONTEND_URL ?? "").trim().replace(/\/$/, "");
   if (!frontendBase) throw new Error("FRONTEND_URL mancante");
@@ -178,10 +157,8 @@ export async function sendPasswordResetEmail(opts: {
     resetPasswordUrl,
   });
 
-  const transporter = getTransporter();
-
-  await transporter.sendMail({
-    from: getSmtpFromHeader(),
+  await sendResendEmail({
+    from: getResendFromHeader(),
     to: opts.to.trim(),
     subject: "Recupero accesso HeyCico — reimposta la password",
     html,
@@ -191,8 +168,8 @@ export async function sendPasswordResetEmail(opts: {
 }
 
 /**
- * Invia l’email di benvenuto con PDF allegato. Risolve quando SMTP ha accettato il messaggio;
- * in caso di errore di `sendMail` la Promise viene rifiutata (propagazione al route handler).
+ * Invia l’email di benvenuto con PDF allegato. Risolve quando Resend ha accettato l’invio;
+ * in caso di errore la Promise viene rifiutata (propagazione al route handler).
  */
 export async function sendHostWelcomeEmail(opts: {
   to: string;
@@ -202,7 +179,7 @@ export async function sendHostWelcomeEmail(opts: {
   inviteToken: string;
 }): Promise<void> {
   if (!isHostWelcomeEmailConfigured()) {
-    throw new Error("Email non configurata (EMAIL_USER / EMAIL_PASS).");
+    throw new Error("Email non configurata (RESEND_API_KEY / RESEND_FROM_EMAIL).");
   }
   const frontendBase = (process.env.FRONTEND_URL ?? "").trim().replace(/\/$/, "");
   if (!frontendBase) throw new Error("FRONTEND_URL mancante");
@@ -221,10 +198,8 @@ export async function sendHostWelcomeEmail(opts: {
     guestAssistantUrl,
   });
 
-  const transporter = getTransporter();
-
-  await transporter.sendMail({
-    from: getSmtpFromHeader(),
+  await sendResendEmail({
+    from: getResendFromHeader(),
     to: opts.to.trim(),
     subject: "Benvenuto in HeyCico — la tua struttura è pronta ✨",
     html,
@@ -232,7 +207,6 @@ export async function sendHostWelcomeEmail(opts: {
       {
         filename: `Cartello_QR_${opts.propertyName.replace(/\s+/g, "_").replace(/[^a-zA-Z0-9._-]/g, "")}.pdf`,
         content: pdfBuf,
-        contentType: "application/pdf",
       },
     ],
   });

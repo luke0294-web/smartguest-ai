@@ -5,8 +5,8 @@ const REQUIRED_VARS = [
   "OPENAI_API_KEY",
   "CEO_PASSWORD",
   "FRONTEND_URL",
-  "EMAIL_USER",
-  "EMAIL_PASS",
+  "RESEND_API_KEY",
+  "RESEND_FROM_EMAIL",
 ] as const;
 
 function hasHostSessionSecret(): boolean {
