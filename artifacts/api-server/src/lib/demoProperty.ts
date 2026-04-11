@@ -73,7 +73,48 @@ Roman Breakfast: "Bar Roscioli". Order a coffee and a "Maritozzo con la panna".
 🚨 EMERGENCIES
 Power Trip: If the power goes out, the circuit breaker is behind the entrance door inside the wooden hatch. Flip up the largest black switch.
 Pharmacy 24h: Farmacia Internazionale in Piazza di Spagna.
-Host Contact: For urgent issues (leaks, lost keys), message me on WhatsApp. I respond almost immediately!`;
+Host Contact: For urgent issues (leaks, lost keys), message me on WhatsApp. I respond almost immediately!
+
+🚇 TRANSPORT & GETTING AROUND
+Metro: Nearest station is SPAGNA (Line A), 
+300 meters from the apartment.
+Bus: Lines 40, 64, 116 stop at Via del Corso.
+Taxi: Fixed rank at Piazza di Spagna.
+Airport: Leonardo Express from Termini Station, 
+every 15 minutes, €14. Journey: 32 minutes.
+
+🛒 SHOPPING & SERVICES
+Supermarket: Conad City on Via del Corso, 
+open daily 08:00-21:00.
+Pharmacy 24h: Farmacia Internazionale, 
+Piazza di Spagna (5 min walk).
+ATM: Three Bancomat machines on Via del Corso, 
+50 meters from the building.
+
+🏛️ NEARBY ATTRACTIONS
+- Spanish Steps: 3 min walk
+- Trevi Fountain: 12 min walk  
+- Pantheon: 20 min walk
+- Vatican: 25 min by metro (Line A → Ottaviano)
+- Colosseum: 30 min by metro (Line A → B, Colosseo)
+
+🍕 MORE OF LUCA'S RECOMMENDATIONS
+Pizza al taglio: "Pizzeria Ai Marmi" 
+(Viale di Trastevere). Thin, crispy, authentic.
+Gelato: "Gelateria del Teatro" (Via dei Coronari).
+Natural flavors, stunning view.
+Aperitivo: "Freni e Frizioni" (Trastevere). 
+Best spritz in Rome, open from 6:30 PM.
+Coffee: "Sant'Eustachio il Caffè" 
+(near the Pantheon). Legendary since 1938.
+
+🌤️ PRACTICAL ROME TIPS
+- Most museums require advance booking online
+- Restaurants open for dinner from 7:30 PM
+- Tap water in Rome is excellent and free 
+  (look for "nasoni" fountains)
+- Always validate your metro/bus ticket before boarding
+- Dress code required at Vatican and major churches`;
 /** Display name for the fictional demo listing (chat + GET /properties/demo). */
 export const DEMO_PROPERTY_DISPLAY_NAME = "La Bellezza di Roma";
 
