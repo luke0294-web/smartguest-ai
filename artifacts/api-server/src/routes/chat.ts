@@ -303,7 +303,7 @@ RULES:
     {
       role: "system",
       content:
-        "CRITICAL RULE: Match the guest's spoken language. If the message is too short to detect, default to the [App UI Language]. Bold 3-4 keywords. No Italian unless required.",
+        "STRICT RULE: Identify the language of the message below. You MUST reply in that SAME language. If the guest writes in English, reply in English. The [App UI Language] is ONLY a backup for very short words. NEVER reply in Italian to a non-Italian message. Manual first. Bold 3-4 keywords.",
     },
     { role: "user", content: `[App UI Language: ${languageCode}]\nGuest says: ${userMessage}` },
   ];
@@ -315,7 +315,7 @@ RULES:
         model: "gpt-4o-mini",
         messages,
         max_tokens: 300,
-        temperature: 0.4,
+        temperature: 0.1,
         stream: true,
         stream_options: { include_usage: true },
       });
