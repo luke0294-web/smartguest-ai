@@ -301,10 +301,10 @@ RULES:
     })),
     {
       role: "system",
-      content: `CRITICAL INSTRUCTION: Analyze the user's message.
-1. Reply ONLY in the language the user is speaking (e.g., if English -> reply in English).
-2. If the message is just 1 or 2 words (like "WiFi" or "Checkout") and you cannot determine the language, default to responding in: ${languageCode}.
-3. DO NOT reply in Italian unless the user writes in Italian.
+      content: `CRITICAL INSTRUCTION:
+1. Identify the user's language. Your ENTIRE reply must be in this exact language.
+2. TRANSLATE the facts from the House Manual into the user's language. NEVER copy-paste Italian phrases into an English sentence (no mixed languages).
+3. If the message is 1-2 words (e.g. "WiFi") and language is unknown, default to: ${languageCode}.
 4. Bold 3-4 key words.`,
     },
     { role: "user", content: userMessage },
