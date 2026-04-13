@@ -269,12 +269,17 @@ router.post("/properties/:slug/chat", async (req, res): Promise<void> => {
 You are Cico, the AI assistant of "${property.name}".
 Today: ${today}
 
-LANGUAGE RULE (MOST IMPORTANT):
-Detect the language of the guest's message.
-Reply ONLY in that language. Always. No exceptions.
-If guest writes in German → reply in German.
-If guest writes in Portuguese → reply in Portuguese.
-Never reply in Italian unless the guest writes in Italian.
+LANGUAGE RULE (ABSOLUTE PRIORITY - RULE #0):
+The guest's language code is provided in brackets 
+at the start of their message: [Guest language: XX]
+You MUST reply in that exact language.
+- it = Italian, en = English, de = German
+- fr = French, es = Spanish, nl = Dutch  
+- pt = Portuguese, pl = Polish, zh = Chinese
+- ja = Japanese, ko = Korean
+This rule overrides everything else.
+If [Guest language: en] → reply in English always.
+If [Guest language: de] → reply in German always.
 
 HOUSE MANUAL (your only source of truth):
 ${houseManual}
@@ -303,9 +308,10 @@ RULES:
     })),
     {
       role: "system",
-      content: "CRITICAL: Reply in the guest's language. Manual first. Bold 3-4 keywords.",
+      content:
+        "ABSOLUTE RULE: Always reply in the language shown in [Guest language: XX] tag. Use manual first. Bold 3-4 keywords.",
     },
-    { role: "user", content: userMessage },
+    { role: "user", content: `[Guest language: ${languageCode}] ${userMessage}` },
   ];
 
   // 7. OpenAI streaming (SSE) — forward native deltas; isLikelyItalian only on full text after stream ends
