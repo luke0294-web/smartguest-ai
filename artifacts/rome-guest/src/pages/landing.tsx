@@ -12,7 +12,6 @@ import {
   Phone,
   X,
   Loader2,
-  PartyPopper,
   ChevronDown,
 } from "lucide-react";
 import { apiUrl } from "@/lib/apiUrl";
@@ -121,54 +120,85 @@ function RegistrationModal({ onClose }: { onClose: () => void }) {
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.94, y: 16 }}
         transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] as const }}
-        className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden"
+        className={`bg-white rounded-3xl shadow-2xl w-full overflow-hidden ${success ? "max-w-lg" : "max-w-md"}`}
       >
-        {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-5 flex items-center justify-between">
-          <div>
-            <p className="text-blue-200 text-[11px] font-semibold uppercase tracking-wider mb-0.5">
-              Primo mese GRATIS
-            </p>
-            <h2 className="text-white font-extrabold text-xl">Inizia la prova gratuita</h2>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors"
-          >
-            <X className="w-4 h-4 text-white" />
-          </button>
-        </div>
-
-        <div className="p-6">
-          {success ? (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="flex flex-col items-center text-center gap-4 py-4"
+        {!success && (
+          <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-5 flex items-center justify-between">
+            <div>
+              <p className="text-blue-200 text-[11px] font-semibold uppercase tracking-wider mb-0.5">
+                Primo mese GRATIS
+              </p>
+              <h2 className="text-white font-extrabold text-xl">Inizia la prova gratuita</h2>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors"
             >
-              <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center">
-                <PartyPopper className="w-8 h-8 text-emerald-600" />
-              </div>
-              <div>
-                <h3 className="text-xl font-extrabold text-gray-900 mb-2">Grazie, {hostName}!</h3>
-                <p className="text-gray-500 text-[15px] leading-relaxed">
-                  Riceverai le credenziali di accesso e il tuo{" "}
-                  <strong className="text-gray-700">QR Code personalizzato</strong> entro{" "}
-                  <strong className="text-gray-700">5 minuti</strong> via email all'indirizzo{" "}
-                  <span className="text-blue-600">{email}</span>.
-                </p>
-              </div>
-              <button
-                onClick={onClose}
-                className="mt-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-2xl transition-colors w-full"
+              <X className="w-4 h-4 text-white" />
+            </button>
+          </div>
+        )}
+
+        <div className={success ? "p-0" : "p-6"}>
+          {success ? (
+            <div className="bg-slate-50 p-5 sm:p-6">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.96 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
+                className="animate-in zoom-in-95 fade-in duration-700"
               >
-                Perfetto, grazie!
-              </button>
-            </motion.div>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="absolute -top-1 -right-1 sm:top-2 sm:right-2 z-10 w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors text-slate-600 shadow-sm"
+                    aria-label="Chiudi"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                  <div className="bg-white rounded-3xl shadow-2xl p-6 sm:p-9 pt-12 sm:pt-10 flex flex-col items-center text-center gap-6 border border-slate-100/80">
+                    <motion.div
+                      initial={{ scale: 0.75, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      transition={{ type: "spring", stiffness: 320, damping: 18 }}
+                      className="inline-flex"
+                    >
+                      <motion.div
+                        animate={{ y: [0, -8, 0] }}
+                        transition={{ duration: 0.55, ease: "easeOut" }}
+                        className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shadow-xl shadow-blue-500/35 ring-4 ring-blue-100/90"
+                      >
+                        <CheckCircle2 className="w-14 h-14 text-white" strokeWidth={2} aria-hidden />
+                      </motion.div>
+                    </motion.div>
+                    <div className="space-y-5 w-full max-w-md mx-auto">
+                      <p className="text-slate-700 text-[15px] sm:text-[16px] leading-relaxed text-center text-balance">
+                        <span className="font-bold text-slate-800 text-xl sm:text-2xl block mb-4 leading-snug">
+                          Ottimo lavoro! Ci siamo quasi. 🏠✨
+                        </span>
+                        La registrazione di{" "}
+                        <span className="font-semibold text-slate-900">{propertyName}</span> è andata a buon fine.
+                        Stiamo preparando con cura il tuo pannello e il QR Code. Riceverai le credenziali a{" "}
+                        <strong className="font-semibold text-blue-700">{email}</strong> non appena sarà tutto pronto.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={onClose}
+                      className="w-full max-w-sm px-6 py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-2xl transition-all shadow-lg shadow-blue-600/20"
+                    >
+                      Perfetto, grazie!
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
           ) : (
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
               <p className="text-gray-500 text-sm mb-1">
-                Inserisci i tuoi dati. Ti contattiamo entro 5 minuti con le credenziali.
+                Inserisci i tuoi dati: ti invieremo le credenziali di accesso non appena la struttura sarà pronta.
               </p>
 
               <div className="flex flex-col gap-1.5">
@@ -344,24 +374,20 @@ export default function Landing() {
         {showModal && <RegistrationModal key="modal" onClose={() => setShowModal(false)} />}
       </AnimatePresence>
 
-      {/* ── Nav ── */}
+      {/* ── Nav (brand centered; actions pinned right) ── */}
       <nav className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-gray-100">
-        <div className="max-w-6xl mx-auto px-3 sm:px-5 h-14 flex items-center justify-between">
-
-          {/* Logo */}
-          <div className="flex items-center gap-2">
+        <div className="relative max-w-6xl mx-auto px-3 sm:px-5 h-14 flex items-center justify-center">
+          <div className="flex items-center gap-2.5">
             <img
               src="/logo.png?v=2"
               alt="HeyCico"
-              className="h-6 w-6 sm:h-7 sm:w-7 object-contain flex-shrink-0 rounded-lg"
+              className="h-7 w-7 sm:h-8 sm:w-8 object-contain object-center flex-shrink-0"
             />
-            <span className="font-bold text-[13px] sm:text-[15px] tracking-tight">
+            <span className="font-bold text-[14px] sm:text-[16px] tracking-tight text-slate-900">
               HeyCico
             </span>
           </div>
-
-          {/* Bottoni (Accedi e Inizia) */}
-          <div className="flex items-center gap-1 sm:gap-3">
+          <div className="absolute right-3 sm:right-5 top-0 h-14 flex items-center gap-1 sm:gap-3">
             <Link
               href="/login"
               className="text-[13px] sm:text-sm font-semibold text-gray-600 hover:text-gray-900 transition-colors px-2 py-1.5"
@@ -369,6 +395,7 @@ export default function Landing() {
               Accedi
             </Link>
             <button
+              type="button"
               onClick={() => setShowModal(true)}
               className="text-[13px] sm:text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl transition-colors shadow-sm shadow-blue-200 whitespace-nowrap"
             >
@@ -376,7 +403,6 @@ export default function Landing() {
               <span className="hidden sm:inline">Inizia gratis</span>
             </button>
           </div>
-
         </div>
       </nav>
 
@@ -570,7 +596,7 @@ export default function Landing() {
               >
                 <div className="flex gap-0.5 mb-3">
                   {Array.from({ length: r.stars }).map((_, k) => (
-                    <Star key={k} className="w-4 h-4 fill-blue-400 text-blue-400" />
+                    <Star key={k} className="w-4 h-4 fill-yellow-400 text-yellow-400" />
                   ))}
                 </div>
                 <p className="text-[14px] text-gray-600 leading-relaxed mb-4">"{r.text}"</p>
