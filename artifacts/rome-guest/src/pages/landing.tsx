@@ -374,20 +374,20 @@ export default function Landing() {
         {showModal && <RegistrationModal key="modal" onClose={() => setShowModal(false)} />}
       </AnimatePresence>
 
-      {/* ── Nav (brand centered; actions pinned right) ── */}
+      {/* ── Nav: brand left, actions right ── */}
       <nav className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-gray-100">
-        <div className="relative max-w-6xl mx-auto px-3 sm:px-5 h-14 flex items-center justify-center">
-          <div className="flex items-center gap-2.5">
+        <div className="max-w-6xl mx-auto w-full flex items-center justify-between px-4 sm:px-6 h-14 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
             <img
               src="/logo.png?v=2"
               alt="HeyCico"
               className="h-7 w-7 sm:h-8 sm:w-8 object-contain object-center flex-shrink-0"
             />
-            <span className="font-bold text-[14px] sm:text-[16px] tracking-tight text-slate-900">
+            <span className="font-bold text-[14px] sm:text-[16px] tracking-tight text-slate-900 truncate">
               HeyCico
             </span>
           </div>
-          <div className="absolute right-3 sm:right-5 top-0 h-14 flex items-center gap-1 sm:gap-3">
+          <div className="flex items-center justify-end gap-1 sm:gap-3 flex-shrink-0">
             <Link
               href="/login"
               className="text-[13px] sm:text-sm font-semibold text-gray-600 hover:text-gray-900 transition-colors px-2 py-1.5"
