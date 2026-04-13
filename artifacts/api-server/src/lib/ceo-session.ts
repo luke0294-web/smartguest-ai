@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { Request } from "express";
 
-const CEO_TOKEN_SALT = "smartguest-ceo-session-v1";
+const CEO_TOKEN_SALT = "heycico-ceo-session-v1";
 const CEO_SESSION_TTL_SEC = 8 * 3600;
 
 export function getCeoPassword(): string | undefined {

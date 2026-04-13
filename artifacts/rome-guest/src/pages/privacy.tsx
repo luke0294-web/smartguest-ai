@@ -59,10 +59,10 @@ export default function PrivacyPolicy() {
             <p className="text-gray-600 leading-relaxed">
               Per qualsiasi richiesta di cancellazione dati, puoi scriverci a:{" "}
               <a
-                href="mailto:hello.smartguest@gmail.com"
+                href="mailto:hello.heycico@gmail.com"
                 className="text-gray-800 font-medium underline underline-offset-2 hover:text-gray-600 transition-colors"
               >
-                hello.smartguest@gmail.com
+                hello.heycico@gmail.com
               </a>.
             </p>
           </section>

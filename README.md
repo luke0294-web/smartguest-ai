@@ -1,12 +1,12 @@
-# SmartGuest AI — Documentazione Tecnica Completa
+# HeyCico — Documentazione Tecnica Completa
 
 > Documento redatto il 31 marzo 2026. Aggiornare questa sezione ad ogni modifica architetturale rilevante.
 
 ---
 
-## Cos'è SmartGuest AI
+## Cos'è HeyCico
 
-SmartGuest AI è una piattaforma **multi-tenant SaaS** per host di case vacanze italiane.
+HeyCico è una piattaforma **multi-tenant SaaS** per host di case vacanze italiane.
 Ogni host ha una o più proprietà. Ogni proprietà ha una **chat pubblica** accessibile agli ospiti tramite un link o un QR code. La chat è gestita da **Marco AI**, un assistente virtuale alimentato da `gpt-4o-mini` che risponde alle domande degli ospiti basandosi sul regolamento inserito dall'host.
 
 Il progetto è interamente in TypeScript, organizzato come monorepo pnpm con tre artifact principali.

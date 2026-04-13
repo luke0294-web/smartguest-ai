@@ -1,4 +1,4 @@
-# SmartGuest AI — Monorepo Architecture
+# HeyCico — Monorepo Architecture
 
 High-level technical reference for architectural review, deployment planning, and cross-model brainstorming. Paths are relative to the repository root unless stated otherwise.
 
@@ -6,7 +6,7 @@ High-level technical reference for architectural review, deployment planning, an
 
 ## 1. Project Overview
 
-**SmartGuest AI** is a hospitality product that connects **guests**, **property hosts**, and a **CEO / operator** through a single stack:
+**HeyCico** is a hospitality product that connects **guests**, **property hosts**, and a **CEO / operator** through a single stack:
 
 | Actor | Role | Primary surfaces |
 |-------|------|------------------|

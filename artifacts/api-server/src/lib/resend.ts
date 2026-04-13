@@ -9,6 +9,14 @@ const MISSING_RESEND_API_KEY =
 const MISSING_RESEND_FROM_EMAIL =
   "RESEND_FROM_EMAIL mancante: aggiungi l'indirizzo mittente verificato nel dashboard Resend come variabile RESEND_FROM_EMAIL su Render.";
 
+/** Default `From` display name (override with `EMAIL_FROM_NAME`). */
+const DEFAULT_EMAIL_FROM_NAME = "HeyCico";
+
+/**
+ * Default Reply-To for guest/host replies (override with `EMAIL_REPLY_TO` or `RESEND_REPLY_TO`, e.g. your domain).
+ */
+const DEFAULT_REPLY_TO_EMAIL = "hello.heycico@gmail.com";
+
 export function getResend(): Resend {
   const key = process.env.RESEND_API_KEY?.trim();
   if (!key) {
@@ -26,8 +34,17 @@ export function getResendFromHeader(): string {
   if (!email) {
     throw new Error(MISSING_RESEND_FROM_EMAIL);
   }
-  const name = (process.env.EMAIL_FROM_NAME ?? "HeyCico").trim();
+  const name = (process.env.EMAIL_FROM_NAME ?? DEFAULT_EMAIL_FROM_NAME).trim() || DEFAULT_EMAIL_FROM_NAME;
   return `"${name}" <${email}>`;
+}
+
+/** Where replies go (`Reply-To` header). Use `EMAIL_REPLY_TO` or `RESEND_REPLY_TO` for a custom domain. */
+export function getResendReplyToEmail(): string {
+  return (
+    process.env.EMAIL_REPLY_TO?.trim() ||
+    process.env.RESEND_REPLY_TO?.trim() ||
+    DEFAULT_REPLY_TO_EMAIL
+  );
 }
 
 export function isResendEmailConfigured(): boolean {
@@ -55,6 +72,7 @@ export async function sendResendEmail(params: {
     const { error } = await resend.emails.send({
       from: params.from,
       to: Array.isArray(params.to) ? params.to : [params.to],
+      replyTo: getResendReplyToEmail(),
       subject: params.subject,
       html: params.html,
       attachments: params.attachments?.map((a) => ({

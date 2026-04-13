@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { Request } from "express";
 
-const HOST_TOKEN_SALT = "smartguest-host-session-v1";
+const HOST_TOKEN_SALT = "heycico-host-session-v1";
 const HOST_SESSION_TTL_SEC = 8 * 3600;
 
 /** Prefer HOST_SESSION_SECRET; SESSION_SECRET is accepted so one server secret can suffice. */

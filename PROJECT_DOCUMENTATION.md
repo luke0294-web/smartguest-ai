@@ -1,4 +1,4 @@
-# SmartGuest AI — Project Documentation
+# HeyCico — Project Documentation
 
 Technical reference for the **Guest-Assistant-AI** monorepo: backend, data, API, frontend routes, deployment, and known gaps. Paths are relative to the repository root unless noted.
 
@@ -25,7 +25,7 @@ Technical reference for the **Guest-Assistant-AI** monorepo: backend, data, API,
 
 ## Development guidelines
 
-Rules for anyone changing **SmartGuest AI**. Treat violations as **blockers** for merge.
+Rules for anyone changing **HeyCico**. Treat violations as **blockers** for merge.
 
 **Must follow**
 
@@ -50,7 +50,7 @@ Rules for anyone changing **SmartGuest AI**. Treat violations as **blockers** fo
 
 ## 1. Project overview
 
-**SmartGuest AI** is a hospitality product delivered as a **pnpm monorepo**:
+**HeyCico** is a hospitality product delivered as a **pnpm monorepo**:
 
 | Actor | Role | Primary surfaces |
 |--------|------|------------------|

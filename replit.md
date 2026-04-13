@@ -1,4 +1,4 @@
-# SmartGuest AI Workspace
+# HeyCico Workspace
 
 ## Overview
 
@@ -18,7 +18,7 @@ pnpm workspace monorepo using TypeScript. Multi-property RAG-based AI chat platf
 - **AI**: OpenAI GPT-4o-mini (RAG pattern, anti-over-refusal, multilingual)
 - **Frontend**: React + Vite, Tailwind CSS, Wouter routing, Framer Motion
 
-## Application: SmartGuest AI — Professional Host Suite
+## Application: HeyCico — Professional Host Suite
 
 A multi-property RAG-based AI chat platform. Hosts log in with email+password and manage multiple properties. CEO has a super-admin panel with full CRUD.
 

@@ -679,8 +679,8 @@ export default function Landing() {
 
           <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-5 text-[13px] text-gray-400">
             <Link href="/privacy" className="hover:text-gray-700 transition-colors">Privacy Policy</Link>
-            <a href="mailto:hello.smartguest@gmail.com" className="hover:text-gray-700 transition-colors">
-              hello.smartguest@gmail.com
+            <a href="mailto:hello.heycico@gmail.com" className="hover:text-gray-700 transition-colors">
+              hello.heycico@gmail.com
             </a>
             <Link href="/login" className="hover:text-gray-700 transition-colors">
               Host Login
