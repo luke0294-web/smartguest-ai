@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link, useLocation } from "wouter";
 import ReactMarkdown from "react-markdown";
-import { ArrowLeft, BookOpen, Loader2, MessageCircle, Bot, Calendar, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, BookOpen, Loader2, MessageCircle, Bot, Calendar, AlertTriangle, CheckCircle2, Eraser } from "lucide-react";
 import { detectNeedsAttention } from "../lib/detectNeedsAttention";
 import { apiUrl } from "@/lib/apiUrl";
 import { clearHostSession, getHostSession } from "@/lib/hostSession";
@@ -38,6 +38,7 @@ export default function DiarioDiBordo() {
   const [logs, setLogs] = useState<ChatLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [isResolvingAll, setIsResolvingAll] = useState(false);
 
   const loadLogs = () => {
     if (!slug) return;
@@ -106,21 +107,60 @@ export default function DiarioDiBordo() {
         return;
       }
       if (!res.ok) throw new Error("Errore nel salvataggio");
-      setLogs(logs.map((log) => (log.id === id ? { ...log, resolved: true } : log)));
+      setLogs((prev) => prev.map((log) => (log.id === id ? { ...log, resolved: true } : log)));
     } catch {
       // silently fail — UI will retain previous state
     }
   };
 
-  const pendingLogs = logs.filter((l) => !l.resolved && detectNeedsAttention(l.marcoReply));
+  const resolveAllLogs = async () => {
+    if (
+      !window.confirm(
+        "Vuoi segnare tutti i messaggi come risolti? Il contatore delle richieste in sospeso verrà azzerato.",
+      )
+    ) {
+      return;
+    }
+    const auth = getHostSession();
+    if (!auth) {
+      navigate("/login");
+      return;
+    }
+    setIsResolvingAll(true);
+    try {
+      const res = await fetch(apiUrl(`/api/host/${slug}/resolve-all-logs`), {
+        method: "POST",
+        headers: { Authorization: `Bearer ${auth.sessionToken}` },
+      });
+      if (res.status === 401 || res.status === 403) {
+        clearHostSession();
+        navigate("/login");
+        return;
+      }
+      if (!res.ok) throw new Error("Errore nel salvataggio");
+      setLogs((prev) => prev.map((log) => ({ ...log, resolved: true })));
+    } catch {
+      // keep previous state
+    } finally {
+      setIsResolvingAll(false);
+    }
+  };
+
+  const pendingLogs = logs
+    .filter((l) => !l.resolved && detectNeedsAttention(l.marcoReply))
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   const resolvedLogs = logs.filter((l) => l.resolved);
   const successLogs = logs.filter((l) => !l.resolved && !detectNeedsAttention(l.marcoReply));
+
+  const historyLogs = [...successLogs, ...resolvedLogs].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  );
 
   return (
     <div className="min-h-[100dvh] bg-gradient-to-br from-slate-50 to-blue-50 py-8 px-4">
       <div className="max-w-2xl mx-auto flex flex-col gap-6">
 
-        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 px-5 py-4 flex items-center justify-between">
+        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 px-5 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200">
               <BookOpen className="w-5 h-5 text-white" />
@@ -130,13 +170,30 @@ export default function DiarioDiBordo() {
               <p className="text-gray-400 text-[11px] font-mono">{slug}</p>
             </div>
           </div>
-          <Link
-            href={`/host/${slug}`}
-            className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-600 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Dashboard</span>
-          </Link>
+          <div className="flex flex-wrap items-center gap-2 justify-end">
+            {!isLoading && !error && logs.some((l) => !l.resolved) && (
+              <button
+                type="button"
+                onClick={resolveAllLogs}
+                disabled={isResolvingAll}
+                className="flex items-center gap-1.5 text-sm font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-3 py-2 rounded-xl transition-colors disabled:opacity-60"
+              >
+                {isResolvingAll ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Eraser className="w-4 h-4" />
+                )}
+                Pulisci Diario
+              </button>
+            )}
+            <Link
+              href={`/host/${slug}`}
+              className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-600 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Dashboard</span>
+            </Link>
+          </div>
         </div>
 
         {isLoading && (
@@ -221,13 +278,13 @@ export default function DiarioDiBordo() {
             )}
 
             <div>
-              {(successLogs.length > 0 || resolvedLogs.length > 0) && (
+              {historyLogs.length > 0 && (
                 <p className="text-xs text-gray-400 font-medium px-1 mb-3">
-                  {successLogs.length + resolvedLogs.length} conversazion{(successLogs.length + resolvedLogs.length) === 1 ? "e" : "i"} gestit{(successLogs.length + resolvedLogs.length) === 1 ? "a" : "e"}
+                  {historyLogs.length} conversazion{historyLogs.length === 1 ? "e" : "i"} gestit{historyLogs.length === 1 ? "a" : "e"}
                 </p>
               )}
               <div className="flex flex-col gap-3">
-                {[...successLogs, ...resolvedLogs].map((log) => (
+                {historyLogs.map((log) => (
                   <div key={log.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                     <div className="px-5 py-2.5 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
                       <Calendar className="w-3.5 h-3.5 text-gray-400" />

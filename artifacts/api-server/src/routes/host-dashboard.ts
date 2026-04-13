@@ -338,6 +338,50 @@ router.post("/host/:slug/reset-pending-questions", async (req, res): Promise<voi
   }
 });
 
+// POST /api/host/:slug/resolve-all-logs — mark all chat logs resolved + clear pending badge (host session only)
+router.post("/host/:slug/resolve-all-logs", async (req, res): Promise<void> => {
+  try {
+    const session = requireHostSession(req, res);
+    if (!session) return;
+
+    const { slug } = req.params;
+    if (!(await requireHostOwnsPropertySlug(res, session, slug))) return;
+
+    const { error: logsErr } = await supabaseAdmin
+      .from("chat_logs")
+      .update({ resolved: true })
+      .eq("property_slug", slug)
+      .eq("resolved", false);
+
+    if (logsErr) {
+      console.error("[ERRORE CRITICO] resolve-all-logs chat_logs:", logsErr);
+      logger.error({ logsErr, slug }, "resolve-all-logs chat_logs update failed");
+      res.status(500).json({ error: "Errore interno del server" });
+      return;
+    }
+
+    const { error: pendingErr } = await supabaseAdmin
+      .from("properties")
+      .update({ pending_questions_count: 0 })
+      .eq("slug", slug);
+
+    if (pendingErr) {
+      console.error("[ERRORE CRITICO] resolve-all-logs properties:", pendingErr);
+      logger.error({ pendingErr, slug }, "resolve-all-logs pending_questions_count update failed");
+      res.status(500).json({ error: "Errore interno del server" });
+      return;
+    }
+
+    res.json({ success: true, pendingQuestionsCount: 0 });
+  } catch (error) {
+    console.error("[ERRORE CRITICO]", error);
+    logger.error({ error }, "resolve-all-logs");
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Errore interno del server" });
+    }
+  }
+});
+
 // PUT /properties/:slug/host-password — set/reset host password (CEO only) → Supabase (service role)
 router.put("/properties/:slug/host-password", async (req, res): Promise<void> => {
   console.log("[ROTTA CEO] Ricevuta richiesta:", req.path);
