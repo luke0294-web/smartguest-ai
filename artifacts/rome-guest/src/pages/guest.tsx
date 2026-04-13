@@ -88,10 +88,21 @@ function persistMarcoWelcomed(slug: string): void {
 const ASSISTANT_MARKDOWN_PLUGINS = [rehypeSanitize];
 
 const assistantMarkdownComponents = {
-  strong: ({ children, ...props }) => (
-    <b className="font-extrabold text-black" {...props}>
+  a: ({ href, children, ...props }) => (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-blue-600 underline hover:text-blue-800 font-medium"
+      {...props}
+    >
       {children}
-    </b>
+    </a>
+  ),
+  strong: ({ children, ...props }) => (
+    <strong className="font-bold" {...props}>
+      {children}
+    </strong>
   ),
   p: ({ children, ...props }) => (
     <p className="mb-2 last:mb-0" {...props}>
