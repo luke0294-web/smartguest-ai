@@ -8,7 +8,6 @@ import {
   Star,
   CheckCircle2,
   ArrowRight,
-  MessageSquare,
   Shield,
   Phone,
   X,
@@ -51,8 +50,8 @@ const FEATURES = [
   },
   {
     icon: Shield,
-    color: "text-orange-600",
-    bg: "bg-orange-50",
+    color: "text-blue-600",
+    bg: "bg-blue-50",
     title: "Filtro Anti-Stress WhatsApp",
     desc: "Marco risolve in autonomia il 90% delle richieste. Per le vere urgenze, l'ospite viene reindirizzato al tuo WhatsApp con un solo click.",
   },
@@ -351,9 +350,11 @@ export default function Landing() {
 
           {/* Logo */}
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-blue-600 flex flex-shrink-0 items-center justify-center">
-              <MessageSquare className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-white" />
-            </div>
+            <img
+              src="/logo.png?v=2"
+              alt="HeyCico"
+              className="h-6 w-6 sm:h-7 sm:w-7 object-contain flex-shrink-0 rounded-lg"
+            />
             <span className="font-bold text-[13px] sm:text-[15px] tracking-tight">
               HeyCico
             </span>
@@ -475,8 +476,8 @@ export default function Landing() {
         >
           <div className="rounded-3xl border border-gray-200 shadow-2xl shadow-gray-200/80 overflow-hidden bg-white">
             <div className="bg-blue-600 px-4 py-3 flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
-                <MessageSquare className="w-4 h-4 text-white" />
+              <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center p-1">
+                <img src="/logo.png?v=2" alt="" className="h-full w-full object-contain" />
               </div>
               <div>
                 <p className="text-white font-semibold text-[13px]">Appartamento Centrale</p>
@@ -569,7 +570,7 @@ export default function Landing() {
               >
                 <div className="flex gap-0.5 mb-3">
                   {Array.from({ length: r.stars }).map((_, k) => (
-                    <Star key={k} className="w-4 h-4 fill-amber-400 text-amber-400" />
+                    <Star key={k} className="w-4 h-4 fill-blue-400 text-blue-400" />
                   ))}
                 </div>
                 <p className="text-[14px] text-gray-600 leading-relaxed mb-4">"{r.text}"</p>
@@ -671,9 +672,11 @@ export default function Landing() {
       <footer className="bg-gray-50 border-t border-gray-100 py-10 px-5">
         <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-md bg-blue-600 flex items-center justify-center">
-              <MessageSquare className="w-3 h-3 text-white" />
-            </div>
+            <img
+              src="/logo.png?v=2"
+              alt="HeyCico"
+              className="h-6 w-6 object-contain flex-shrink-0 rounded-md"
+            />
             <span className="text-[13px] font-semibold text-gray-700">HeyCico</span>
           </div>
 

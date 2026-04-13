@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useLocation, Link } from "wouter";
 import { motion } from "framer-motion";
-import { MessageSquare, KeyRound, Mail, Loader2, AlertCircle, HelpCircle } from "lucide-react";
+import { KeyRound, Mail, Loader2, AlertCircle, HelpCircle } from "lucide-react";
 import { apiUrl } from "@/lib/apiUrl";
 import { persistHostSession } from "@/lib/hostSession";
 
@@ -58,9 +58,11 @@ export default function HostLogin() {
 
       {/* Logo */}
       <Link href="/" className="flex items-center gap-2 mb-8 group">
-        <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center shadow-sm shadow-blue-200">
-          <MessageSquare className="w-4 h-4 text-white" />
-        </div>
+        <img
+          src="/logo.png?v=2"
+          alt="HeyCico"
+          className="h-8 w-8 object-contain rounded-lg flex-shrink-0 shadow-sm shadow-blue-200/50"
+        />
         <span className="font-bold text-[15px] tracking-tight text-gray-800 group-hover:text-blue-600 transition-colors">
           HeyCico
         </span>
