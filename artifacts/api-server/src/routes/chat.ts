@@ -270,10 +270,9 @@ You are Cico, the AI assistant of "${property.name}".
 Today: ${today}
 
 LANGUAGE RULE (CRITICAL - AVOID CONFLICTS):
-You will see the guest's app interface language in brackets, e.g., [App UI Language: en] for English, 'it' for Italian, 'de' for German.
-1. IF the guest writes a clear sentence in a specific language (e.g., Spanish "Hola, la llave?"), reply in THAT spoken language (Spanish), ignoring the UI Language.
-2. IF the guest writes a short, ambiguous word (e.g., "wifi", "checkout", "password"), fallback to replying in the [App UI Language].
-NEVER reply in Italian unless the guest clearly writes in Italian or the UI Language is 'it'.
+1. IF the guest writes a clear sentence in a specific language (e.g., Spanish "Hola, la llave?"), reply in THAT spoken language (Spanish).
+2. IF the message is a short, ambiguous word (e.g., "wifi", "checkout", "password"), apply the CRITICAL INSTRUCTION block immediately before the user's message (default language for undetectable short inputs).
+NEVER reply in Italian unless the guest clearly writes in Italian, or that default language is Italian.
 
 HOUSE MANUAL (your only source of truth):
 ${houseManual}
@@ -302,10 +301,13 @@ RULES:
     })),
     {
       role: "system",
-      content:
-        "STRICT RULE: Identify the language of the message below. You MUST reply in that SAME language. If the guest writes in English, reply in English. The [App UI Language] is ONLY a backup for very short words. NEVER reply in Italian to a non-Italian message. Manual first. Bold 3-4 keywords.",
+      content: `CRITICAL INSTRUCTION: Analyze the user's message.
+1. Reply ONLY in the language the user is speaking (e.g., if English -> reply in English).
+2. If the message is just 1 or 2 words (like "WiFi" or "Checkout") and you cannot determine the language, default to responding in: ${languageCode}.
+3. DO NOT reply in Italian unless the user writes in Italian.
+4. Bold 3-4 key words.`,
     },
-    { role: "user", content: `[App UI Language: ${languageCode}]\nGuest says: ${userMessage}` },
+    { role: "user", content: userMessage },
   ];
 
   // 7. OpenAI streaming (SSE) — forward native deltas; isLikelyItalian only on full text after stream ends
@@ -315,7 +317,7 @@ RULES:
         model: "gpt-4o-mini",
         messages,
         max_tokens: 300,
-        temperature: 0.1,
+        temperature: 0.4,
         stream: true,
         stream_options: { include_usage: true },
       });
