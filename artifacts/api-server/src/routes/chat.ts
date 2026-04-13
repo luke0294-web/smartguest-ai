@@ -15,7 +15,7 @@ import { supabaseAdmin } from "../lib/supabase";
 import { chatLogRowToApi, type ChatLogRowSnake } from "../lib/supabaseMaps";
 import {
   categorizeMessage,
-  isHostFallbackResponse,
+  shouldIncrementPendingQuestions,
 } from "../lib/categorizeMessage";
 
 const router: IRouter = Router();
@@ -50,20 +50,6 @@ const isLikelyItalian = (text: string): boolean => {
   const matches = text.match(italianMarkers);
   return matches !== null && matches.length >= 2;
 };
-
-function shouldIncrementPendingQuestions(reply: string): boolean {
-  const lower = reply.toLowerCase();
-  const broadFallbackHints = [
-    "proprietario",
-    "host",
-    "whatsapp",
-    "non so",
-    "non lo so",
-    "i don't know",
-    "i dont know",
-  ];
-  return isHostFallbackResponse(reply) || broadFallbackHints.some((hint) => lower.includes(hint));
-}
 
 const DATE_LOCALE: Record<string, string> = {
   it: "it-IT",
@@ -278,17 +264,17 @@ HOUSE MANUAL (facts only — express answers in the guest's language, not this d
 ${houseManual}
 
 RULES:
-1. Manual first → if the answer is in the manual, deliver it entirely in the guest's **current** language (translated), not by pasting manual phrasing.
+0. DO NOT suggest contacting the host or using the WhatsApp button if the House Manual provides a full answer. Only mention WhatsApp or the host for true missing information, emergencies, or technical issues you cannot solve from the manual. Never add generic "feel free to contact the host" or similar closings when you already answered from the manual.
+1. Manual first → if the answer is in the manual, deliver it entirely in the guest's **current** language (translated), not by pasting manual phrasing. Stop after the answer—no extra host/WhatsApp line.
 2. Technical problem → troubleshoot from manual.
    If manual cannot fix it, say in the guest's current language:
    "I cannot fix this remotely. Please use the
    WhatsApp button above to contact the host."
    Never say you notified the host.
 3. Check-out → checklist from manual only (still expressed in the guest's current language).
-4. Restaurants/tips → manual first, then general
-   knowledge + suggest WhatsApp for personal tips.
-5. Missing info → apologize briefly + WhatsApp.
-6. Emergency → emergency services + WhatsApp immediately.
+4. Restaurants/tips → manual first, then general knowledge only where relevant. Suggest WhatsApp **only** when the guest asks for personal recommendations beyond what the manual says—not after every helpful reply.
+5. Missing info → apologize briefly and direct to WhatsApp **only** when the manual truly has no answer. If you answered from the manual, do not add this.
+6. Emergency → emergency services + WhatsApp immediately when appropriate.
 7. Bold 3-4 key words per response (still obeying LANGUAGE LOCK).
 `.trim();
 
@@ -600,7 +586,7 @@ router.post("/super-diario/:slug/refresh-all", async (req, res): Promise<void> =
     }
 
     for (const log of logs ?? []) {
-      const isHostFallback = isHostFallbackResponse(log.marco_reply);
+      const isHostFallback = shouldIncrementPendingQuestions(log.marco_reply);
       const resolved = isHostFallback ? false : !detectNeedsAttention(log.marco_reply);
 
       const { error: updErr } = await supabaseAdmin

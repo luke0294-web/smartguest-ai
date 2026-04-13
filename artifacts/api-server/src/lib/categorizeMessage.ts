@@ -66,3 +66,88 @@ export function isHostFallbackResponse(reply: string): boolean {
   ];
   return legacyPatterns.some(p => lower.includes(p));
 }
+
+/**
+ * Phrases that indicate the model could not answer from the manual and is deferring or
+ * admitting uncertainty — use for pending-question increment. Intentionally excludes bare
+ * "host" / "whatsapp" so polite closings after a factual answer do not match.
+ */
+const UNCERTAINTY_FALLBACK_PHRASES: string[] = [
+  // English
+  "i don't have this information",
+  "i don't have that information",
+  "i don't have information about",
+  "don't have this information",
+  "don't have that information",
+  "no information about",
+  "no information on",
+  "not in the house manual",
+  "not in the manual",
+  "isn't in the manual",
+  "is not in the manual",
+  "i am not sure",
+  "i'm not sure",
+  "not sure i can",
+  "i cannot find",
+  "i can't find",
+  "can't find this in",
+  "cannot find this in",
+  "unable to find",
+  "unable to answer",
+  "i cannot answer",
+  "i don't know",
+  "i dont know",
+  "can't answer that",
+  "not something i can",
+  "please ask the host because",
+  "you'll need to ask the host",
+  "you will need to ask the host",
+  "i wasn't able to find",
+  "couldn't find anything in",
+  "cannot fix this remotely",
+  "can't fix this remotely",
+  "contact the host for this",
+  // Italian
+  "non ho questa informazione",
+  "non ho informazioni su",
+  "non ho informazioni a",
+  "non c'è nel manuale",
+  "non è nel manuale",
+  "non sono sicuro",
+  "non sono sicura",
+  "non posso rispondere",
+  "non posso aiutarti con",
+  "non lo so",
+  "non so se",
+  "non ho questa info",
+  "non posso risolvere da remoto",
+  // German
+  "diese information habe ich nicht",
+  "habe ich keine information",
+  "nicht im hausmanual",
+  "bin ich mir nicht sicher",
+  "kann ich nicht beantworten",
+  // French
+  "je n'ai pas cette information",
+  "pas d'information sur",
+  "pas dans le manuel",
+  "je ne suis pas sûr",
+  "je ne suis pas sure",
+  "impossible de répondre",
+  // Spanish
+  "no tengo esa información",
+  "no tengo informacion sobre",
+  "no está en el manual",
+  "no estoy seguro",
+  "no estoy segura",
+];
+
+/**
+ * True when the reply indicates host follow-up because the AI lacked an answer — used for
+ * `pending_questions_count` and `resolved`. Aligns with refresh-all.
+ */
+export function shouldIncrementPendingQuestions(reply: string): boolean {
+  if (isHostFallbackResponse(reply)) return true;
+  const lower = reply.toLowerCase();
+  return UNCERTAINTY_FALLBACK_PHRASES.some((phrase) => lower.includes(phrase));
+}
