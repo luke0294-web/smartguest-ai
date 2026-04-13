@@ -184,9 +184,7 @@ router.get("/host/:slug", async (req, res): Promise<void> => {
 
     const { data: row, error } = await supabaseAdmin
       .from("properties")
-      .select(
-        "id, slug, name, manual_content, content, whatsapp_number, pending_questions_count, referral_links, email, host_password, reset_token, reset_requested_at, created_at, updated_at",
-      )
+      .select("*")
       .eq("slug", slug)
       .maybeSingle();
 
