@@ -101,7 +101,6 @@ async function ensureLocalHostShell(email: string): Promise<HostRow> {
 
 // POST /api/auth/host-login — email+password → list of owned properties + session token
 router.post("/auth/host-login", async (req, res): Promise<void> => {
-  console.log("[ROTTA] Ricevuta richiesta per:", req.path);
   try {
     const clientIp = getClientIp(req);
     if (!authRateLimiter.check(clientIp)) {
@@ -122,7 +121,6 @@ router.post("/auth/host-login", async (req, res): Promise<void> => {
     const normalizedEmail = String(email ?? "").trim().toLowerCase();
     const normalizedPassword = String(password ?? "");
 
-    console.log("[DB] Inizio query al database...");
     let host = await authenticateHost(normalizedEmail, normalizedPassword);
     if (!host) {
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -156,8 +154,6 @@ router.post("/auth/host-login", async (req, res): Promise<void> => {
       whatsappNumber: r.whatsapp_number,
     }));
 
-    console.log("[DB] Query completata!");
-
     const sessionToken = issueHostSessionToken({ id: host.id, email: host.email });
 
     logger.info({ email: host.email, count: properties.length }, "Host login successful");
@@ -172,14 +168,12 @@ router.post("/auth/host-login", async (req, res): Promise<void> => {
 
 // GET /api/host/:slug — get property info (host session only)
 router.get("/host/:slug", async (req, res): Promise<void> => {
-  console.log("[ROTTA] Ricevuta richiesta per:", req.path);
   try {
     const session = requireHostSession(req, res);
     if (!session) return;
 
     const { slug } = req.params;
 
-    console.log("[DB] Inizio query al database...");
     if (!(await requireHostOwnsPropertySlug(res, session, slug))) return;
 
     const { data: row, error } = await supabaseAdmin
@@ -187,8 +181,6 @@ router.get("/host/:slug", async (req, res): Promise<void> => {
       .select("*")
       .eq("slug", slug)
       .maybeSingle();
-
-    console.log("[DB] Query completata!");
 
     if (error || !row) {
       console.error("[ERRORE CRITICO] GET /host/:slug proprietà non trovata:", slug, error);
@@ -244,14 +236,12 @@ router.get("/host/:slug", async (req, res): Promise<void> => {
 
 // PUT /api/host/:slug — update property (host session only)
 router.put("/host/:slug", async (req, res): Promise<void> => {
-  console.log("[ROTTA] Ricevuta richiesta per:", req.path);
   try {
     const session = requireHostSession(req, res);
     if (!session) return;
 
     const { slug } = req.params;
     const { name, content, whatsappNumber, referralLinks } = req.body ?? {};
-    console.log("[DB] Inizio query al database...");
     if (!(await requireHostOwnsPropertySlug(res, session, slug))) return;
 
     const { data: existing, error: selErr } = await supabaseAdmin
@@ -307,8 +297,6 @@ router.put("/host/:slug", async (req, res): Promise<void> => {
       updatedRows = data as PropertyRowSnake;
     }
 
-    console.log("[DB] Query completata!");
-
     logger.info({ slug }, "Host updated property");
 
     const normalized = propertyRowToCamel(updatedRows);
@@ -324,13 +312,11 @@ router.put("/host/:slug", async (req, res): Promise<void> => {
 
 // POST /api/host/:slug/reset-pending-questions — reset diario badge counter (host session only)
 router.post("/host/:slug/reset-pending-questions", async (req, res): Promise<void> => {
-  console.log("[ROTTA] Ricevuta richiesta per:", req.path);
   try {
     const session = requireHostSession(req, res);
     if (!session) return;
 
     const { slug } = req.params;
-    console.log("[DB] Inizio query al database...");
     if (!(await requireHostOwnsPropertySlug(res, session, slug))) return;
 
     const { error } = await supabaseAdmin
@@ -344,7 +330,6 @@ router.post("/host/:slug/reset-pending-questions", async (req, res): Promise<voi
       return;
     }
 
-    console.log("[DB] Query completata!");
     res.json({ success: true, pendingQuestionsCount: 0 });
   } catch (error) {
     console.error("[ERRORE CRITICO]", error);
@@ -400,7 +385,6 @@ router.post("/host/:slug/resolve-all-logs", async (req, res): Promise<void> => {
 
 // PUT /properties/:slug/host-password — set/reset host password (CEO only) → Supabase (service role)
 router.put("/properties/:slug/host-password", async (req, res): Promise<void> => {
-  console.log("[ROTTA CEO] Ricevuta richiesta:", req.path);
   try {
     if (!requireCeoSession(req, res)) return;
 
@@ -419,7 +403,6 @@ router.put("/properties/:slug/host-password", async (req, res): Promise<void> =>
 
     const hashed = await hashHostPassword(trimmedHostPw);
 
-    console.log("[DB] Inizio query al database...");
     const { data: property, error: propErr } = await supabaseAdmin
       .from("properties")
       .select("slug, email")
@@ -489,7 +472,6 @@ router.put("/properties/:slug/host-password", async (req, res): Promise<void> =>
       logger.info({ slug }, "Host password updated by CEO on property (no owner email set)");
     }
 
-    console.log("[DB] Query completata!");
     res.json({ success: true, slug, hostPasswordSet: true });
   } catch (error) {
     console.error("[ERRORE CRITICO]", error);

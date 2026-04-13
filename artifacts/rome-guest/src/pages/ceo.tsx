@@ -525,7 +525,7 @@ function ContentEditModal({
         {/* Textarea */}
         <div className="flex-1 overflow-y-auto p-6">
           <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2">
-            Regolamento, info WiFi, consigli, policy — tutto ciò che Marco deve sapere
+            Regolamento, info WiFi, consigli, policy — tutto ciò che Cico deve sapere
           </label>
           <textarea
             value={text}

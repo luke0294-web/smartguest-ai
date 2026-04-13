@@ -256,7 +256,7 @@ export default function DiarioDiBordo() {
                             <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
                           </div>
                           <div className="flex-1">
-                            <p className="text-[11px] font-semibold text-red-500 mb-1">Marco AI (Necessita azione)</p>
+                            <p className="text-[11px] font-semibold text-red-500 mb-1">Cico (Necessita azione)</p>
                             <div className="text-sm text-gray-600 leading-relaxed italic">
                               <MarcoReplyMarkdown marcoReply={log.marcoReply} />
                             </div>
@@ -308,7 +308,7 @@ export default function DiarioDiBordo() {
                           <Bot className="w-3.5 h-3.5 text-indigo-600" />
                         </div>
                         <div className="flex-1">
-                          <p className="text-[11px] font-semibold text-indigo-500 mb-1">Marco AI</p>
+                          <p className="text-[11px] font-semibold text-indigo-500 mb-1">Cico</p>
                           <div className="text-sm text-gray-600 leading-relaxed">
                             <MarcoReplyMarkdown marcoReply={log.marcoReply} />
                           </div>

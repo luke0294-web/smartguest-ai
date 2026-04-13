@@ -63,7 +63,7 @@ export default function DemoPage() {
             className="shrink-0 mx-3 mt-3 mb-2 rounded-2xl border-2 border-amber-400 bg-gradient-to-b from-amber-100 to-amber-50 px-5 py-4 text-amber-950 shadow-lg shadow-amber-900/15 ring-2 ring-amber-200/80"
           >
             <p className="text-base sm:text-lg font-bold leading-snug tracking-tight">
-              Hai visto come funziona Marco? 🎉
+              Hai visto come funziona Cico? 🎉
             </p>
             <p className="mt-2 text-[13px] sm:text-sm font-medium leading-relaxed text-amber-950/95">
               Attiva HeyCico nella tua struttura e smetti di rispondere sempre alle stesse domande!

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useParams, Link } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { useMutation } from "@tanstack/react-query";
@@ -513,22 +513,6 @@ export default function GuestChat(props: GuestChatProps = {}) {
   const [demoChatLocked, setDemoChatLocked] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const demoStartedLoggedRef = useRef(false);
-  const demoLimitReachLoggedRef = useRef(false);
-
-  const logDemoLimitReached = useCallback(() => {
-    if (demoLimitReachLoggedRef.current) return;
-    demoLimitReachLoggedRef.current = true;
-    console.log("demo_limit_reached");
-  }, []);
-
-  useEffect(() => {
-    if (!isDemo || !property) return;
-    if (demoStartedLoggedRef.current) return;
-    demoStartedLoggedRef.current = true;
-    console.log("demo_started");
-  }, [isDemo, property]);
-
   // Localized welcome: when chat is empty and property is ready, inject once (messages.length === 0 guards re-runs).
   // Same for demo and real properties: t.welcome(property.name) via current lang.
   // marco_welcomed_{slug} is not used here — it only controls the large arrival UI (see showBigArrivalActions).
@@ -615,9 +599,6 @@ export default function GuestChat(props: GuestChatProps = {}) {
   const handleSend = (text: string) => {
     const userMsg = text.trim();
     if (!userMsg || isPending || !slug || demoFlowLocked) return;
-    if (isDemo && userMessageCount === 0) {
-      console.log("demo_first_message");
-    }
     persistMarcoWelcomed(slug);
     setInputValue("");
     const updatedMessages: ConversationMessage[] = [
@@ -674,7 +655,6 @@ export default function GuestChat(props: GuestChatProps = {}) {
             }
             const users = next.filter((m) => m.role === "user").length;
             if (isDemo && users >= DEMO_USER_MESSAGE_LIMIT) {
-              logDemoLimitReached();
               if (!parentHandlesDemoLimitCta) {
                 next.push({
                   role: "assistant",
@@ -689,7 +669,6 @@ export default function GuestChat(props: GuestChatProps = {}) {
         onError: (err: unknown) => {
           setIsStreaming(false);
           if (isDemo && isDemoChat429(err)) {
-            logDemoLimitReached();
             setDemoChatLocked(true);
             try {
               sessionStorage.setItem(`demo_locked_${slug}`, "true");
@@ -921,9 +900,6 @@ export default function GuestChat(props: GuestChatProps = {}) {
                           <p className="mb-0">{msg.content}</p>
                           <Link
                             href="/signup"
-                            onClick={() => {
-                              console.log("demo_signup_click");
-                            }}
                             className="inline-flex items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold text-[13px] px-4 py-2.5 shadow-md hover:opacity-95 transition-opacity"
                           >
                             Crea il tuo assistente

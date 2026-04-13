@@ -49,11 +49,11 @@ export function categorizeMessage(message: string): "tourism" | "house" | "mixed
 
 /**
  * Rileva se la risposta è quella di "allarme silenzioso" — host deve intervenire.
- * Marco usa SOLO la frase esatta: "Scusa, non ho questa info! Puoi chiedere direttamente all'host dal tasto WhatsApp qui sopra. 👆"
+ * Cico usa SOLO la frase esatta: "Scusa, non ho questa info! Puoi chiedere direttamente all'host dal tasto WhatsApp qui sopra. 👆"
  */
 export function isHostFallbackResponse(reply: string): boolean {
   const lower = reply.toLowerCase();
-  // Rileva la frase canonica esatta (normalizzata) — marco non può variare questa frase
+  // Rileva la frase canonica esatta (normalizzata) — Cico non può variare questa frase
   if (lower.includes("non ho questa info") && lower.includes("tasto whatsapp")) {
     return true;
   }

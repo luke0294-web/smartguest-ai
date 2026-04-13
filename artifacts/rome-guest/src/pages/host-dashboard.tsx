@@ -531,7 +531,7 @@ export default function HostDashboard() {
                   Regolamento e Informazioni
                 </span>
                 <span className="text-[10px] font-normal text-gray-400 uppercase tracking-wider">
-                  Visibile a Marco AI
+                  Visibile a Cico
                 </span>
               </label>
               <textarea

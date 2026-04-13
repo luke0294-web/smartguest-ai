@@ -31,7 +31,7 @@ const FEATURES = [
     color: "text-blue-600",
     bg: "bg-blue-50",
     title: "Risposte Istantanee",
-    desc: "Mai più ospiti in attesa per informazioni banali. Marco risponde in secondi, 24 ore su 24, 7 giorni su 7.",
+    desc: "Mai più ospiti in attesa per informazioni banali. Cico risponde in secondi, 24 ore su 24, 7 giorni su 7.",
   },
   {
     icon: Globe,
@@ -52,7 +52,7 @@ const FEATURES = [
     color: "text-blue-600",
     bg: "bg-blue-50",
     title: "Filtro Anti-Stress WhatsApp",
-    desc: "Marco risolve in autonomia il 90% delle richieste. Per le vere urgenze, l'ospite viene reindirizzato al tuo WhatsApp con un solo click.",
+    desc: "Cico risolve in autonomia il 90% delle richieste. Per le vere urgenze, l'ospite viene reindirizzato al tuo WhatsApp con un solo click.",
   },
 ];
 
@@ -61,7 +61,7 @@ const REVIEWS = [
     name: "Giulia R.",
     city: "Roma",
     stars: 5,
-    text: "Ho eliminato il 90% delle domande ripetitive. I miei ospiti adorano Marco.",
+    text: "Ho eliminato il 90% delle domande ripetitive. I miei ospiti adorano Cico.",
   },
   {
     name: "Luca M.",
@@ -207,7 +207,7 @@ function RegistrationModal({ onClose }: { onClose: () => void }) {
                   type="text"
                   value={hostName}
                   onChange={(e) => setHostName(e.target.value)}
-                  placeholder="es. Marco Rossi"
+                  placeholder="es. Luca Rossi"
                   required
                   className="border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
                 />
@@ -269,11 +269,11 @@ function RegistrationModal({ onClose }: { onClose: () => void }) {
 const FAQ_ITEMS = [
   {
     q: "Devo scaricare un'app o farla scaricare agli ospiti?",
-    a: "No, nessun download richiesto! I tuoi ospiti accedono a Marco semplicemente inquadrando un QR Code o cliccando un link dal loro browser.",
+    a: "No, nessun download richiesto! I tuoi ospiti accedono a Cico semplicemente inquadrando un QR Code o cliccando un link dal loro browser.",
   },
   {
     q: "Cosa succede se l'IA non conosce la risposta?",
-    a: "Nessun problema. Marco si scuserà gentilmente e mostrerà all'ospite un comodo tasto per scriverti direttamente su WhatsApp, avvisandoti in silenzio.",
+    a: "Nessun problema. Cico si scuserà gentilmente e mostrerà all'ospite un comodo tasto per scriverti direttamente su WhatsApp, avvisandoti in silenzio.",
   },
   {
     q: "Posso gestire più appartamenti con un solo account?",
@@ -665,7 +665,7 @@ export default function Landing() {
 
             <ul className="flex flex-col gap-3 mb-8">
               {[
-                "Assistente Marco sempre attivo",
+                "Assistente Cico sempre attivo",
                 "Chat in 50+ lingue automatiche",
                 "Pannello CEO multi-proprietà",
                 "QR Code personalizzato incluso",

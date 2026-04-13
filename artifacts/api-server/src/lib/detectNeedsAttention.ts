@@ -11,7 +11,7 @@ function normalizeText(text: string): string {
 }
 
 /**
- * Rileva se una risposta di Marco necessita attenzione (needs_attention: true)
+ * Rileva se una risposta di Cico necessita attenzione (needs_attention: true)
  * Basato su: scuse, mancanza di informazioni, suggerimento di contattare l'host
  */
 export function detectNeedsAttention(marcoReply: string): boolean {

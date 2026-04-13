@@ -161,7 +161,6 @@ const GUEST_CANNED: Record<
 // POST /properties/:slug/chat
 // ─────────────────────────────────────────────
 router.post("/properties/:slug/chat", async (req, res): Promise<void> => {
-  console.log("[ROTTA] Ricevuta richiesta per:", req.path);
   if (!enforceAiMessageLimit(req, res)) return;
 
   const clientIp = getClientIp(req);
@@ -187,17 +186,16 @@ router.post("/properties/:slug/chat", async (req, res): Promise<void> => {
   const dateLocale = DATE_LOCALE[languageCode] ?? "en-US";
   const guestCanned = GUEST_CANNED[languageCode] ?? GUEST_CANNED.en;
 
-  if (!isDemo) {
-    if (!chatRateLimiter.check(clientIp)) {
-      const retryAfter = chatRateLimiter.retryAfterSeconds(clientIp);
-      logger.warn({ ip: clientIp, retryAfter }, "Chat rate limit exceeded");
-      res.status(429).json({
-        reply: guestCanned.rateLimit,
-        propertyName: "",
-        rateLimited: true,
-      });
-      return;
-    }
+  // Per-IP cap for all properties (including demo) so session-id rotation cannot bypass OpenAI cost limits.
+  if (!chatRateLimiter.check(clientIp)) {
+    const retryAfter = chatRateLimiter.retryAfterSeconds(clientIp);
+    logger.warn({ ip: clientIp, retryAfter }, "Chat rate limit exceeded");
+    res.status(429).json({
+      reply: guestCanned.rateLimit,
+      propertyName: "",
+      rateLimited: true,
+    });
+    return;
   }
 
   let property: {
@@ -215,17 +213,12 @@ router.post("/properties/:slug/chat", async (req, res): Promise<void> => {
       content: demoRow.content,
       referralLinks: "",
     };
-    console.log("Slug ricevuto:", slug, "(demo — dati sintetici, nessuna query Supabase)");
   } else {
-    console.log("[DB] Inizio query al database...");
     const { data: propertyRow, error: propertyError } = await supabaseAdmin
       .from("properties")
       .select("slug, name, manual_content, content, referral_links")
       .eq("slug", slug)
       .single<SupabasePropertyRow>();
-
-    console.log("[DB] Query completata!");
-    console.log("[DB] Property loaded:", { slug });
 
     if (propertyError || !propertyRow) {
       console.error("[ERRORE CRITICO] POST /properties/:slug/chat property load:", propertyError ?? "no row");
@@ -396,7 +389,6 @@ RULES:
     }
 
     if (!isDemo) {
-      console.log("[DB] Inizio query al database...");
       try {
         const category = categorizeMessage(userMessage);
         const isHostFallback = shouldIncrementPendingQuestions(replyForClient);
@@ -445,9 +437,6 @@ RULES:
                 "Incremento pending_questions_count fallito (Supabase)",
               );
             } else {
-              console.log(
-                `[PENDING_Q] increment slug=${slug} reason=fallback-detected`,
-              );
               logger.info({ slug }, "Pending questions counter incremented");
             }
           }
@@ -456,7 +445,6 @@ RULES:
         console.error("[ERRORE CRITICO] chat log persist:", dbError);
         logger.error({ dbError }, "Errore salvataggio chat log");
       }
-      console.log("[DB] Query completata!");
     }
 
     const donePayload = SendPropertyChatResponse.parse({

@@ -26,6 +26,11 @@ export function getFrontendBaseUrlForEmail(context: string): string {
         `${context}: FRONTEND_URL deve usare http:// o https:// (valore attuale: ${base.slice(0, 96)})`,
       );
     }
+    if (process.env.NODE_ENV === "production" && u.protocol !== "https:") {
+      throw new Error(
+        `${context}: FRONTEND_URL deve usare https in produzione (valore attuale: ${base.slice(0, 96)})`,
+      );
+    }
     return base;
   } catch (e) {
     if (e instanceof Error && e.message.includes("FRONTEND_URL")) {

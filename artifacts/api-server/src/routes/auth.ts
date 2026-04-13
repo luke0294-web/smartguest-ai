@@ -488,7 +488,6 @@ router.post("/auth/setup-password/:token", async (req, res): Promise<void> => {
 
 // GET /auth/resets — CEO only — list all pending reset tokens with magic links
 router.get("/auth/resets", async (req, res): Promise<void> => {
-  console.log("[ROTTA CEO] Ricevuta richiesta:", req.path);
   if (!requireCeoSession(req, res)) return;
 
   try {
@@ -523,7 +522,6 @@ router.get("/auth/resets", async (req, res): Promise<void> => {
 
 // DELETE /auth/resets/:slug — CEO only — clear a pending reset token
 router.delete("/auth/resets/:slug", async (req, res): Promise<void> => {
-  console.log("[ROTTA CEO] Ricevuta richiesta:", req.path);
   if (!requireCeoSession(req, res)) return;
 
   try {
