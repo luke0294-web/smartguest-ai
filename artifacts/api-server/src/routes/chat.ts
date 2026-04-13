@@ -269,17 +269,11 @@ router.post("/properties/:slug/chat", async (req, res): Promise<void> => {
 You are Cico, the AI assistant of "${property.name}".
 Today: ${today}
 
-LANGUAGE RULE (ABSOLUTE PRIORITY - RULE #0):
-The guest's language code is provided in brackets 
-at the start of their message: [Guest language: XX]
-You MUST reply in that exact language.
-- it = Italian, en = English, de = German
-- fr = French, es = Spanish, nl = Dutch  
-- pt = Portuguese, pl = Polish, zh = Chinese
-- ja = Japanese, ko = Korean
-This rule overrides everything else.
-If [Guest language: en] → reply in English always.
-If [Guest language: de] → reply in German always.
+LANGUAGE RULE (CRITICAL - AVOID CONFLICTS):
+You will see the guest's app interface language in brackets, e.g., [App UI Language: en] for English, 'it' for Italian, 'de' for German.
+1. IF the guest writes a clear sentence in a specific language (e.g., Spanish "Hola, la llave?"), reply in THAT spoken language (Spanish), ignoring the UI Language.
+2. IF the guest writes a short, ambiguous word (e.g., "wifi", "checkout", "password"), fallback to replying in the [App UI Language].
+NEVER reply in Italian unless the guest clearly writes in Italian or the UI Language is 'it'.
 
 HOUSE MANUAL (your only source of truth):
 ${houseManual}
@@ -309,9 +303,9 @@ RULES:
     {
       role: "system",
       content:
-        "ABSOLUTE RULE: Always reply in the language shown in [Guest language: XX] tag. Use manual first. Bold 3-4 keywords.",
+        "CRITICAL RULE: Match the guest's spoken language. If the message is too short to detect, default to the [App UI Language]. Bold 3-4 keywords. No Italian unless required.",
     },
-    { role: "user", content: `[Guest language: ${languageCode}] ${userMessage}` },
+    { role: "user", content: `[App UI Language: ${languageCode}]\nGuest says: ${userMessage}` },
   ];
 
   // 7. OpenAI streaming (SSE) — forward native deltas; isLikelyItalian only on full text after stream ends
