@@ -26,7 +26,16 @@ type SupabasePropertyRow = {
   name: string;
   manual_content?: string | null;
   content?: string | null;
+  referral_links?: string | null;
 };
+
+function sanitizeReferralLinksForPrompt(raw: string | null | undefined): string {
+  return String(raw ?? "")
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
+    .replace(/<\/?script[^>]*>/gi, "")
+    .trim()
+    .slice(0, 2000);
+}
 
 function writeChatSseEvent(res: Response, event: string, data: unknown): void {
   res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
@@ -191,7 +200,12 @@ router.post("/properties/:slug/chat", async (req, res): Promise<void> => {
     }
   }
 
-  let property: { slug: string; name: string; content: string };
+  let property: {
+    slug: string;
+    name: string;
+    content: string;
+    referralLinks: string;
+  };
 
   if (isDemo) {
     const demoRow = demoPropertyRowForChat();
@@ -199,13 +213,14 @@ router.post("/properties/:slug/chat", async (req, res): Promise<void> => {
       slug: demoRow.slug,
       name: demoRow.name,
       content: demoRow.content,
+      referralLinks: "",
     };
     console.log("Slug ricevuto:", slug, "(demo — dati sintetici, nessuna query Supabase)");
   } else {
     console.log("[DB] Inizio query al database...");
     const { data: propertyRow, error: propertyError } = await supabaseAdmin
       .from("properties")
-      .select("*")
+      .select("slug, name, manual_content, content, referral_links")
       .eq("slug", slug)
       .single<SupabasePropertyRow>();
 
@@ -222,6 +237,7 @@ router.post("/properties/:slug/chat", async (req, res): Promise<void> => {
       slug: propertyRow.slug,
       name: propertyRow.name,
       content: propertyRow.manual_content ?? propertyRow.content ?? "",
+      referralLinks: sanitizeReferralLinksForPrompt(propertyRow.referral_links),
     };
   }
 
@@ -263,6 +279,9 @@ LANGUAGE LOCK (ABSOLUTE):
 HOUSE MANUAL (facts only — express answers in the guest's language, not this document's language):
 ${houseManual}
 
+REFERRAL LINKS & PARTNERSHIPS:
+${property.referralLinks.trim() || ""}
+
 RULES:
 0. DO NOT suggest contacting the host or using the WhatsApp button if the House Manual provides a full answer. Only mention WhatsApp or the host for true missing information, emergencies, or technical issues you cannot solve from the manual. Never add generic "feel free to contact the host" or similar closings when you already answered from the manual.
 1. Manual first → if the answer is in the manual, deliver it entirely in the guest's **current** language (translated), not by pasting manual phrasing. Stop after the answer—no extra host/WhatsApp line.
@@ -276,6 +295,8 @@ RULES:
 5. Missing info → apologize briefly and direct to WhatsApp **only** when the manual truly has no answer. If you answered from the manual, do not add this.
 6. Emergency → emergency services + WhatsApp immediately when appropriate.
 7. Bold 3-4 key words per response (still obeying LANGUAGE LOCK).
+8. EMOJIS: Always include at least 1 emoji in every response. For short answers, use 1-2 emojis. For longer explanatory messages, use 3 to 5 emojis distributed naturally throughout the text.
+9. REFERRAL: If the guest asks for recommendations (tours, transport, restaurants) AND a relevant link exists in REFERRAL LINKS, mention it naturally with the exact URL. Only promote when genuinely relevant to the question. Never force referral links into unrelated answers.
 `.trim();
 
   // 6. Costruzione array messaggi per OpenAI (ultimi 6 per risparmiare token)

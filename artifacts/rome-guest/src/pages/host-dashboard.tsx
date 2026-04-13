@@ -66,6 +66,7 @@ const updateSchema = z.object({
   name: z.string().min(1, "Il nome è obbligatorio"),
   content: z.string().min(1, "Il regolamento è obbligatorio"),
   whatsappNumber: z.string().optional(),
+  referralLinks: z.string().max(2000, "Massimo 2000 caratteri").optional(),
 });
 
 type UpdateValues = z.infer<typeof updateSchema>;
@@ -77,6 +78,7 @@ interface PropertyData {
   content: string;
   whatsappNumber: string | null;
   pendingQuestionsCount: number;
+  referralLinks?: string | null;
 }
 
 type AiState =
@@ -108,7 +110,7 @@ export default function HostDashboard() {
 
   const updateForm = useForm<UpdateValues>({
     resolver: zodResolver(updateSchema as any),
-    defaultValues: { name: "", content: "", whatsappNumber: "" },
+    defaultValues: { name: "", content: "", whatsappNumber: "", referralLinks: "" },
   });
 
   useEffect(() => {
@@ -152,6 +154,7 @@ export default function HostDashboard() {
         name: json.name,
         content: initialContent,
         whatsappNumber: json.whatsappNumber ?? "",
+        referralLinks: json.referralLinks ?? "",
       });
     } catch {
       setLoadError("Errore di connessione. Riprova.");
@@ -159,6 +162,47 @@ export default function HostDashboard() {
       setIsLoading(false);
     }
   };
+
+  /** Keep badge in sync when DB updates (guests chatting) without full page reload. */
+  useEffect(() => {
+    if (!slug || !session) return;
+
+    const refreshPendingCount = async () => {
+      try {
+        const res = await fetch(apiUrl(`/api/host/${slug}`), {
+          headers: { Authorization: `Bearer ${session.sessionToken}` },
+        });
+        if (res.status === 401 || res.status === 403) return;
+        if (!res.ok) return;
+        const json = await res.json();
+        const n = Number(json.pendingQuestionsCount ?? 0);
+        setPendingCount(n);
+        setProperty((prev) => (prev ? { ...prev, pendingQuestionsCount: n } : prev));
+      } catch {
+        /* network errors — keep last known count */
+      }
+    };
+
+    const intervalId = window.setInterval(() => {
+      void refreshPendingCount();
+    }, 15_000);
+
+    const onWindowFocus = () => {
+      void refreshPendingCount();
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") void refreshPendingCount();
+    };
+
+    window.addEventListener("focus", onWindowFocus);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", onWindowFocus);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [slug, session]);
 
   const handleOpenDiario = async () => {
     if (!session) {
@@ -405,8 +449,11 @@ export default function HostDashboard() {
               <BookOpen className="w-3.5 h-3.5 flex-shrink-0" />
               <span className="hidden sm:inline">Diario</span>
               {pendingCount > 0 && (
-                <span className="inline-flex items-center justify-center min-w-[18px] h-5 px-1.5 text-[10px] font-bold bg-red-600 text-white rounded-full">
-                  {pendingCount}
+                <span
+                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full h-5 min-w-[1.25rem] px-1 flex items-center justify-center text-xs font-bold leading-none shadow-sm"
+                  aria-hidden
+                >
+                  {pendingCount > 99 ? "99+" : pendingCount}
                 </span>
               )}
             </button>
@@ -498,6 +545,33 @@ export default function HostDashboard() {
                   {updateForm.formState.errors.content.message}
                 </p>
               )}
+
+              <div className="flex flex-col gap-1.5 pt-2 border-t border-gray-100">
+                <label className="text-sm font-semibold text-gray-700">
+                  🔗 Link Referral &amp; Partnership
+                </label>
+                <p className="text-[11px] text-gray-500 leading-relaxed">
+                  Inserisci i tuoi link affiliati (es. noleggio auto, tour, ristoranti convenzionati). Cico li
+                  consiglierà quando gli ospiti chiedono suggerimenti. Formato consigliato:
+                  <br />
+                  <span className="font-mono text-[10px] text-gray-400">
+                    - Auto: https://...
+                    <br />- Tour Colosseo: https://...
+                  </span>
+                </p>
+                <textarea
+                  {...updateForm.register("referralLinks")}
+                  rows={4}
+                  maxLength={2000}
+                  placeholder="- Noleggio auto: https://...\n- Tour: https://..."
+                  className="border border-gray-200 rounded-xl px-4 py-3 text-sm leading-relaxed resize-y focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 transition-all font-sans"
+                />
+                {updateForm.formState.errors.referralLinks && (
+                  <p className="text-xs text-red-500">
+                    {updateForm.formState.errors.referralLinks.message}
+                  </p>
+                )}
+              </div>
 
               {/* ── AI TOOLS ── */}
               <div className="mt-1 flex flex-col gap-2">

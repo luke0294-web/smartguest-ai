@@ -11,6 +11,7 @@ export const propertiesTable = pgTable("properties", {
   hostPassword: text("host_password"),
   email: text("email"),
   pendingQuestionsCount: integer("pending_questions_count").notNull().default(0),
+  referralLinks: text("referral_links"),
   resetToken: text("reset_token"),
   resetRequestedAt: timestamp("reset_requested_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

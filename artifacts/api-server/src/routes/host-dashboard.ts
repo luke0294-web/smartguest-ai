@@ -21,6 +21,15 @@ import { propertyRowToCamel, type PropertyRowSnake } from "../lib/supabaseMaps";
 
 const router: IRouter = Router();
 
+/** Plain text only: strip script tags, cap length (stored in DB + chat context). */
+function sanitizeReferralLinksInput(raw: unknown): string {
+  return String(raw ?? "")
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
+    .replace(/<\/?script[^>]*>/gi, "")
+    .trim()
+    .slice(0, 2000);
+}
+
 function toValidDate(value: unknown, fallbackMs: number): Date {
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
     return value;
@@ -173,7 +182,13 @@ router.get("/host/:slug", async (req, res): Promise<void> => {
     console.log("[DB] Inizio query al database...");
     if (!(await requireHostOwnsPropertySlug(res, session, slug))) return;
 
-    const { data: row, error } = await supabaseAdmin.from("properties").select("*").eq("slug", slug).maybeSingle();
+    const { data: row, error } = await supabaseAdmin
+      .from("properties")
+      .select(
+        "id, slug, name, manual_content, content, whatsapp_number, pending_questions_count, referral_links, email, host_password, reset_token, reset_requested_at, created_at, updated_at",
+      )
+      .eq("slug", slug)
+      .maybeSingle();
 
     console.log("[DB] Query completata!");
 
@@ -237,7 +252,7 @@ router.put("/host/:slug", async (req, res): Promise<void> => {
     if (!session) return;
 
     const { slug } = req.params;
-    const { name, content, whatsappNumber } = req.body ?? {};
+    const { name, content, whatsappNumber, referralLinks } = req.body ?? {};
     console.log("[DB] Inizio query al database...");
     if (!(await requireHostOwnsPropertySlug(res, session, slug))) return;
 
@@ -260,6 +275,9 @@ router.put("/host/:slug", async (req, res): Promise<void> => {
     }
     if (whatsappNumber !== undefined) {
       updates.whatsapp_number = String(whatsappNumber).trim() || null;
+    }
+    if (referralLinks !== undefined) {
+      updates.referral_links = sanitizeReferralLinksInput(referralLinks);
     }
 
     let updatedRows: PropertyRowSnake | null = null;

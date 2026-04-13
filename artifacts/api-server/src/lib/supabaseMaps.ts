@@ -4,6 +4,7 @@ export type PropertyRowSnake = {
   slug: string;
   name: string;
   content: string;
+  referral_links?: string | null;
   whatsapp_number: string | null;
   host_password?: string | null;
   email: string | null;
@@ -32,6 +33,7 @@ export function propertyRowToCamel(
   hostPassword: string | null;
   email: string | null;
   pendingQuestionsCount: number;
+  referralLinks: string | null;
   resetToken: string | null;
   resetRequestedAt: Date | null;
   createdAt: Date;
@@ -46,6 +48,7 @@ export function propertyRowToCamel(
     hostPassword: r.host_password ?? null,
     email: r.email,
     pendingQuestionsCount: Number(r.pending_questions_count ?? 0),
+    referralLinks: r.referral_links ?? null,
     resetToken: r.reset_token ?? null,
     resetRequestedAt: r.reset_requested_at ? rowDate(r.reset_requested_at, fallbackMs) : null,
     createdAt: rowDate(r.created_at, fallbackMs),

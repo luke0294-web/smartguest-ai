@@ -121,6 +121,7 @@ export const HostPropertyResponse = zod.object({
   content: zod.string(),
   whatsappNumber: zod.string().nullable(),
   pendingQuestionsCount: zod.number(),
+  referralLinks: zod.string().nullable().optional(),
   createdAt: zod.date(),
   updatedAt: zod.date(),
   email: zod.string().nullable(),
