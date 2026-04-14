@@ -30,29 +30,29 @@ const FEATURES = [
     icon: Zap,
     color: "text-blue-600",
     bg: "bg-blue-50",
-    title: "Risposte Istantanee",
-    desc: "Mai più ospiti in attesa per informazioni banali. Cico risponde in secondi, 24 ore su 24, 7 giorni su 7.",
+    title: "⏱️ Meno messaggi ogni giorno",
+    desc: "Cico risponde automaticamente al 90% delle domande degli ospiti.",
   },
   {
     icon: Globe,
     color: "text-emerald-600",
     bg: "bg-emerald-50",
     title: "Multilingua Automatico",
-    desc: "L'IA parla inglese, spagnolo, francese e altre 50 lingue perfettamente. Nessuna configurazione richiesta.",
+    desc: "Zero stress con ospiti stranieri: risposte perfette in ogni lingua senza che tu traduca nulla.",
   },
   {
     icon: LayoutDashboard,
     color: "text-violet-600",
     bg: "bg-violet-50",
     title: "Dashboard Host",
-    desc: "Gestisci tutti i tuoi appartamenti da un unico pannello super-admin. Aggiorna le info in pochi secondi.",
+    desc: "Tutto in un solo posto: aggiorni il regolamento in pochi secondi e recuperi ore ogni settimana.",
   },
   {
     icon: Shield,
     color: "text-blue-600",
     bg: "bg-blue-50",
     title: "Filtro Anti-Stress WhatsApp",
-    desc: "Cico risolve in autonomia il 90% delle richieste. Per le vere urgenze, l'ospite viene reindirizzato al tuo WhatsApp con un solo click.",
+    desc: "Meno ping sul telefono: Cico gestisce in autonomia le domande di routine; per le urgenze vere, un tap diretto verso il tuo WhatsApp.",
   },
 ];
 
@@ -430,9 +430,8 @@ export default function Landing() {
             custom={1}
             className="text-3xl sm:text-5xl md:text-6xl font-extrabold tracking-tight text-gray-900 leading-[1.15] mb-6"
           >
-            Il&nbsp;Portiere&nbsp;Digitale&nbsp;
-            <span className="text-blue-600">24/7</span>
-            <span className="block sm:inline"> per il tuo B&B</span>
+            Stop ai messaggi su <span className="text-blue-600">WhatsApp</span>: l&apos;AI risponde ai tuoi ospiti{" "}
+            <span className="text-blue-600">al posto tuo</span>.
           </motion.h1>
 
           <motion.p
@@ -440,10 +439,10 @@ export default function Landing() {
             initial="hidden"
             animate="visible"
             custom={2}
-            className="text-base sm:text-lg text-gray-500 max-w-xl mx-auto leading-relaxed mb-10"
+            className="text-base sm:text-lg text-gray-500 max-w-2xl mx-auto leading-relaxed mb-10"
           >
-            Risparmia ore di tempo, elimina le chiamate notturne per il Wi-Fi e
-            offri ai tuoi ospiti un'esperienza a 5 stelle in ogni&nbsp;lingua.
+            Risparmia ore ogni settimana, elimina le domande ripetitive e offri risposte perfette in ogni lingua
+            — senza fare nulla.
           </motion.p>
 
           <motion.div
@@ -452,21 +451,26 @@ export default function Landing() {
             initial="hidden"
             animate="visible"
             custom={3}
-            className="flex flex-col sm:flex-row items-center justify-center gap-3"
+            className="flex flex-col items-center gap-2"
           >
-            <button
-              onClick={() => setShowModal(true)}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-[15px] px-8 py-4 rounded-2xl shadow-lg shadow-blue-200 transition-all"
-            >
-              Inizia la prova gratuita di 30 giorni
-              <ArrowRight className="w-4 h-4" />
-            </button>
-            <Link
-              href="/demo?city=roma"
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 border border-gray-200 hover:border-gray-300 bg-white text-gray-700 font-semibold text-[14px] px-6 py-4 rounded-2xl transition-all"
-            >
-              Vedi la demo live
-            </Link>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 w-full">
+              <button
+                onClick={() => setShowModal(true)}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-[15px] px-8 py-4 rounded-2xl shadow-lg shadow-blue-200 transition-all"
+              >
+                Inizia gratis (30 giorni)
+                <ArrowRight className="w-4 h-4" />
+              </button>
+              <Link
+                href="/demo?city=roma"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 border border-gray-200 hover:border-gray-300 bg-white text-gray-700 font-semibold text-[14px] px-6 py-4 rounded-2xl transition-all"
+              >
+                Vedi la demo live
+              </Link>
+            </div>
+            <p className="text-xs sm:text-sm text-muted-foreground text-center max-w-md px-2">
+              Prezzo lancio a 7€/mese
+            </p>
           </motion.div>
 
           <motion.div
@@ -474,21 +478,11 @@ export default function Landing() {
             initial="hidden"
             animate="visible"
             custom={4}
-            className="mt-10 flex flex-wrap justify-center items-center gap-2 text-xs sm:text-sm text-gray-400"
+            className="mt-10 flex justify-center text-center"
           >
-            <div className="flex -space-x-1.5">
-              {["G", "L", "S", "M"].map((l, i) => (
-                <div
-                  key={i}
-                  className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 border-2 border-white flex items-center justify-center text-[10px] font-bold text-white"
-                >
-                  {l}
-                </div>
-              ))}
-            </div>
-            <span className="whitespace-nowrap">
-              <strong className="text-gray-600">+120 host</strong> già usano HeyCico
-            </span>
+            <p className="text-sm text-slate-500 max-w-md px-2">
+              ✨ Unisciti ai primi 50 host fondatori
+            </p>
           </motion.div>
         </div>
 
@@ -518,10 +512,17 @@ export default function Landing() {
                 Benvenuto! Sono Cico 👋 Come posso aiutarti?
               </div>
               <div className="bg-blue-600 rounded-2xl rounded-tr-sm px-4 py-3 text-[13px] text-white self-end max-w-[85%]">
-                What's the Wi-Fi password?
+                What&apos;s the Wi-Fi password?
               </div>
               <div className="bg-gray-50 rounded-2xl rounded-tl-sm px-4 py-3 text-[13px] text-gray-700 max-w-[85%]">
                 The Wi-Fi network is <strong>CasaRoma</strong> and the password is <strong>Ospite2024!</strong> 🔑
+              </div>
+              <div className="bg-blue-600 rounded-2xl rounded-tr-sm px-4 py-3 text-[13px] text-white self-end max-w-[85%]">
+                How do I check-in?
+              </div>
+              <div className="bg-gray-50 rounded-2xl rounded-tl-sm px-4 py-3 text-[13px] text-gray-700 max-w-[85%]">
+                Check-in is from <strong>3:00 PM</strong>. If you arrive early, you can leave your bags in the hallway.
+                Use the keypad code we sent by email 📬
               </div>
             </div>
           </div>
@@ -578,6 +579,7 @@ export default function Landing() {
             viewport={{ once: true }}
             className="text-center mb-12"
           >
+            <p className="text-base sm:text-lg font-bold text-gray-900 mb-3">⭐ 4.9/5 dagli host</p>
             <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900 mb-3">
               Host soddisfatti
             </h2>
@@ -632,7 +634,7 @@ export default function Landing() {
               Prezzi chiari
             </h2>
             <p className="text-gray-400 text-base sm:text-lg">
-              Nessuna sorpresa. Cancella quando&nbsp;vuoi.
+              Nessuna sorpresa. Zero vincoli nascosti.
             </p>
           </motion.div>
 
@@ -642,54 +644,51 @@ export default function Landing() {
             whileInView="visible"
             viewport={{ once: true }}
             custom={1}
-            className="relative rounded-3xl border-2 border-blue-600 bg-white shadow-2xl shadow-blue-100 p-8 overflow-hidden"
+            className="relative bg-white rounded-3xl border border-slate-200 shadow-sm p-8 sm:p-10"
           >
-            <div className="absolute top-5 right-5 bg-emerald-500 text-white text-[11px] font-bold px-3 py-1 rounded-full uppercase tracking-wide">
-              Primo mese GRATIS
+            <div className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-900 mb-6">
+              ✨ Offerta Lancio • 1° Mese Gratis
             </div>
 
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center">
-                <Shield className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <p className="text-[11px] text-gray-400 uppercase tracking-wider font-semibold">Piano</p>
-                <p className="text-[18px] font-extrabold text-gray-900 leading-none">Pro</p>
-              </div>
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+              <span className="text-lg text-slate-400 line-through">14,90€</span>
+              <span className="text-5xl font-semibold tracking-tight text-slate-900">7€</span>
+              <span className="text-slate-500">/mese</span>
             </div>
 
-            <div className="mb-6">
-              <span className="text-5xl font-extrabold text-gray-900">14,90€</span>
-              <span className="text-gray-400 text-lg ml-2">/ mese per appartamento</span>
-            </div>
+            <p className="mt-2 text-sm font-medium text-slate-500">
+              ⏳ Solo 50 posti disponibili a questo prezzo
+            </p>
 
-            <ul className="flex flex-col gap-3 mb-8">
+            <ul className="mt-8 mb-8 space-y-4">
               {[
-                "Assistente Cico sempre attivo",
-                "Chat in 50+ lingue automatiche",
-                "Pannello CEO multi-proprietà",
-                "QR Code personalizzato incluso",
-                "Aggiornamenti illimitati",
-                "Supporto prioritario via email",
+                "1 appartamento",
+                "Assistente AI 24/7",
+                "QR Code incluso",
+                "Multilingua automatico",
+                "Nessun contratto",
+                "Cancella quando vuoi",
               ].map((item) => (
-                <li key={item} className="flex items-center gap-2.5 text-[14px] text-gray-700">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />
-                  {item}
+                <li key={item} className="flex items-start gap-3 text-sm text-slate-600">
+                  <span className="text-slate-400 flex-shrink-0 select-none" aria-hidden>
+                    ✔
+                  </span>
+                  <span>{item}</span>
                 </li>
               ))}
             </ul>
 
             <button
+              type="button"
               onClick={() => setShowModal(true)}
-              className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-[15px] py-4 rounded-2xl shadow-lg shadow-blue-200 transition-all"
+              className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white font-semibold text-[15px] py-3.5 rounded-xl shadow-sm transition-all"
             >
-              Inizia la prova gratuita di 30 giorni
+              Inizia gratis
               <ArrowRight className="w-4 h-4" />
             </button>
 
-            <p className="text-center text-[12px] text-gray-400 mt-4">
-              Nessuna carta di credito richiesta.
-            </p>
+            <p className="text-xs text-slate-400 text-center mt-4">Nessuna carta di credito richiesta.</p>
+            <p className="text-xs text-slate-400 text-center mt-4">Soddisfatto o rimborsato in 7 giorni.</p>
           </motion.div>
         </div>
       </section>
