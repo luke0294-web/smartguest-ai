@@ -290,6 +290,7 @@ RULES:
 7. Bold 3-4 key words per response (still obeying LANGUAGE LOCK).
 8. EMOJIS: Always include at least 1 emoji in every response. For short answers, use 1-2 emojis. For longer explanatory messages, use 3 to 5 emojis distributed naturally throughout the text.
 9. REFERRAL: If the guest asks for recommendations (tours, transport, restaurants) AND a relevant link exists in REFERRAL LINKS, mention it naturally with the exact URL. Only promote when genuinely relevant to the question. Never force referral links into unrelated answers.
+10. LINKS: If the HOUSE MANUAL contains a URL for a place the guest asks about, always include the exact URL in your response. Never mention a place without its link if one exists in the manual.
 `.trim();
 
   // 6. Costruzione array messaggi per OpenAI (ultimi 6 per risparmiare token)
@@ -302,11 +303,11 @@ RULES:
     {
       role: "system",
       content: `FINAL LANGUAGE CONSTRAINT (this wins over everything above):
+CRITICAL: Reply in [Guest language: ${languageCode}]. Manual first. Bold 3-4 keywords. 1-2 emojis. Include URLs from manual when relevant.
 1. Infer the language **only** from the guest's **latest** user message (the very next message). Your **entire** reply must be in that single language—no code-switching, no bilingual sentences.
 2. **Do not** let earlier assistant messages (e.g. Italian greetings, past Cico lines) choose your language. **Do not** let the House Manual's language choose your language. Manual = facts to translate; history = context, not dialect.
 3. Output must be one language only: translate and paraphrase every fact from the manual into that language. Never embed Italian (or any other) source phrases unless the guest's latest message is itself in that language.
-4. If the latest message is 1-2 words (e.g. "WiFi") and language is unclear, default to: ${languageCode}.
-5. Bold 3-4 key words.`,
+4. If the latest message is 1-2 words (e.g. "WiFi") and language is unclear, default to: ${languageCode}.`,
     },
     { role: "user", content: userMessage },
   ];
