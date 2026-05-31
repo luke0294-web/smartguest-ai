@@ -40,7 +40,7 @@ export function detectNeedsAttention(marcoReply: string): boolean {
     "ask the host", "contatta il proprietario", "contatta l'host", "preguntar al anfitrión",
     "preguntale al anfitrion", "ask the owner", "contacbar al owner", "contact host",
     "contact the host", "contact proprietario", "contact owner", "contact agenzia",
-    "call the host", "call the owner", "chiama il proprietario", "whatsapp",
+    "call the host", "call the owner", "chiama il proprietario",
     "messaggio all'host", "mensaje al anfitrion", "message the host",
   ];
 

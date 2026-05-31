@@ -353,19 +353,15 @@ router.get("/properties/:slug", async (req, res): Promise<void> => {
       return;
     }
 
-    let qrCodeBase64: string;
+    let qrCodeBase64: string | undefined;
     try {
       qrCodeBase64 = await generateGuestQrDataUrl(mapped.slug);
     } catch (qrErr) {
       logger.error({ err: qrErr, slug: params.data.slug }, "GET /properties/:slug — generateGuestQrDataUrl fallita");
-      res.status(500).json({
-        error:
-          "Impossibile generare il QR ospite. Verifica FRONTEND_URL nel file .env del backend.",
-      });
-      return;
+      qrCodeBase64 = undefined;
     }
 
-    const payload = { ...mapped, qrCodeBase64 };
+    const payload = qrCodeBase64 ? { ...mapped, qrCodeBase64 } : mapped;
     const parsed = GetPropertyResponse.safeParse(payload);
     if (!parsed.success) {
       logger.error(
