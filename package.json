@@ -22,5 +22,11 @@
   },
   "dependencies": {
     "drizzle-orm": "catalog:"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "core-js"
+    ]
   }
 }
