@@ -197,22 +197,19 @@ router.get("/host/:slug", async (req, res): Promise<void> => {
       updatedAt: toValidDate(safe.updatedAt, fallbackMs),
     };
 
-    let qrCodeBase64: string;
+    let qrCodeBase64: string | undefined;
     try {
       qrCodeBase64 = await generateGuestQrDataUrl(withDates.slug);
     } catch (qrErr) {
-      console.error(
-        "[ERRORE CRITICO] GET /host/:slug generateGuestQrDataUrl (FRONTEND_URL?):",
-        qrErr instanceof Error ? qrErr.message : qrErr,
+      logger.warn(
+        { err: qrErr, slug },
+        "GET /host/:slug — generateGuestQrDataUrl fallita",
       );
-      res.status(500).json({
-        error:
-          "Impossibile generare il QR ospite. Imposta FRONTEND_URL nel .env dell'API.",
-      });
-      return;
+      qrCodeBase64 = undefined;
     }
 
-    const parsed = HostPropertyResponse.safeParse({ ...withDates, qrCodeBase64 });
+    const payload = qrCodeBase64 ? { ...withDates, qrCodeBase64 } : withDates;
+    const parsed = HostPropertyResponse.safeParse(payload);
     if (!parsed.success) {
       console.error("[ERRORE CRITICO] GET /host/:slug Zod HostPropertyResponse:", parsed.error.flatten(), {
         propertyId: withDates.id,
