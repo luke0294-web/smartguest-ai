@@ -71,6 +71,10 @@ const updateSchema = z.object({
 
 type UpdateValues = z.infer<typeof updateSchema>;
 
+function getErrorMessage(err: unknown, fallback: string): string {
+  return err instanceof Error ? err.message : fallback;
+}
+
 interface PropertyData {
   id: number;
   slug: string;
@@ -109,7 +113,7 @@ export default function HostDashboard() {
   const imageInputRef = useRef<HTMLInputElement | null>(null);
 
   const updateForm = useForm<UpdateValues>({
-    resolver: zodResolver(updateSchema as any),
+    resolver: zodResolver(updateSchema),
     defaultValues: { name: "", content: "", whatsappNumber: "", referralLinks: "" },
   });
 
@@ -122,7 +126,6 @@ export default function HostDashboard() {
     }
     setSession(s);
     loadProperty(s);
-    return;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug]);
 
@@ -240,8 +243,8 @@ export default function HostDashboard() {
       if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
       setIsSaved(true);
       savedTimerRef.current = setTimeout(() => setIsSaved(false), 3000);
-    } catch (err: any) {
-      alert(err?.message ?? "Errore nel salvataggio.");
+    } catch (err: unknown) {
+      alert(getErrorMessage(err, "Errore nel salvataggio."));
     } finally {
       setIsSaving(false);
     }
@@ -321,8 +324,8 @@ export default function HostDashboard() {
       if (!res.ok) throw new Error(json.error ?? "Errore nella trascrizione.");
       appendToContent(json.text);
       setAiState({ type: "success", message: "Testo vocale aggiunto!" });
-    } catch (err: any) {
-      setAiState({ type: "error", message: err.message });
+    } catch (err: unknown) {
+      setAiState({ type: "error", message: getErrorMessage(err, "Errore nella trascrizione.") });
     } finally {
       setTimeout(() => setAiState({ type: "idle" }), 3500);
     }
@@ -354,8 +357,11 @@ export default function HostDashboard() {
         type: "success",
         message: "Informazioni estratte e aggiunte!",
       });
-    } catch (err: any) {
-      setAiState({ type: "error", message: err.message });
+    } catch (err: unknown) {
+      setAiState({
+        type: "error",
+        message: getErrorMessage(err, "Errore nell'analisi dell'immagine."),
+      });
     } finally {
       setTimeout(() => setAiState({ type: "idle" }), 3500);
     }

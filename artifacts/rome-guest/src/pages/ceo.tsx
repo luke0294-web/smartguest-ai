@@ -7,13 +7,18 @@ import { Link } from "wouter";
 import { jsPDF } from "jspdf";
 import {
   Building, Plus, Trash2, ExternalLink, KeyRound, Loader2, Save,
-  Users, AlertCircle, Sparkles, QrCode, X, Download, Inbox,
+  Users, AlertCircle, Sparkles, QrCode, X, Inbox,
   UserCog, Copy, CheckCheck, Link2, Eye, EyeOff, RefreshCw,
   Mail, ShieldAlert, FileText, ChevronDown, UserCheck, MoreVertical,
 } from "lucide-react";
 import { format } from "date-fns";
 
-import { useListProperties, useCreateProperty, useDeleteProperty, getListPropertiesQueryKey } from "@workspace/api-client-react";
+import {
+  useListProperties,
+  useDeleteProperty,
+  getListPropertiesQueryKey,
+  type Property,
+} from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { apiUrl } from "@/lib/apiUrl";
 import { toast } from "@/hooks/use-toast";
@@ -33,6 +38,26 @@ const createPropertySchema = z.object({
 });
 
 type CreatePropertyValues = z.infer<typeof createPropertySchema>;
+
+/** CEO list endpoint returns extra fields beyond OpenAPI `Property`. */
+type CeoPropertyListItem = Property & {
+  email?: string | null;
+  pendingQuestionsCount?: number;
+  hostPassword?: string | null;
+};
+
+function getErrorMessage(err: unknown, fallback = "Errore sconosciuto"): string {
+  return err instanceof Error ? err.message : fallback;
+}
+
+function isHttp401(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "status" in error &&
+    (error as { status: unknown }).status === 401
+  );
+}
 
 interface Lead {
   id: number;
@@ -298,8 +323,8 @@ function HostPasswordModal({
       setSaved(true);
       onSaved(trimmed);
       setNewPassword("");
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
     } finally {
       setIsSaving(false);
     }
@@ -488,8 +513,8 @@ function ContentEditModal({
       setSaved(true);
       onSaved();
       setTimeout(() => setSaved(false), 3000);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
     } finally {
       setSaving(false);
     }
@@ -623,14 +648,13 @@ export default function CeoPanel() {
     request: { headers: ceoSessionHeaders },
   });
 
-  const { mutate: _createProperty } = useCreateProperty();
   const [isCreating, setIsCreating] = useState(false);
   const { mutate: deleteProperty, isPending: isDeleting } = useDeleteProperty({
     request: { headers: ceoSessionHeaders },
   });
 
   const form = useForm<CreatePropertyValues>({
-    resolver: zodResolver(createPropertySchema as any),
+    resolver: zodResolver(createPropertySchema),
     defaultValues: { name: "", slug: "", whatsappNumber: "", content: "" }
   });
 
@@ -646,7 +670,7 @@ export default function CeoPanel() {
   }, [watchName, form]);
 
   useEffect(() => {
-    if (listError && (listError as any).status === 401) {
+    if (listError && isHttp401(listError)) {
       sessionStorage.removeItem(CEO_SESSION_KEY);
       setCeoToken("");
       alert("Sessione non valida o scaduta. Accedi di nuovo.");
@@ -1164,7 +1188,7 @@ export default function CeoPanel() {
                   </div>
 
                   <AnimatePresence>
-                    {properties?.map((prop) => (
+                    {(properties as CeoPropertyListItem[] | undefined)?.map((prop) => (
                       <motion.div
                         key={prop.id}
                         initial={{ opacity: 0, y: 10 }}
@@ -1282,7 +1306,7 @@ export default function CeoPanel() {
                                 <span className="font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md text-[12px] border border-blue-100">
                                   {prop.slug}
                                 </span>
-                                {(prop as any).hostPassword ? (
+                                {prop.hostPassword ? (
                                   <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-100">
                                     ✓ password impostata
                                   </span>
@@ -1307,14 +1331,14 @@ export default function CeoPanel() {
 
                             <div className="flex flex-wrap sm:flex-col items-start sm:items-stretch gap-2 shrink-0 border-t sm:border-t-0 sm:border-l border-border/50 pt-3 sm:pt-0 sm:pl-5">
                               <button
-                                onClick={() => startInlineEdit({ name: prop.name, slug: prop.slug, hostPassword: (prop as any).hostPassword, email: (prop as any).email })}
+                                onClick={() => startInlineEdit({ name: prop.name, slug: prop.slug, hostPassword: prop.hostPassword, email: prop.email })}
                                 className="flex-1 sm:flex-none px-3 py-2 bg-orange-50 text-orange-700 hover:bg-orange-100 font-medium rounded-xl transition-all flex items-center justify-center gap-1.5 text-[13px]"
                               >
                                 <Save className="w-3.5 h-3.5" />
                                 Modifica
                               </button>
                               <button
-                                onClick={() => setContentModal({ name: prop.name, slug: prop.slug, content: (prop as any).content })}
+                                onClick={() => setContentModal({ name: prop.name, slug: prop.slug, content: prop.content })}
                                 className="flex-1 sm:flex-none px-3 py-2 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-medium rounded-xl transition-all flex items-center justify-center gap-1.5 text-[13px]"
                               >
                                 <FileText className="w-3.5 h-3.5" />
