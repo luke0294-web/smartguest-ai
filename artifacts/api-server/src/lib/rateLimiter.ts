@@ -15,6 +15,11 @@ export interface RateLimiterOptions {
   windowMs: number;
 }
 
+/** When false, all in-memory limiters allow every request (local dev only). */
+export function isRateLimitingEnabled(): boolean {
+  return process.env.NODE_ENV === "production";
+}
+
 export class RateLimiter {
   private store = new Map<string, RateLimitEntry>();
   private readonly maxRequests: number;
@@ -33,6 +38,8 @@ export class RateLimiter {
    * @returns `true` if the request is allowed, `false` if rate-limited.
    */
   check(key: string): boolean {
+    if (!isRateLimitingEnabled()) return true;
+
     const now = Date.now();
     const cutoff = now - this.windowMs;
 

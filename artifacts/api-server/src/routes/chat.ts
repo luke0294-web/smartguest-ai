@@ -17,6 +17,7 @@ import {
   categorizeMessage,
   shouldIncrementPendingQuestions,
 } from "../lib/categorizeMessage";
+import { logOpenAi429IfNeeded } from "../lib/openaiErrors";
 
 const router: IRouter = Router();
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -324,6 +325,7 @@ CRITICAL: Reply in [Guest language: ${languageCode}]. Manual first. Bold 3-4 key
         stream_options: { include_usage: true },
       });
     } catch (openAiStartError) {
+      logOpenAi429IfNeeded(openAiStartError, "POST /properties/:slug/chat stream start");
       logger.error({ openAiStartError, slug }, "OpenAI chat stream start failed");
       res.status(500).json({ error: "Internal server error" });
       return;
@@ -368,6 +370,7 @@ CRITICAL: Reply in [Guest language: ${languageCode}]. Manual first. Bold 3-4 key
         writeChatSseEvent(res, "delta", { text: rawReply });
       }
     } catch (streamError) {
+      logOpenAi429IfNeeded(streamError, "POST /properties/:slug/chat stream read");
       logger.error({ streamError, slug }, "OpenAI chat stream read failed");
       writeChatSseEvent(res, "error", { message: "Internal server error" });
       res.end();

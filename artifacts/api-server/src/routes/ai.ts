@@ -8,6 +8,7 @@ import {
   getClientIp,
 } from "../lib/rateLimiter";
 import { enforceAiMessageLimit } from "../lib/aiGuard";
+import { logOpenAi429IfNeeded } from "../lib/openaiErrors";
 import { requireHostSession } from "../lib/host-auth";
 
 const router: IRouter = Router();
@@ -88,6 +89,7 @@ router.post(
       logger.info({ chars: transcription.text.length }, "Whisper transcription completed");
       res.json({ text: transcription.text });
     } catch (err: unknown) {
+      logOpenAi429IfNeeded(err, "POST /ai/transcribe");
       console.error("[ERRORE CRITICO] /ai/transcribe:", err);
       logger.error({ err }, "Whisper transcription failed");
       res.status(500).json({ error: "Errore nella trascrizione. Riprova tra poco." });
@@ -146,6 +148,7 @@ router.post(
       logger.info({ chars: text.length }, "Vision extraction completed");
       res.json({ text });
     } catch (err: unknown) {
+      logOpenAi429IfNeeded(err, "POST /ai/vision");
       console.error("[ERRORE CRITICO] /ai/vision:", err);
       logger.error({ err }, "Vision extraction failed");
       res.status(500).json({ error: "Errore nell'analisi immagine. Riprova tra poco." });

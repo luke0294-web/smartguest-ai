@@ -83,6 +83,8 @@ function getAiCounterKey(req: Request): string {
  * Production (non-demo): 60 requests per rolling minute per x-session-id header only; no header → no limit.
  */
 export function enforceAiMessageLimit(req: Request, res: Response): boolean {
+  if (process.env.NODE_ENV !== "production") return true;
+
   const slug = readSlugForAiLimit(req);
 
   if (slug === DEMO_SLUG) {

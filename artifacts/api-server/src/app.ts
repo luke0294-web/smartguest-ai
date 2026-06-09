@@ -53,6 +53,11 @@ app.use(helmet());
 app.use(
   cors({
     origin: (origin, callback) => {
+      // Local dev: allow Vite on any port, LAN IPs, etc.
+      if (process.env.NODE_ENV !== "production") {
+        return callback(null, true);
+      }
+
       if (!origin) return callback(null, true);
 
       if (
