@@ -777,7 +777,7 @@ export default function GuestChat(props: GuestChatProps = {}) {
       <div className="flex flex-col h-full chat-container md:rounded-3xl overflow-hidden relative">
 
         {/* ── Header ── */}
-        <header className="px-4 py-3 flex items-start sm:items-center justify-between gap-2 chat-header border-b border-white/10 sticky top-0 z-10">
+        <header className="px-4 py-3 flex items-start sm:items-center justify-between gap-2 bg-blue-600 shadow-lg shadow-blue-200 border-b border-blue-700/30 sticky top-0 z-10">
           {/* Left: property name + status */}
           <div className="flex items-start gap-3 min-w-0 flex-1">
             <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center shadow-inner flex-shrink-0 mt-0.5 sm:mt-0">
@@ -887,7 +887,9 @@ export default function GuestChat(props: GuestChatProps = {}) {
                 )}
                 <div
                   className={`max-w-[80%] sm:max-w-[72%] px-4 py-3 text-[14.5px] leading-relaxed ${
-                    msg.role === "user" ? "user-bubble" : "assistant-bubble"
+                    msg.role === "user"
+                      ? "user-bubble bg-blue-600 text-white shadow-md shadow-blue-200"
+                      : "assistant-bubble"
                   }`}
                 >
                   {msg.role === "assistant" && idx === 0 && (
