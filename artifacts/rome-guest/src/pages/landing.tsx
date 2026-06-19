@@ -570,6 +570,7 @@ export default function Landing() {
       </section>
 
       {/* ── Reviews ── */}
+{/* 
       <section className="py-20 px-5 bg-gray-50">
         <div className="max-w-5xl mx-auto">
           <motion.div
@@ -616,6 +617,7 @@ export default function Landing() {
           </div>
         </div>
       </section>
+*/}
 
       {/* ── FAQ ── */}
       <FaqSection />
