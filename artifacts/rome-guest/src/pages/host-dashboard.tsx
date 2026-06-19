@@ -116,6 +116,22 @@ export default function HostDashboard() {
     resolver: zodResolver(updateSchema),
     defaultValues: { name: "", content: "", whatsappNumber: "", referralLinks: "" },
   });
+  // Osserva tutti i campi del form e controlla se l'utente ha fatto modifiche (isDirty)
+  const formValues = updateForm.watch();
+  const isDirty = updateForm.formState.isDirty;
+
+  useEffect(() => {
+    // Se non ci sono modifiche, non fare nulla
+    if (!isDirty) return;
+
+    // Se ci sono modifiche, aspetta 1.5 secondi da quando l'host smette di scrivere
+    const timer = setTimeout(() => {
+      updateForm.handleSubmit(handleUpdate)();
+    }, 1500);
+
+    // Se l'host digita un'altra lettera prima di 1.5s, azzera il timer
+    return () => clearTimeout(timer);
+  }, [formValues, isDirty]);
 
   useEffect(() => {
     if (!slug) return;
@@ -485,11 +501,19 @@ export default function HostDashboard() {
           transition={{ delay: 0.05 }}
           className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden"
         >
-          <div className="px-6 py-5 border-b border-gray-100 flex items-center gap-3">
-            <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center">
-              <FileText className="w-4 h-4 text-blue-600" />
+          <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center">
+                <FileText className="w-4 h-4 text-blue-600" />
+              </div>
+              <h2 className="font-bold text-gray-900">Modifica i tuoi dati</h2>
             </div>
-            <h2 className="font-bold text-gray-900">Modifica i tuoi dati</h2>
+            
+            {/* Indicatore di salvataggio automatico */}
+            <div className="text-[13px] font-medium min-w-[100px] text-right">
+              {isSaving && <span className="text-blue-500 animate-pulse">Salvataggio...</span>}
+              {isSaved && !isSaving && <span className="text-emerald-500">Salvato ✅</span>}
+            </div>
           </div>
 
           <form
@@ -691,36 +715,6 @@ export default function HostDashboard() {
                 </div>
               </div>
             </div>
-
-            {/* Submit */}
-            <button
-              type="submit"
-              disabled={(!updateForm.formState.isDirty && !isSaved) || isSaving}
-              className={`flex items-center justify-center gap-2 font-bold py-3.5 px-6 rounded-xl transition-all shadow-lg disabled:cursor-not-allowed ${
-                isSaving
-                  ? "bg-gray-400 text-white shadow-gray-100"
-                  : isSaved
-                    ? "bg-emerald-500 text-white shadow-emerald-100 cursor-default"
-                    : "bg-blue-600 hover:bg-blue-700 text-white shadow-blue-100 disabled:opacity-50"
-              }`}
-            >
-              {isSaving ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Salvataggio...
-                </>
-              ) : isSaved ? (
-                <>
-                  <CheckCircle2 className="w-4 h-4" />
-                  Salvato!
-                </>
-              ) : (
-                <>
-                  <Save className="w-4 h-4" />
-                  Salva Modifiche
-                </>
-              )}
-            </button>
           </form>
         </motion.div>
 
