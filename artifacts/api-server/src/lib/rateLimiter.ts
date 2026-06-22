@@ -81,9 +81,9 @@ export class RateLimiter {
   }
 }
 
-// ── Singleton: 60 requests / hour for the guest chat endpoint ─────────────────
+// ── Singleton: 100 requests / hour for the guest chat endpoint ─────────────────
 export const chatRateLimiter = new RateLimiter({
-  maxRequests: 60,
+  maxRequests: 100,
   windowMs: 60 * 60 * 1000, // 1 hour
 });
 
