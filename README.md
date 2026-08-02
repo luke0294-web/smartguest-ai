@@ -82,7 +82,7 @@ Il **Diario di Bordo** — log di tutte le conversazioni ospiti per una struttur
 L'host può premere "Segna come gestito" per marcare una conversazione come `resolved: true` via `PATCH /api/super-diario/:slug/resolve/:id`.
 
 #### `ceo.tsx`
-Pannello CEO (1800+ righe). Autenticazione tramite `CEO_PASSWORD` (env var, default `"fleming2026"`). Quattro tab:
+Pannello CEO (1800+ righe). Autenticazione tramite `CEO_PASSWORD` (env var, obbligatoria, nessun default). Quattro tab:
 1. **Proprietà**: lista completa, creazione, eliminazione, modifica inline (slug, nome, password host, email, content).
 2. **Lead**: lista dei lead da landing page, cambio stato, eliminazione, **conversione in host** (crea host + proprietà + slug automatico).
 3. **Reset password**: lista dei token di reset in attesa, possibilità di annullarli.
@@ -341,7 +341,7 @@ CEO panel → tab Lead → bottone Converti
 - **baseUrl**: sempre `import.meta.env.BASE_URL.replace(/\/$/, "")` prima di ogni `fetch`.
 - **ReactMarkdown**: i componenti custom devono ricevere `children` esplicitamente: `({ node, children, ...props }) => <tag {...props}>{children}</tag>`.
 - **Sessione host**: `sessionStorage` con chiave `"host_session"`, TTL 8 ore. La struttura è `{ email, password, ts }`.
-- **CEO_PASSWORD**: il default `"fleming2026"` è usato in `leads.ts`, `properties.ts`, `admin-hosts.ts`, `auth.ts` — sempre letto da `process.env.CEO_PASSWORD ?? "fleming2026"`.
+- **CEO_PASSWORD**: letta da `process.env.CEO_PASSWORD`, obbligatoria all'avvio — nessun fallback.
 - **Slug**: solo lettere minuscole, numeri e trattini (`/^[a-z0-9-]+$/`). Generato automaticamente dal nome struttura, con suffix numerico se già esistente.
 - **Marco AI temperatura**: `0.4` (bilanciato tra creatività e precisione).
 - **Lingua**: il frontend e la UI sono in italiano. Il sistema prompt di Marco supporta 11 lingue di risposta.
