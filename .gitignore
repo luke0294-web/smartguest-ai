@@ -53,3 +53,8 @@ Thumbs.db
 .env.*
 !.env.example
 
+# Local SQLite artifacts (never commit)
+database.db
+*.db
+
+database.db
