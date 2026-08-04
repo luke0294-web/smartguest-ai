@@ -1,367 +1,274 @@
-# HeyCico — Documentazione Tecnica Completa
+# HeyCico
 
-> Documento redatto il 31 marzo 2026. Aggiornare questa sezione ad ogni modifica architetturale rilevante.
+**Assistente AI multilingua per host di case vacanze.** Ogni ospite trova la sua chat pubblica su un link o QR code; **Cico**, l'assistente AI, risponde in tempo reale basandosi sul regolamento della casa scritto dall'host — niente più messaggi ripetitivi su WhatsApp.
+
+🔗 [heycico.com](https://heycico.com) · [Demo live](https://heycico.com/demo)
+
+> Documento aggiornato il 4 agosto 2026, verificato riga per riga contro il codice sul branch `main`.
 
 ---
 
 ## Cos'è HeyCico
 
-HeyCico è una piattaforma **multi-tenant SaaS** per host di case vacanze italiane.
-Ogni host ha una o più proprietà. Ogni proprietà ha una **chat pubblica** accessibile agli ospiti tramite un link o un QR code. La chat è gestita da **Marco AI**, un assistente virtuale alimentato da `gpt-4o-mini` che risponde alle domande degli ospiti basandosi sul regolamento inserito dall'host.
+HeyCico è una piattaforma **multi-tenant SaaS** per host di case vacanze italiane. Ogni host gestisce una o più proprietà; ogni proprietà ha una **chat pubblica** (`/guest/:slug`) accessibile agli ospiti tramite link o QR code. La chat è gestita da **Cico**, un assistente conversazionale basato su `gpt-4o-mini`, che risponde attingendo esclusivamente al regolamento della casa (House Manual) scritto dall'host.
 
-Il progetto è interamente in TypeScript, organizzato come monorepo pnpm con tre artifact principali.
+Gli host gestiscono i contenuti da una dashboard dedicata, consultano il log di tutte le conversazioni (**Super-Diario**) e vengono avvisati quando Cico non riesce a rispondere. Un **pannello CEO** gestisce l'intero ciclo commerciale: lead, onboarding delle proprietà, credenziali degli host.
+
+**Stack:** React/Vite SPA + Express API + Supabase Postgres, interamente in TypeScript, organizzato come monorepo pnpm.
 
 ---
 
-## Struttura del Monorepo
+## Indice
+
+- [Come funziona la chat](#come-funziona-la-chat)
+- [Struttura del monorepo](#struttura-del-monorepo)
+- [Frontend](#frontend---artifactsrome-guest)
+- [Backend — Route map completa](#backend---artifactsapi-server)
+- [Database](#database-supabase)
+- [Sicurezza](#sicurezza)
+- [Variabili d'ambiente](#variabili-dambiente)
+- [Sviluppo locale](#sviluppo-locale)
+- [Limiti noti](#limiti-noti)
+
+---
+
+## Come funziona la chat
 
 ```
-workspace/
+Ospite apre /guest/:slug (o scansiona un QR code)
+  → il frontend recupera i dati pubblici della proprietà
+  → l'ospite scrive un messaggio
+  → POST /api/properties/:slug/chat
+       → rate limiting (60 richieste/ora per IP)
+       → categorizzazione (domanda turistica vs gestionale)
+       → costruzione del system prompt (regolamento casa + language lock)
+       → chiamata a OpenAI gpt-4o-mini, risposta in streaming (SSE)
+       → rilevamento automatico se Cico non ha saputo rispondere
+       → log salvato in chat_logs, con badge "da gestire" per l'host se serve
+  → risposta mostrata in chat, parola per parola
+```
+
+Punti distintivi dell'implementazione:
+
+- **Risposta in streaming (SSE)**, non un singolo blocco di testo — l'ospite vede Cico scrivere in tempo reale.
+- **Language lock**: Cico risponde sempre nella lingua dell'ultimo messaggio dell'ospite, indipendentemente dalla lingua del regolamento caricato dall'host — 11 lingue supportate in UI (IT, EN, DE, FR, ES, NL, PT, RU, JA, ZH, AR).
+- **Manual-first**: Cico attinge solo al regolamento fornito dall'host; suggerisce il contatto WhatsApp dell'host solo per informazioni mancanti, emergenze o problemi tecnici irrisolvibili.
+- **Modalità demo pubblica** (`/demo`, `/guest/demo`): regolamento fittizio precaricato, limite più stringente (12 messaggi/ora per sessione), nessuna persistenza dei log — pensata per far provare il prodotto senza esporre dati di proprietà reali.
+
+---
+
+## Struttura del monorepo
+
+```
+smartguest-ai/
 ├── artifacts/
-│   ├── rome-guest/          # Frontend React + Vite (tutto il browser)
-│   └── api-server/          # Backend Express + OpenAI
+│   ├── rome-guest/       # Frontend — React 18 + Vite (SPA)
+│   ├── api-server/       # Backend — Express 5 + OpenAI + Supabase
+│   └── mockup-sandbox/   # Mockup UI, non in produzione
 ├── lib/
-│   ├── db/                  # Schema Drizzle ORM + client Postgres
-│   ├── api-zod/             # Schemi Zod condivisi (validazione request/response)
-│   └── api-client-react/    # Client React Query generato da openapi-ts
-└── package.json             # Root workspace pnpm
+│   ├── db/                  # Schema Drizzle ORM (mirror parziale di Supabase)
+│   ├── api-zod/             # Schemi Zod condivisi, generati da OpenAPI
+│   ├── api-spec/            # Spec OpenAPI + config Orval
+│   └── api-client-react/    # Client React Query generato, incl. parser SSE
+├── scripts/
+└── package.json              # Root workspace pnpm
 ```
 
 ---
 
-## Artifact 1 — Frontend (`artifacts/rome-guest`)
+## Frontend — `artifacts/rome-guest`
 
 **Stack:** React 18, Vite, Tailwind CSS, Framer Motion, Wouter, React Hook Form, Zod, react-markdown, qrcode.react, jsPDF.
 
-### Routing (Wouter)
+### Rotte
 
-| Path | Componente | Chi accede |
+| Path | Pagina | Accesso |
 |---|---|---|
-| `/` | `Landing` | Pubblico — landing page + form lead |
-| `/login` | `HostLogin` | Host — login con email + password |
-| `/guest/:slug` | `GuestChat` | Ospiti — chat con Marco AI |
-| `/host/dashboard` | `HostProperties` | Host autenticato — lista strutture |
-| `/host/:slug` | `HostDashboard` | Host autenticato — editor regolamento + AI tools |
-| `/diario/:slug` | `DiarioDiBordo` | Host autenticato — log conversazioni |
-| `/ceo` o `/admin` | `CeoPanel` | CEO — pannello admin completo |
-| `/forgot-password` | `ForgotPassword` | Host — richiesta reset password |
-| `/reset-password/:token` | `ResetPassword` | Host — impostazione nuova password |
-| `/privacy` | `PrivacyPolicy` | Pubblico |
+| `/` | Landing + form lead | Pubblico |
+| `/demo` | Chat demo incorporata | Pubblico |
+| `/guest/:slug` | Chat con Cico | Pubblico |
+| `/login` | Login host | Host |
+| `/host/dashboard` | Lista proprietà | Host autenticato |
+| `/host/:slug` | Editor regolamento + tool AI | Host autenticato |
+| `/diario/:slug` | Super-Diario (log conversazioni) | Host autenticato |
+| `/ceo` | Pannello amministrativo | CEO |
+| `/forgot-password`, `/reset-password/:token`, `/setup-password/:token` | Flussi di autenticazione | Pubblico (con token) |
+| `/privacy` | Privacy policy | Pubblico |
 
 ### Pagine principali
 
-#### `landing.tsx`
-La pagina pubblica di marketing. Contiene anche il **form di registrazione lead**: quando un host compila il form (nome, email, nome struttura), viene creato un record nella tabella `leads` via `POST /api/leads`. Nessun account viene creato automaticamente — il CEO dovrà convertire il lead.
+**`landing.tsx`** — Pagina pubblica di marketing, con form di registrazione lead (`POST /api/leads`). Nessun account viene creato automaticamente: il CEO converte il lead in un secondo momento.
 
-#### `guest.tsx`
-La chat degli ospiti. Caratteristiche principali:
-- Mostra i **quick reply button** in 11 lingue (IT, EN, DE, FR, ES, NL, PT, RU, JA, ZH, AR). La lingua è rilevata automaticamente dal browser.
-- Mantiene la `conversationHistory` in stato locale (array di `{ role, content }`).
-- Ogni messaggio chiama `POST /api/properties/:slug/chat` passando il testo e la cronologia.
-- L'interfaccia `ConversationMessage` è definita localmente nel file (`role: "user" | "assistant"`) — **non** importata da api-client.
-- Il link WhatsApp SOS è visibile nella UI come fallback umano.
+**`guest.tsx`** — La chat degli ospiti. Rileva la lingua dal browser, mostra chip di risposta rapida (WiFi, ristoranti, check-out), un messaggio di benvenuto localizzato al primo accesso, e un link WhatsApp come fallback umano sempre visibile.
 
-#### `host-dashboard.tsx`
-Dashboard dell'host per una singola struttura. Funzionalità:
-- **Form di modifica**: nome struttura, numero WhatsApp SOS, textarea del regolamento (Knowledge Base).
-- **Template default**: se il campo `content` è vuoto al caricamento, la textarea viene pre-riempita con un template Markdown completo (WiFi, check-in/out, parcheggio, rifiuti, regole, ecc.).
-- **AI Tools**:
-  - *Registra Vocale*: registra audio via `MediaRecorder`, invia a `POST /api/ai/transcribe` (OpenAI Whisper), appende il testo trascritto alla textarea.
-  - *Scansiona Foto*: carica un'immagine, invia a `POST /api/ai/vision` (GPT-4o Vision), appende il testo estratto alla textarea.
-- **Badge Diario**: mostra il conteggio delle conversazioni in sospeso, aggiornato ogni 15 secondi.
-- La sessione host è in `sessionStorage` (chiave `host_session`, TTL 8 ore).
+**`host-dashboard.tsx`** — Editor del regolamento con due strumenti AI:
+- *Registra vocale*: trascrizione audio via Whisper, appesa direttamente al regolamento
+- *Scansiona foto*: estrazione testo da un'immagine (es. foto del citofono) via GPT-4o Vision
 
-#### `host-properties.tsx`
-Lista delle strutture dell'host loggato. Legge la sessione da `sessionStorage`, ri-autentica via `POST /api/auth/host-login` e mostra le proprietà associate all'email. Da qui si naviga alla dashboard di ogni struttura o al Diario.
+Mostra anche un badge con il conteggio delle domande in sospeso, aggiornato ogni 15 secondi.
 
-#### `diario.tsx`
-Il **Diario di Bordo** — log di tutte le conversazioni ospiti per una struttura. Le conversazioni sono classificate in:
-- **In sospeso** (bordo rosso): Marco non ha saputo rispondere — rilevato da `detectNeedsAttention()`.
-- **Gestite**: conversazioni normali o già segnate come risolte dall'host.
+**`diario.tsx`** — Il Super-Diario: log di tutte le conversazioni, diviso tra "in sospeso" (Cico non ha saputo rispondere) e "gestite".
 
-L'host può premere "Segna come gestito" per marcare una conversazione come `resolved: true` via `PATCH /api/super-diario/:slug/resolve/:id`.
-
-#### `ceo.tsx`
-Pannello CEO (1800+ righe). Autenticazione tramite `CEO_PASSWORD` (env var, obbligatoria, nessun default). Quattro tab:
-1. **Proprietà**: lista completa, creazione, eliminazione, modifica inline (slug, nome, password host, email, content).
-2. **Lead**: lista dei lead da landing page, cambio stato, eliminazione, **conversione in host** (crea host + proprietà + slug automatico).
-3. **Reset password**: lista dei token di reset in attesa, possibilità di annullarli.
-4. **Host**: gestione diretta degli account host (creazione, cambio password, eliminazione).
-
-Contiene due sub-modale:
-- `QrModal`: genera QR code della chat ospiti, scarica PDF A4, copia link, invia PDF via email.
-- `HostPasswordModal`: imposta/reimposta la password host di una proprietà.
-- `ContentEditModal`: modifica la knowledge base di una proprietà direttamente dal CEO panel.
-
-### Lib files
-
-#### `lib/detectNeedsAttention.ts`
-Funzione `detectNeedsAttention(marcoReply: string): boolean`.
-Rileva se la risposta di Marco indica che non ha saputo rispondere (e l'ospite ha bisogno di assistenza umana). Usa una lista di **negative indicators** in 6+ lingue: scuse, frasi "non ho questa info", suggerimenti di contattare l'host, presenza della parola "whatsapp", ecc. Usata sia dal frontend (`diario.tsx`) sia dal backend (`chat.ts`) per impostare il flag `resolved` del log.
+**`ceo.tsx`** — Pannello amministrativo (gestione proprietà, lead, reset password, account host).
 
 ---
 
-## Artifact 2 — Backend (`artifacts/api-server`)
+## Backend — `artifacts/api-server`
 
-**Stack:** Express 5, TypeScript, **Supabase** (PostgreSQL), OpenAI SDK, Pino (logger), Multer (upload file), **Resend** (email transazionale), pino-http.
+**Stack:** Express 5, TypeScript, Supabase (client `anon` + `service role`), OpenAI SDK, Pino, Multer, Resend.
 
-Il server ascolta sulla porta definita da `process.env.PORT` (default 8080). Tutte le route sono prefissate `/api`.
+Tutte le rotte sono prefissate `/api`. Validazione tramite Zod, boot-check delle variabili d'ambiente obbligatorie (`validateEnv.ts` — il server non si avvia se manca qualcosa di critico).
 
-### Route Files
+### Route map
 
-#### `routes/chat.ts` — Marco AI
-
-**`POST /api/properties/:slug/chat`**
-
-Il cuore del prodotto. Flusso:
-1. **Rate limiting** (30 req/ora per IP, implementato in `lib/rateLimiter.ts`).
-2. Validazione params e body con schemi Zod (`SendPropertyChatParams`, `SendPropertyChatBody`).
-3. Recupero proprietà dal DB via slug.
-4. Guardia: se `content` è vuoto, risponde con messaggio generico.
-5. **Categorizzazione**: `categorizeMessage()` da `lib/categorizeMessage.ts` determina se la domanda è turistica o gestionale.
-6. Costruzione **System Prompt** con architettura a due modalità:
-   - `FLEXIBLE MODE`: domande sul territorio, ristoranti, trasporti — Marco può usare le sue conoscenze generali + un disclaimer.
-   - `STRICT MODE`: domande su WiFi, regole, parcheggio, rifiuti — Marco legge SOLO la Knowledge Base. Se non trova risposta, usa la frase canonica `"non ho questa info"` + redirect WhatsApp.
-7. Chiamata a OpenAI `gpt-4o-mini` con `temperature: 0.4`.
-8. `detectNeedsAttention()` sul reply → se `true`, il log viene salvato con `resolved: false` (comparirà nel Diario).
-9. Salvataggio in `chat_logs` + risposta al client.
-
-**`GET /api/super-diario/:slug`** — tutti i log di una proprietà, ordinati per data decrescente.
-**`PATCH /api/super-diario/:slug/resolve/:id`** — marca un log come risolto.
-**`GET /api/super-diario/:slug/unresolved-count`** — contatore badge Diario.
-
-#### `routes/properties.ts` — Gestione proprietà (CEO)
-
-Tutte le route richiedono `ceoPassword` nel body o nei query params.
-
-| Method | Path | Descrizione |
+**Guest chat & Diario**
+| Metodo | Path | Auth |
 |---|---|---|
-| `GET` | `/properties` | Lista completa |
-| `POST` | `/properties` | Crea nuova proprietà |
-| `GET` | `/properties/:slug` | Dati pubblici di una proprietà |
-| `PUT` | `/properties/:slug` | Aggiorna content, whatsapp, ecc. |
-| `PUT` | `/properties/:slug/full-edit` | Edit completo (slug, nome, password, email) |
-| `DELETE` | `/properties/:slug` | Elimina proprietà |
-| `PUT` | `/properties/:slug/host-password` | Imposta password host |
+| POST | `/properties/:slug/chat` | Pubblico (rate limited) |
+| GET | `/super-diario/:slug` | Host |
+| GET | `/super-diario/:slug/unresolved-count` | Host |
+| PATCH | `/super-diario/:slug/resolve/:id` | Host |
+| POST | `/super-diario/:slug/refresh-all` | Host |
 
-#### `routes/leads.ts` — CRM leads
-
-| Method | Path | Auth | Descrizione |
-|---|---|---|---|
-| `POST` | `/leads` | Nessuna | Registra nuovo lead dalla landing |
-| `GET` | `/leads` | CEO | Lista lead ordinata per data |
-| `DELETE` | `/leads/:id` | CEO | Elimina lead |
-| `PUT` | `/leads/:id/status` | CEO | Aggiorna stato (Nuovo / Contattato / In Trattativa / Chiuso / Non Interessato) |
-| `POST` | `/leads/:id/convert` | CEO | **Converte lead in host**: crea record in `hosts`, crea proprietà con slug auto-generato, imposta password `"Benvenuto2026!"`, mette lead a "Chiuso" |
-
-#### `routes/host-dashboard.ts` — Auth e dashboard host
-
-| Method | Path | Descrizione |
+**Proprietà (CEO)**
+| Metodo | Path | Auth |
 |---|---|---|
-| `POST` | `/auth/host-login` | Login host (email + password) → restituisce lista proprietà |
-| `GET` | `/host/:slug` | Legge dati proprietà (autenticato con email + hostPassword) |
-| `PUT` | `/host/:slug` | Salva modifiche regolamento/whatsapp (autenticato) |
+| GET / POST | `/properties` | CEO |
+| GET | `/properties/:slug` | Pubblico |
+| PUT | `/properties/:slug`, `/properties/:slug/full-edit` | CEO |
+| POST | `/properties/:slug/resend-host-welcome` | CEO |
+| DELETE | `/properties/:slug` | CEO |
 
-#### `routes/auth.ts` — Reset password
-
-Flusso reset: l'host inserisce email → viene generato un token UUID → viene inviata un'email con link (`/reset-password/:token`) → l'host clicca e imposta nuova password → il token viene cancellato.
-
-Il token è salvato in `properties.resetToken` e `properties.resetRequestedAt`. L'email è inviata tramite **Resend** (`RESEND_API_KEY`, mittente verificato in `RESEND_FROM_EMAIL`, nome visualizzato opzionale `EMAIL_FROM_NAME`).
-
-Il CEO può vedere tutti i token in sospeso (`GET /api/auth/resets`) e cancellarli (`DELETE /api/auth/resets/:slug`).
-
-#### `routes/ai.ts` — AI Services
-
-| Method | Path | Descrizione |
+**Dashboard host**
+| Metodo | Path | Auth |
 |---|---|---|
-| `POST` | `/ai/transcribe` | Audio upload (Multer, max 25MB) → OpenAI Whisper → testo trascritto |
-| `POST` | `/ai/vision` | Immagine upload → GPT-4o Vision → estrae testo/regole dall'immagine |
+| POST | `/auth/host-login` | Pubblico (rate limited) |
+| GET / PUT | `/host/:slug` | Host |
+| POST | `/host/:slug/reset-pending-questions` | Host |
+| POST | `/host/:slug/resolve-all-logs` | Host |
+| PUT | `/properties/:slug/host-password` | CEO |
 
-Entrambi usano `OPENAI_API_KEY` dall'ambiente.
+**Autenticazione**
+| Metodo | Path | Auth |
+|---|---|---|
+| POST | `/auth/ceo-login` | Pubblico |
+| GET | `/auth/host/me` | Host (Bearer) |
+| POST | `/auth/forgot-password` | Pubblico |
+| GET/POST | `/auth/reset-password/:token`, `/auth/setup-password/:token` | Pubblico (token) |
+| GET / DELETE | `/auth/resets`, `/auth/resets/:slug` | CEO |
 
-#### `routes/admin-hosts.ts` — Gestione host (CEO)
+**AI (strumenti host)**
+| Metodo | Path | Auth |
+|---|---|---|
+| POST | `/ai/transcribe` | Host — Whisper, max 25MB |
+| POST | `/ai/vision` | Host — GPT-4o Vision |
 
-CRUD sugli account host. `POST /api/admin/hosts` è idempotente: se l'host esiste già, aggiorna la password.
+**Lead**
+| Metodo | Path | Auth |
+|---|---|---|
+| POST | `/leads` | Pubblico |
+| GET / DELETE | `/leads`, `/leads/:id` | CEO |
+| PUT | `/leads/:id/status` | CEO |
+| POST | `/leads/:id/convert` | CEO — crea host + proprietà, invia email di setup password |
 
-#### `routes/send-pdf.ts` — Email PDF
+**Admin host**
+| Metodo | Path | Auth |
+|---|---|---|
+| GET / POST | `/admin/hosts` | CEO |
+| DELETE | `/admin/hosts/:email` | CEO |
+| GET | `/admin/properties-by-email` | CEO |
 
-`POST /api/send-pdf` riceve il PDF codificato base64 + email destinatario → invia tramite **Resend** con il PDF allegato. Usato dal `QrModal` nel CEO panel.
+**Altro**
+| Metodo | Path | Auth |
+|---|---|---|
+| POST | `/send-pdf` | CEO — invia QR code proprietà via email |
+| GET | `/healthz`, `/healthz/db` | Pubblico |
 
-### Lib files backend
+> **Nota copertura OpenAPI:** lo spec in `lib/api-spec/openapi.yaml` documenta solo le rotte principali di chat e proprietà. La maggior parte delle rotte CEO/host/auth non è ancora nello spec — miglioramento noto, non bloccante.
 
-| File | Descrizione |
+### Flusso lead → host
+
+1. Form pubblico crea un lead (`status: "Nuovo"`)
+2. Il CEO converte il lead: viene creata la proprietà con uno slug generato automaticamente e un token di invito a tempo (48 ore)
+3. L'host riceve un'email di benvenuto con link di setup, imposta la propria password (hash bcrypt), e da quel momento accede con le proprie credenziali
+
+---
+
+## Database (Supabase)
+
+PostgreSQL gestito da Supabase. Il backend opera quasi sempre tramite il client **service role**, con Row-Level Security attiva a livello di schema ma senza policy `anon` — l'accesso è di fatto riservato al server.
+
+| Tabella | Contenuto |
 |---|---|
-| `lib/logger.ts` | Istanza Pino con pino-http |
-| `lib/resend.ts` | Client Resend (`RESEND_API_KEY`), `getResendFromHeader()`, `sendResendEmail()` |
-| `lib/hostWelcomeMail.ts` | Email benvenuto host, reset password, PDF allegato (PDFKit + QR) |
-| `lib/rateLimiter.ts` | Rate limiter in-memory (mappa IP → contatore) — 30 req/ora |
-| `lib/detectNeedsAttention.ts` | Stessa logica del frontend (copia isomorfica) |
-| `lib/categorizeMessage.ts` | Categorizza il messaggio come FLEXIBLE (tourism) o STRICT (house management) |
+| `properties` | Struttura ricettiva: slug, nome, regolamento (`content`/`manual_content`), numero WhatsApp, link di referral, contatore domande in sospeso, token di invito/reset |
+| `hosts` | Account host: email (univoca), password (hash bcrypt) |
+| `chat_logs` | Ogni scambio ospite↔Cico: messaggio, risposta, stato risolto/in sospeso |
+| `leads` | Lead dalla landing page: nome, email, struttura dichiarata, stato pipeline |
+
+La relazione host → proprietà è basata sull'email (`properties.email = hosts.email`), non su una foreign key esplicita.
 
 ---
 
-## Artifact 3 — Database (`lib/db`)
+## Sicurezza
 
-**Stack:** Drizzle ORM + `drizzle-kit` + PostgreSQL (Replit Database).
+Alcune scelte di design pensate per un prodotto che espone una chat pubblica non autenticata:
 
-La stringa di connessione è in `DATABASE_URL` (env var, impostata automaticamente da Replit).
-
-### Schema Tabelle
-
-#### `properties`
-La tabella centrale. Ogni riga è una struttura ricettiva.
-
-| Colonna | Tipo | Note |
-|---|---|---|
-| `id` | `serial` | PK |
-| `slug` | `text` | Unique. Usato in tutti gli URL (`/guest/:slug`, `/host/:slug`) |
-| `name` | `text` | Nome visualizzato della struttura |
-| `content` | `text` | Knowledge Base — il testo che Marco AI usa per rispondere |
-| `whatsappNumber` | `text` | Numero SOS (solo cifre, es: `393901234567`) |
-| `hostPassword` | `text` | Password dell'host per accedere alla dashboard |
-| `email` | `text` | Email dell'host proprietario |
-| `resetToken` | `text` | Token UUID per reset password (nullable) |
-| `resetRequestedAt` | `timestamp` | Quando è stato richiesto il reset (nullable) |
-| `createdAt` | `timestamp` | Auto |
-| `updatedAt` | `timestamp` | Auto-update ad ogni modifica |
-
-#### `hosts`
-Account di autenticazione host. Separato da `properties` per consentire un host con più proprietà.
-
-| Colonna | Tipo | Note |
-|---|---|---|
-| `id` | `serial` | PK |
-| `email` | `text` | Unique. Chiave di login |
-| `hostPassword` | `text` | Password dell'account |
-| `createdAt` | `timestamp` | Auto |
-
-> **Importante**: la relazione host → proprietà non è una FK esplicita ma è basata sull'email. In `properties.email` è memorizzata l'email dell'host. Al login, si recuperano tutte le proprietà dove `properties.email = hosts.email`.
-
-#### `leads`
-Lead dal form landing page. Non autenticati, non hanno ancora un account.
-
-| Colonna | Tipo | Note |
-|---|---|---|
-| `id` | `serial` | PK |
-| `hostName` | `text` | Nome del potenziale host |
-| `email` | `text` | Email di contatto |
-| `propertyName` | `text` | Nome della struttura dichiarata |
-| `status` | `text` | `Nuovo` / `Contattato` / `In Trattativa` / `Chiuso` / `Non Interessato` |
-| `createdAt` | `timestamp` | Auto |
-
-#### `chat_logs`
-Log di ogni scambio di messaggi tra un ospite e Marco AI.
-
-| Colonna | Tipo | Note |
-|---|---|---|
-| `id` | `serial` | PK |
-| `propertySlug` | `varchar(255)` | Riferimento allo slug della proprietà |
-| `guestMessage` | `text` | Messaggio dell'ospite |
-| `marcoReply` | `text` | Risposta di Marco AI |
-| `createdAt` | `timestamp` | Auto |
-| `resolved` | `boolean` | `false` = appare nel Diario come "in sospeso". `true` = gestito dall'host |
-
-#### `host_knowledge` (legacy / non usata attivamente)
-Tabella originale per la knowledge base globale. Il sistema attuale usa `properties.content` come KB per-proprietà. Questa tabella può essere ignorata.
+- **Rate limiting in-memory** per IP: 60 richieste/ora sulla chat, 10/ora sugli endpoint AI (trascrizione, vision), 10/ora su login/lead — rispetta `X-Forwarded-For` dietro proxy.
+- **Sessioni host** firmate HMAC-SHA256, TTL di 8 ore, accettate via header `Authorization: Bearer` o `x-host-session`.
+- **Ownership check esplicito**: ogni operazione su una proprietà verifica che l'email della sessione host corrisponda a quella proprietaria (`requireHostOwnsPropertySlug`), non solo che la sessione sia valida.
+- **Guardrail AI dedicato**: limite separato di messaggi per sessione sulla modalità demo, per evitare abusi del limite di spesa OpenAI.
+- **Scanning automatico attivo sul repository**: GitHub Secret Scanning, Push Protection e Dependabot abilitati.
 
 ---
 
-## Variabili d'Ambiente
+## Variabili d'ambiente
 
-Variabili richieste all’avvio dell’API (`validateEnv` in `artifacts/api-server/src/lib/validateEnv.ts`), oltre a **`HOST_SESSION_SECRET`** o **`SESSION_SECRET`**.
+Obbligatorie all'avvio del server (il boot fallisce esplicitamente se mancano):
 
-| Variabile | Descrizione | Note |
-|---|---|---|
-| `SUPABASE_URL` | URL progetto Supabase | Obbligatoria |
-| `SUPABASE_ANON_KEY` | Chiave anon Supabase | Obbligatoria |
-| `SUPABASE_SERVICE_ROLE_KEY` | Service role (solo server) | Obbligatoria |
-| `OPENAI_API_KEY` | Chiave API OpenAI | Obbligatoria |
-| `CEO_PASSWORD` | Password pannello CEO | Obbligatoria |
-| `FRONTEND_URL` | URL pubblico del frontend (CORS, QR, link nelle email) | Obbligatoria — deve essere `https://...` completo |
-| `RESEND_API_KEY` | Chiave API [Resend](https://resend.com) | Obbligatoria |
-| `RESEND_FROM_EMAIL` | Mittente verificato in Resend (es. dominio o sandbox Resend) | Obbligatoria |
-| `EMAIL_FROM_NAME` | Nome visualizzato nel mittente (es. HeyCico) | Opzionale |
-| `HOST_SESSION_SECRET` / `SESSION_SECRET` | Firma sessioni host | Obbligatoria (una delle due) |
-| `PORT` | Porta HTTP API | Default `8080` |
+| Variabile | Descrizione |
+|---|---|
+| `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | Accesso al database |
+| `OPENAI_API_KEY` | Chat, trascrizione, vision |
+| `CEO_PASSWORD` | Accesso al pannello CEO — nessun default, deve essere impostata |
+| `FRONTEND_URL` | URL pubblico del frontend (CORS, link nelle email) |
+| `RESEND_API_KEY`, `RESEND_FROM_EMAIL` | Invio email transazionali |
+| `HOST_SESSION_SECRET` **o** `SESSION_SECRET` | Firma delle sessioni host |
+
+Opzionali: `PORT` (default `8080`), `NODE_ENV`, `LOG_LEVEL`, `VITE_API_ORIGIN`, `EMAIL_FROM_NAME`.
 
 ---
 
-## Flussi Chiave
+## Sviluppo locale
 
-### Flusso ospite (chat)
-```
-Ospite apre /guest/:slug
-  → frontend chiama GET /api/properties/:slug (verifica esistenza)
-  → ospite scrive messaggio
-  → POST /api/properties/:slug/chat { message, conversationHistory }
-  → backend: rate limit → categorizza → costruisce prompt → OpenAI → detectNeedsAttention
-  → salva in chat_logs (resolved = !needsAttention)
-  → risposta visualizzata in chat
+```bash
+pnpm install
+pnpm dev
 ```
 
-### Flusso host login
-```
-/login → form email + password
-  → POST /api/auth/host-login
-  → backend verifica in tabella `hosts`
-  → se ok: restituisce lista properties dove email corrisponde
-  → frontend salva sessione in sessionStorage { email, password, ts }
-  → redirect a /host/dashboard
+Avvia contemporaneamente API (porta 8080) e frontend (porta 5173), leggendo le variabili da un `.env` nella root — **mai committato**, vedi `.gitignore`.
+
+Altri comandi utili:
+
+```bash
+pnpm run typecheck   # type-check di tutto il monorepo
+pnpm run build       # build di produzione (typecheck + vite build + bundle API)
 ```
 
-### Flusso conversione lead → host (CEO)
-```
-CEO panel → tab Lead → bottone Converti
-  → POST /api/leads/:id/convert { ceoPassword }
-  → backend:
-      1. Cerca lead per id
-      2. Crea host in `hosts` (se non esiste già) con password "Benvenuto2026!"
-      3. Genera slug da propertyName (auto-incremento se già esistente)
-      4. Crea proprietà in `properties` (email = lead.email, hostPassword = "Benvenuto2026!")
-      5. Mette lead.status = "Chiuso"
-  → CEO invia link /host/:slug + password all'host
-```
-
-### Flusso Diario di Bordo
-```
-/diario/:slug
-  → GET /api/super-diario/:slug
-  → frontend filtra con detectNeedsAttention(marcoReply)
-  → conversazioni con needs_attention: true → sezione "In Sospeso" (bordo rosso)
-  → host clicca "Segna come gestito"
-  → PATCH /api/super-diario/:slug/resolve/:id
-  → backend: UPDATE chat_logs SET resolved = true WHERE id = :id
-```
+**Deploy:** frontend e backend sono due progetti Vercel separati; il frontend serve `heycico.com`.
 
 ---
 
-## Convenzioni di Codice
+## Limiti noti
 
-- **Router**: sempre `wouter` (mai `react-router-dom`).
-- **baseUrl**: sempre `import.meta.env.BASE_URL.replace(/\/$/, "")` prima di ogni `fetch`.
-- **ReactMarkdown**: i componenti custom devono ricevere `children` esplicitamente: `({ node, children, ...props }) => <tag {...props}>{children}</tag>`.
-- **Sessione host**: `sessionStorage` con chiave `"host_session"`, TTL 8 ore. La struttura è `{ email, password, ts }`.
-- **CEO_PASSWORD**: letta da `process.env.CEO_PASSWORD`, obbligatoria all'avvio — nessun fallback.
-- **Slug**: solo lettere minuscole, numeri e trattini (`/^[a-z0-9-]+$/`). Generato automaticamente dal nome struttura, con suffix numerico se già esistente.
-- **Marco AI temperatura**: `0.4` (bilanciato tra creatività e precisione).
-- **Lingua**: il frontend e la UI sono in italiano. Il sistema prompt di Marco supporta 11 lingue di risposta.
+Trasparenza sullo stato attuale, non tutto è rifinito:
+
+- **Nessuna suite di test automatici** (né Playwright né Vitest) — il typecheck TypeScript è l'unico controllo automatizzato oggi.
+- **Fatturazione Stripe non implementata** — esiste solo una bozza SQL, nessuna route API né UI collegata.
+- **Rate limiting in-memory**: funziona bene su una singola istanza, andrebbe spostato su uno store condiviso (es. Redis) in caso di scaling orizzontale.
+- **Copertura OpenAPI parziale**: solo le rotte principali sono documentate nello spec.
 
 ---
 
-## Workflow Replit
+## Contatti
 
-| Nome workflow | Comando | Porta |
-|---|---|---|
-| `artifacts/api-server: API Server` | `pnpm --filter @workspace/api-server run dev` | 8080 |
-| `artifacts/rome-guest: web` | `pnpm --filter @workspace/rome-guest run dev` | (PORT env) |
-| `artifacts/mockup-sandbox: Component Preview Server` | `pnpm --filter @workspace/mockup-sandbox run dev` | 8081 |
-
-Dopo modifiche al backend, riavviare il workflow `API Server`. Vite (frontend) applica HMR automaticamente.
-
----
-
-## File da Non Toccare
-
-- `lib/api-zod/src/generated/api.ts` — schemi Zod generati. Se devi aggiungere un campo, modificalo qui direttamente (non è un file auto-generato in questo progetto, è source-of-truth manuale).
-- `lib/api-client-react/src/generated/` — client React Query generato da openapi-ts. Non modificare manualmente.
-- `artifact.toml` / `.replit` — configurazione Replit. Usare i tool Replit per modificarli, non editare a mano.
+📧 [hello.heycico@gmail.com](mailto:hello.heycico@gmail.com)
