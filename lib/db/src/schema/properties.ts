@@ -14,6 +14,9 @@ export const propertiesTable = pgTable("properties", {
   referralLinks: text("referral_links"),
   resetToken: text("reset_token"),
   resetRequestedAt: timestamp("reset_requested_at", { withTimezone: true }),
+  manualContent: text("manual_content"),
+  inviteToken: text("invite_token"),
+  inviteTokenExpiresAt: timestamp("invite_token_expires_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

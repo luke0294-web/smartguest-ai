@@ -32,3 +32,46 @@ export function validateEnv(): void {
     throw new Error("Configurazione ambiente non valida.");
   }
 }
+
+/**
+ * Se ENABLE_RATE_LIMITING è impostata esplicitamente, prevale su NODE_ENV.
+ * Altrimenti fallback su NODE_ENV === "production" (comportamento invariato di default).
+ */
+export function isProductionSecurityEnabled(): boolean {
+  const explicit = process.env.ENABLE_RATE_LIMITING?.trim().toLowerCase();
+  if (explicit === "true") return true;
+  if (explicit === "false") return false;
+  return process.env.NODE_ENV === "production";
+}
+
+/**
+ * Avviso a boot, non bloccante: NODE_ENV è oggi l'unico interruttore che accende
+ * rate limiting, limiti AI, allowlist CORS e occultamento errori Supabase.
+ * Se il deploy è in produzione ma NODE_ENV non è impostato correttamente,
+ * l'hardening resta silenziosamente disattivato.
+ */
+export function warnIfSecurityHardeningLikelyMisconfigured(): void {
+  if (isProductionSecurityEnabled()) return;
+
+  console.error(
+    "[BOOT][ATTENZIONE] ============================================================",
+  );
+  console.error(
+    "[BOOT][ATTENZIONE] Hardening di produzione DISATTIVATO (rate limiting, limiti AI,",
+  );
+  console.error(
+    "[BOOT][ATTENZIONE] allowlist CORS, occultamento errori Supabase dettagliati).",
+  );
+  console.error(
+    `[BOOT][ATTENZIONE] NODE_ENV attuale: "${process.env.NODE_ENV ?? "(non impostato)"}"`,
+  );
+  console.error(
+    "[BOOT][ATTENZIONE] Se questo è un ambiente di PRODUZIONE, imposta NODE_ENV=production",
+  );
+  console.error(
+    "[BOOT][ATTENZIONE] oppure ENABLE_RATE_LIMITING=true per attivare l'hardening.",
+  );
+  console.error(
+    "[BOOT][ATTENZIONE] ============================================================",
+  );
+}

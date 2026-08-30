@@ -3,13 +3,14 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "_WARNING": "Questo pacchetto NON è usato a runtime dall'app: l'app parla con Supabase via PostgREST direttamente. Lo schema Drizzle qui è solo una rappresentazione TypeScript best-effort del DB reale, usata per generare/validare tipi; può disallinearsi dal DB reale. Non eseguire mai gli script push* contro il database di produzione senza verifica esplicita.",
   "exports": {
     ".": "./src/index.ts",
     "./schema": "./src/schema/index.ts"
   },
   "scripts": {
     "push": "drizzle-kit push --config ./drizzle.config.ts",
-    "push-force": "drizzle-kit push --force --config ./drizzle.config.ts"
+    "push-force-do-not-run-against-prod": "drizzle-kit push --force --config ./drizzle.config.ts"
   },
   "dependencies": {
     "drizzle-orm": "catalog:",
