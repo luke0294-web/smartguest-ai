@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { HealthCheckResponse } from "@workspace/api-zod";
 import { supabaseAdmin } from "../lib/supabase";
+import { isProductionSecurityEnabled } from "../lib/validateEnv";
 
 const router: IRouter = Router();
 
@@ -15,7 +16,7 @@ router.get("/healthz/db", async (_req, res): Promise<void> => {
     const { data, error } = await supabaseAdmin.from("properties").select("id").limit(1);
     if (error) {
       console.error("[ERRORE CRITICO] healthz/db:", error);
-      if (process.env.NODE_ENV === "production") {
+      if (isProductionSecurityEnabled()) {
         res.status(503).json({ status: "error", message: "Database non disponibile" });
       } else {
         res.status(503).json({
@@ -29,7 +30,7 @@ router.get("/healthz/db", async (_req, res): Promise<void> => {
     res.json({ status: "ok", db: true, sample: data?.[0] ?? null });
   } catch (err) {
     console.error("[ERRORE CRITICO]", err);
-    if (process.env.NODE_ENV === "production") {
+    if (isProductionSecurityEnabled()) {
       res.status(503).json({ status: "error", message: "Database non disponibile" });
     } else {
       res.status(503).json({

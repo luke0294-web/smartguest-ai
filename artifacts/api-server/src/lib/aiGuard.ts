@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { DEMO_SLUG } from "./demoProperty";
 import { getClientIp } from "./rateLimiter";
+import { isProductionSecurityEnabled } from "./validateEnv";
 
 const AI_MAX_MESSAGES_PER_SESSION = 12;
 const AI_COUNTER_TTL_MS = 60 * 60 * 1000;
@@ -83,7 +84,7 @@ function getAiCounterKey(req: Request): string {
  * Production (non-demo): 60 requests per rolling minute per x-session-id header only; no header → no limit.
  */
 export function enforceAiMessageLimit(req: Request, res: Response): boolean {
-  if (process.env.NODE_ENV !== "production") return true;
+  if (!isProductionSecurityEnabled()) return true;
 
   const slug = readSlugForAiLimit(req);
 

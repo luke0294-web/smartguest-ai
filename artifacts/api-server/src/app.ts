@@ -4,6 +4,7 @@ import helmet from "helmet";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import { isProductionSecurityEnabled } from "./lib/validateEnv";
 
 const app: Express = express();
 app.set("trust proxy", 1);
@@ -54,7 +55,7 @@ app.use(
   cors({
     origin: (origin, callback) => {
       // Local dev: allow Vite on any port, LAN IPs, etc.
-      if (process.env.NODE_ENV !== "production") {
+      if (!isProductionSecurityEnabled()) {
         return callback(null, true);
       }
 

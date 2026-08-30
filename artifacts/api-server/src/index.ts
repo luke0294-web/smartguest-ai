@@ -1,6 +1,6 @@
 import dns from "node:dns";
 import { logger } from "./lib/logger";
-import { validateEnv } from "./lib/validateEnv";
+import { validateEnv, warnIfSecurityHardeningLikelyMisconfigured } from "./lib/validateEnv";
 
 /** Prefer IPv4 for outbound HTTP (es. API Resend) on hosts where IPv6 egress is flaky. */
 dns.setDefaultResultOrder("ipv4first");
@@ -11,6 +11,8 @@ try {
   logger.error({ err }, "Avvio bloccato: variabili ambiente mancanti o non valide.");
   process.exit(1);
 }
+
+warnIfSecurityHardeningLikelyMisconfigured();
 
 console.error("[BOOT] Ambiente caricato — voci critiche:", {
   NODE_ENV: process.env.NODE_ENV ?? "(non impostato)",

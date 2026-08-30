@@ -4,6 +4,8 @@
  * Designed to be GC-friendly: stale entries are pruned lazily.
  */
 
+import { isProductionSecurityEnabled } from "./validateEnv";
+
 interface RateLimitEntry {
   timestamps: number[];
 }
@@ -17,7 +19,7 @@ export interface RateLimiterOptions {
 
 /** When false, all in-memory limiters allow every request (local dev only). */
 export function isRateLimitingEnabled(): boolean {
-  return process.env.NODE_ENV === "production";
+  return isProductionSecurityEnabled();
 }
 
 export class RateLimiter {

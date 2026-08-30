@@ -234,7 +234,9 @@ Obbligatorie all'avvio del server (il boot fallisce esplicitamente se mancano):
 | `RESEND_API_KEY`, `RESEND_FROM_EMAIL` | Invio email transazionali |
 | `HOST_SESSION_SECRET` **o** `SESSION_SECRET` | Firma delle sessioni host |
 
-Opzionali: `PORT` (default `8080`), `NODE_ENV`, `LOG_LEVEL`, `VITE_API_ORIGIN`, `EMAIL_FROM_NAME`.
+Opzionali: `PORT` (default `8080`), `NODE_ENV`, `LOG_LEVEL`, `VITE_API_ORIGIN`, `EMAIL_FROM_NAME`, `ENABLE_RATE_LIMITING`.
+
+`ENABLE_RATE_LIMITING` (`true`/`false`): forza esplicitamente l'hardening di produzione (rate limiting, limiti AI, allowlist CORS, occultamento errori Supabase dettagliati), indipendentemente da `NODE_ENV`. Se non impostata, fa fallback su `NODE_ENV === "production"` (comportamento invariato). Utile quando `NODE_ENV` non è affidabile come unico segnale di ambiente di produzione.
 
 ---
 
