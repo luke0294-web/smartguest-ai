@@ -43,7 +43,7 @@ type CreatePropertyValues = z.infer<typeof createPropertySchema>;
 type CeoPropertyListItem = Property & {
   email?: string | null;
   pendingQuestionsCount?: number;
-  hostPassword?: string | null;
+  hasPassword?: boolean;
 };
 
 function getErrorMessage(err: unknown, fallback = "Errore sconosciuto"): string {
@@ -623,6 +623,7 @@ export default function CeoPanel() {
   const [cancellingReset, setCancellingReset] = useState<string | null>(null);
   const [editingSlug, setEditingSlug] = useState<string | null>(null);
   const [inlineEdit, setInlineEdit] = useState<InlineEditState>({ name: "", slug: "", hostPassword: "", email: "", saving: false, saved: false, error: "" });
+  const [showInlineHostPassword, setShowInlineHostPassword] = useState(false);
   const [contentModal, setContentModal] = useState<{ name: string; slug: string; content?: string | null } | null>(null);
   const [leadDeleting, setLeadDeleting] = useState<Record<number, boolean>>({});
   const [leadStatusSaving, setLeadStatusSaving] = useState<Record<number, boolean>>({});
@@ -958,14 +959,18 @@ export default function CeoPanel() {
     }
   };
 
-  const startInlineEdit = (prop: { name: string; slug: string; hostPassword?: string | null; email?: string | null }) => {
+  const startInlineEdit = (prop: { name: string; slug: string; email?: string | null }) => {
     setEditingSlug(prop.slug);
-    setInlineEdit({ name: prop.name, slug: prop.slug, hostPassword: prop.hostPassword ?? "", email: prop.email ?? "", saving: false, saved: false, error: "" });
+    // hostPassword starts empty: the real value is hashed server-side and never sent to the client;
+    // leaving it blank means "no change" unless the CEO explicitly types a new one.
+    setInlineEdit({ name: prop.name, slug: prop.slug, hostPassword: "", email: prop.email ?? "", saving: false, saved: false, error: "" });
+    setShowInlineHostPassword(false);
   };
 
   const cancelInlineEdit = () => {
     setEditingSlug(null);
     setInlineEdit({ name: "", slug: "", hostPassword: "", email: "", saving: false, saved: false, error: "" });
+    setShowInlineHostPassword(false);
   };
 
   const saveInlineEdit = async (originalSlug: string) => {
@@ -1240,14 +1245,24 @@ export default function CeoPanel() {
                               </div>
                               <div className="space-y-1">
                                 <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Password Host</label>
-                                <input
-                                  type="text"
-                                  value={inlineEdit.hostPassword}
-                                  onChange={(e) => setInlineEdit((prev) => ({ ...prev, hostPassword: e.target.value }))}
-                                  className="w-full bg-white border border-border px-3 py-2 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50 transition-all"
-                                  placeholder="Minimo 8 caratteri (vuoto = rimuovi)"
-                                  minLength={8}
-                                />
+                                <div className="relative">
+                                  <input
+                                    type={showInlineHostPassword ? "text" : "password"}
+                                    value={inlineEdit.hostPassword}
+                                    onChange={(e) => setInlineEdit((prev) => ({ ...prev, hostPassword: e.target.value }))}
+                                    className="w-full bg-white border border-border px-3 py-2 pr-10 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50 transition-all"
+                                    placeholder="Minimo 8 caratteri (vuoto = rimuovi)"
+                                    minLength={8}
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowInlineHostPassword((prev) => !prev)}
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                                    title={showInlineHostPassword ? "Nascondi" : "Mostra"}
+                                  >
+                                    {showInlineHostPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                  </button>
+                                </div>
                               </div>
                             </div>
 
@@ -1306,7 +1321,7 @@ export default function CeoPanel() {
                                 <span className="font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md text-[12px] border border-blue-100">
                                   {prop.slug}
                                 </span>
-                                {prop.hostPassword ? (
+                                {prop.hasPassword ? (
                                   <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-100">
                                     ✓ password impostata
                                   </span>
@@ -1331,7 +1346,7 @@ export default function CeoPanel() {
 
                             <div className="flex flex-wrap sm:flex-col items-start sm:items-stretch gap-2 shrink-0 border-t sm:border-t-0 sm:border-l border-border/50 pt-3 sm:pt-0 sm:pl-5">
                               <button
-                                onClick={() => startInlineEdit({ name: prop.name, slug: prop.slug, hostPassword: prop.hostPassword, email: prop.email })}
+                                onClick={() => startInlineEdit({ name: prop.name, slug: prop.slug, email: prop.email })}
                                 className="flex-1 sm:flex-none px-3 py-2 bg-orange-50 text-orange-700 hover:bg-orange-100 font-medium rounded-xl transition-all flex items-center justify-center gap-1.5 text-[13px]"
                               >
                                 <Save className="w-3.5 h-3.5" />

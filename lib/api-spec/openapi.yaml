@@ -311,6 +311,7 @@ components:
       properties:
         message:
           type: string
+          maxLength: 2000
         conversationHistory:
           type: array
           items:
