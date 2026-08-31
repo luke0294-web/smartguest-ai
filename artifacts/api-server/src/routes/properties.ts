@@ -33,6 +33,7 @@ type SupabasePropertyRowPublic = {
   content?: string | null;
   whatsapp_number?: string | null;
   whatsappNumber?: string | null;
+  host_password?: string | null;
   email?: string | null;
   pending_questions_count?: number | null;
   pendingQuestionsCount?: number | null;
@@ -182,6 +183,7 @@ router.get("/properties", async (req, res): Promise<void> => {
       updatedAt: Date;
       email?: string | null;
       pendingQuestionsCount: number;
+      hasPassword: boolean;
     };
     const payload: ListPayloadItem[] = [];
 
@@ -206,6 +208,7 @@ router.get("/properties", async (req, res): Promise<void> => {
         ...item,
         email: raw.email?.trim() ? raw.email.trim().toLowerCase() : null,
         pendingQuestionsCount: core.pendingQuestionsCount,
+        hasPassword: Boolean(raw.host_password?.trim()),
       });
     }
 

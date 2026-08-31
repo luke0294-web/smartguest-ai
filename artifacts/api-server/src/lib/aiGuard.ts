@@ -41,7 +41,7 @@ function readSessionIdFromHeaders(req: Request): string | undefined {
   return normalized || undefined;
 }
 
-/** Production chat limit: header only (no body / IP fallback). */
+/** Production chat limit: x-session-id header (falls back to per-IP keying when absent). */
 function readXSessionIdForProdLimit(req: Request): string | undefined {
   return readSessionIdFromHeaders(req);
 }
@@ -81,7 +81,8 @@ function getAiCounterKey(req: Request): string {
 
 /**
  * Demo: 12 messages per hour per session key (body / x-session-id / IP fallback).
- * Production (non-demo): 60 requests per rolling minute per x-session-id header only; no header → no limit.
+ * Production (non-demo): 60 requests per rolling minute per x-session-id header,
+ * falling back to per-IP when the header is missing (fail closed, not open).
  */
 export function enforceAiMessageLimit(req: Request, res: Response): boolean {
   if (!isProductionSecurityEnabled()) return true;
@@ -103,12 +104,9 @@ export function enforceAiMessageLimit(req: Request, res: Response): boolean {
   }
 
   const sessionId = readXSessionIdForProdLimit(req);
-  if (!sessionId) {
-    return true;
-  }
+  const key = sessionId ? `prod:${sessionId}` : `prod-ip:${getClientIp(req)}`;
 
   const now = Date.now();
-  const key = `prod:${sessionId}`;
   const timestamps = prodRateTimestampsBySession.get(key) ?? [];
   const recent = timestamps.filter((t) => now - t < PROD_WINDOW_MS);
 

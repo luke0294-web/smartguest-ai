@@ -149,7 +149,7 @@ export const SendPropertyChatParams = zod.object({
 });
 
 export const SendPropertyChatBody = zod.object({
-  message: zod.string(),
+  message: zod.string().max(2000),
   conversationHistory: zod
     .array(
       zod.object({

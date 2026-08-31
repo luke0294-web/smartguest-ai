@@ -27,8 +27,12 @@ export default function PrivacyPolicy() {
             <h2 className="text-base font-semibold text-gray-800 mb-2">Dati raccolti</h2>
             <p className="text-gray-600 leading-relaxed">
               Raccogliamo l'indirizzo email degli Host per la gestione dell'account.
-              Le conversazioni in chat dei turisti vengono elaborate temporaneamente
-              per fornire le risposte.
+              Le conversazioni in chat dei turisti vengono salvate nel nostro database
+              per permettere agli Host di consultarle successivamente (es. per rispondere
+              a domande rimaste in sospeso) e per fornire le risposte automatiche.
+              Se hai richiesto informazioni tramite il nostro form di contatto come
+              potenziale Host, raccogliamo nome, email e nome della struttura per
+              ricontattarti e attivare il tuo account.
             </p>
           </section>
 
@@ -37,9 +41,24 @@ export default function PrivacyPolicy() {
           <section>
             <h2 className="text-base font-semibold text-gray-800 mb-2">Intelligenza Artificiale</h2>
             <p className="text-gray-600 leading-relaxed">
-              I messaggi inviati nella chat vengono processati tramite le API di OpenAI.
-              Ti invitiamo a non inserire dati personali sensibili (es. numeri di carta di credito)
-              nella chat.
+              I messaggi inviati nella chat vengono processati tramite le API di OpenAI
+              per generare le risposte automatiche. Anche i contenuti che gli Host inviano
+              tramite le funzioni di trascrizione audio e riconoscimento immagini (es. per
+              aggiornare le regole della struttura) vengono processati da OpenAI. Ti invitiamo
+              a non inserire dati personali sensibili (es. numeri di carta di credito) nella chat.
+            </p>
+          </section>
+
+          <div className="border-t border-gray-100" />
+
+          <section>
+            <h2 className="text-base font-semibold text-gray-800 mb-2">Fornitori terzi (sub-processor)</h2>
+            <p className="text-gray-600 leading-relaxed">
+              Per il funzionamento del servizio ci appoggiamo a fornitori terzi che trattano
+              dati per nostro conto: OpenAI (elaborazione messaggi, audio e immagini, come
+              descritto sopra), Resend (invio di email transazionali, es. notifiche e link di
+              accesso) e Vercel Analytics (statistiche di utilizzo del sito, in forma aggregata
+              e senza cookie di profilazione).
             </p>
           </section>
 
