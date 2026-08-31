@@ -114,6 +114,21 @@ export const UpdatePropertyResponse = zod.object({
   updatedAt: zod.date(),
 });
 
+/**
+ * @summary Inline full edit of a property (CEO only) — not part of the OpenAPI spec yet,
+ * kept here alongside the other CEO property schemas.
+ */
+export const FullEditPropertyParams = zod.object({
+  slug: zod.coerce.string(),
+});
+
+export const FullEditPropertyBody = zod.object({
+  name: zod.string().optional(),
+  newSlug: zod.string().optional(),
+  hostPassword: zod.string().optional(),
+  email: zod.string().optional(),
+});
+
 export const HostPropertyResponse = zod.object({
   id: zod.union([zod.number(), zod.string().uuid()]),
   slug: zod.string(),

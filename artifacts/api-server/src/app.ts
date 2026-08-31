@@ -13,11 +13,20 @@ app.set("trust proxy", 1);
 const PRODUCTION_FRONTEND_ORIGIN = "https://heycico.com";
 const PRODUCTION_FRONTEND_ORIGIN_WWW = "https://www.heycico.com";
 
+/**
+ * Vercel preview deployments of the frontend project only — e.g.
+ * https://smartguest-ai-rome-guest-git-<branch>-luke0294-8669s-projects.vercel.app
+ * Scoped to this project/team instead of a bare `*.vercel.app` wildcard,
+ * which would allow any Vercel-hosted site to make credentialed requests.
+ */
+const PRODUCTION_FRONTEND_PREVIEW_ORIGIN =
+  /^https:\/\/smartguest-ai-rome-guest-git-[a-z0-9-]+-luke0294-8669s-projects\.vercel\.app$/;
+
 const allowedOrigins: Array<string | undefined | RegExp> = [
   process.env.FRONTEND_URL,
   PRODUCTION_FRONTEND_ORIGIN,
   PRODUCTION_FRONTEND_ORIGIN_WWW,
-  /\.vercel\.app$/,
+  PRODUCTION_FRONTEND_PREVIEW_ORIGIN,
 ];
 
 app.use(

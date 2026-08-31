@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import type { Request } from "express";
 
 const CEO_TOKEN_SALT = "heycico-ceo-session-v1";
@@ -8,6 +8,18 @@ export function getCeoPassword(): string | undefined {
   const p = process.env.CEO_PASSWORD;
   if (p === undefined || p === "") return undefined;
   return p;
+}
+
+/**
+ * Constant-time password comparison. Candidate/expected can differ in length
+ * (user input vs. configured secret), so both are hashed to a fixed-size
+ * sha256 digest first — timingSafeEqual itself requires equal-length buffers
+ * and would otherwise leak length information via an early throw/return.
+ */
+export function verifyCeoPassword(candidate: string, expected: string): boolean {
+  const candidateHash = createHash("sha256").update(candidate, "utf8").digest();
+  const expectedHash = createHash("sha256").update(expected, "utf8").digest();
+  return timingSafeEqual(candidateHash, expectedHash);
 }
 
 function ceoSigningKey(): Buffer {

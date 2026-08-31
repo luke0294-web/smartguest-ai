@@ -7,7 +7,6 @@ import {
   aiVisionRateLimiter,
   getClientIp,
 } from "../lib/rateLimiter";
-import { enforceAiMessageLimit } from "../lib/aiGuard";
 import { logOpenAi429IfNeeded } from "../lib/openaiErrors";
 import { requireHostSession } from "../lib/host-auth";
 
@@ -54,16 +53,11 @@ const requireHostSessionForAi: RequestHandler = (req, res, next) => {
   if (session) next();
 };
 
-const enforceAiLimit: RequestHandler = (req, res, next) => {
-  if (enforceAiMessageLimit(req, res)) next();
-};
-
 // POST /ai/transcribe — Whisper speech-to-text
 router.post(
   "/ai/transcribe",
   rateLimitAiTranscribe,
   requireHostSessionForAi,
-  enforceAiLimit,
   upload.single("audio"),
   async (req, res): Promise<void> => {
     if (!req.file) {
@@ -102,7 +96,6 @@ router.post(
   "/ai/vision",
   rateLimitAiVision,
   requireHostSessionForAi,
-  enforceAiLimit,
   upload.single("image"),
   async (req, res): Promise<void> => {
     if (!req.file) {

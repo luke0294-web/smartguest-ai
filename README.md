@@ -256,7 +256,7 @@ pnpm run typecheck   # type-check di tutto il monorepo
 pnpm run build       # build di produzione (typecheck + vite build + bundle API)
 ```
 
-**Deploy:** frontend e backend sono due progetti Vercel separati; il frontend serve `heycico.com`.
+**Deploy:** il frontend è un progetto Vercel (`artifacts/rome-guest`, output `dist/public`) e serve `heycico.com`; il backend gira su Render come Node service persistente (`node dist/index.cjs` dopo `pnpm build`), non su Vercel.
 
 ---
 
