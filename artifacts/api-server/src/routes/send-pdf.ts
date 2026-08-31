@@ -2,6 +2,7 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { logger } from "../lib/logger";
 import { getResendFromHeader, isResendEmailConfigured, sendResendEmail } from "../lib/resend";
 import { requireCeoSession } from "../lib/ceo-session";
+import { escapeHtml } from "../lib/hostWelcomeMail";
 
 const router: IRouter = Router();
 
@@ -55,6 +56,7 @@ router.post("/send-pdf", async (req: Request<{}, {}, SendPdfBody>, res: Response
   const pdfBuffer = Buffer.from(normalizedPdf, "base64");
   const safePropertyName = propertyName.trim();
   const link = chatLink ?? "";
+  const escapedLink = escapeHtml(link);
 
   try {
     await sendResendEmail({
@@ -68,7 +70,7 @@ router.post("/send-pdf", async (req: Request<{}, {}, SendPdfBody>, res: Response
           <p>In allegato trovi il cartello da tavolo in formato PDF con il QR Code della tua struttura. Puoi stamparlo o inserirlo in una cornice.</p>
           <p>Inoltre, ecco il <strong>link diretto</strong> al tuo Assistente Virtuale. Puoi copiarlo e inviarlo ai tuoi ospiti via WhatsApp o Airbnb prima del loro arrivo:</p>
           <p style="background-color: #f3f4f6; padding: 10px; border-radius: 5px;">
-            <a href="${link}" style="color: #2563eb; text-decoration: none;"><strong>${link}</strong></a>
+            <a href="${escapedLink}" style="color: #2563eb; text-decoration: none;"><strong>${escapedLink}</strong></a>
           </p>
           <br>
           <p>Buon lavoro,<br><strong>Il team di HeyCico</strong></p>

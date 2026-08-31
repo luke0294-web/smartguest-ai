@@ -225,13 +225,13 @@ router.get("/properties", async (req, res): Promise<void> => {
 
 // POST /properties — create (CEO only) → Supabase
 router.post("/properties", async (req, res): Promise<void> => {
+  if (!requireCeoSession(req, res)) return;
+
   const parsed = CreatePropertyBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-
-  if (!requireCeoSession(req, res)) return;
 
   const { slug, name, content, whatsappNumber } = parsed.data;
   const ownerEmail = typeof req.body?.ownerEmail === "string" ? req.body.ownerEmail.trim().toLowerCase() || null : null;
@@ -396,6 +396,8 @@ router.get("/properties/:slug", async (req, res): Promise<void> => {
 
 // PUT /properties/:slug — update (CEO only) → Supabase
 router.put("/properties/:slug", async (req, res): Promise<void> => {
+  if (!requireCeoSession(req, res)) return;
+
   const params = UpdatePropertyParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -407,8 +409,6 @@ router.put("/properties/:slug", async (req, res): Promise<void> => {
     res.status(400).json({ error: body.error.message });
     return;
   }
-
-  if (!requireCeoSession(req, res)) return;
 
   try {
     const { name, content, whatsappNumber } = body.data;
@@ -464,6 +464,8 @@ router.put("/properties/:slug", async (req, res): Promise<void> => {
 
 // PUT /properties/:slug/full-edit — inline CEO edit: name, slug, hostPassword (CEO only) → Supabase
 router.put("/properties/:slug/full-edit", async (req, res): Promise<void> => {
+  if (!requireCeoSession(req, res)) return;
+
   const params = FullEditPropertyParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -475,8 +477,6 @@ router.put("/properties/:slug/full-edit", async (req, res): Promise<void> => {
     res.status(400).json({ error: body.error.message });
     return;
   }
-
-  if (!requireCeoSession(req, res)) return;
 
   try {
     const { slug } = params.data;
@@ -706,13 +706,13 @@ router.post("/properties/:slug/resend-host-welcome", async (req, res): Promise<v
 
 // DELETE /properties/:slug — delete (CEO only) → Supabase
 router.delete("/properties/:slug", async (req, res): Promise<void> => {
+  if (!requireCeoSession(req, res)) return;
+
   const params = DeletePropertyParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
   }
-
-  if (!requireCeoSession(req, res)) return;
 
   try {
     const { data: removed, error } = await supabaseAdmin

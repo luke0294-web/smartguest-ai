@@ -43,12 +43,17 @@ export const CreatePropertyHeader = zod.object({
     .describe("HMAC session token from POST \/auth\/ceo-login"),
 });
 
+export const createPropertyBodyContentMax = 20000;
+
 export const CreatePropertyBody = zod.object({
   slug: zod
     .string()
     .describe("Unique URL-friendly identifier (e.g. 'fleming-1')"),
   name: zod.string().describe("Human-readable property name"),
-  content: zod.string().describe("House rules, WiFi info, tips, etc."),
+  content: zod
+    .string()
+    .max(createPropertyBodyContentMax, "Il manuale casa non può superare 20.000 caratteri")
+    .describe("House rules, WiFi info, tips, etc."),
   whatsappNumber: zod
     .string()
     .optional()
@@ -89,6 +94,20 @@ export const UpdatePropertyHeader = zod.object({
 
 export const updatePropertyBodyHostPasswordMin = 8;
 
+/**
+ * @summary Set/reset the host password for a property (CEO only) — not part
+ * of the OpenAPI spec yet, kept here alongside the other CEO property schemas.
+ */
+export const HostPasswordParams = zod.object({
+  slug: zod.coerce.string(),
+});
+
+export const HostPasswordBody = zod.object({
+  hostPassword: zod
+    .string()
+    .min(updatePropertyBodyHostPasswordMin, "La password deve contenere almeno 8 caratteri"),
+});
+
 export const UpdatePropertyBody = zod.object({
   hostPassword: zod
     .string()
@@ -99,7 +118,10 @@ export const UpdatePropertyBody = zod.object({
     .optional()
     .describe("Property-specific host password (minimum 8 characters when provided)"),
   name: zod.string().optional(),
-  content: zod.string().optional(),
+  content: zod
+    .string()
+    .max(createPropertyBodyContentMax, "Il manuale casa non può superare 20.000 caratteri")
+    .optional(),
   whatsappNumber: zod.string().optional(),
 });
 

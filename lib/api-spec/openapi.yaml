@@ -282,6 +282,7 @@ components:
           description: Human-readable property name
         content:
           type: string
+          maxLength: 20000
           description: House rules, WiFi info, tips, etc.
         whatsappNumber:
           type: string
@@ -302,6 +303,7 @@ components:
           type: string
         content:
           type: string
+          maxLength: 20000
         whatsappNumber:
           type: string
       required: []

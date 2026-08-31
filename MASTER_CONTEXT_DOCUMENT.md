@@ -245,7 +245,7 @@ In-memory sliding window per IP (not shared across API instances):
 
 | Limiter | Limit | Used by |
 |---------|-------|---------|
-| `chatRateLimiter` | 60 req / hour / IP | Guest chat (all slugs incl. demo) |
+| `chatRateLimiter` | 100 req / hour / IP | Guest chat (all slugs incl. demo) |
 | `aiTranscribeRateLimiter` | 10 req / hour / IP | `/ai/transcribe` |
 | `aiVisionRateLimiter` | 10 req / hour / IP | `/ai/vision` |
 | `authRateLimiter` | 10 req / hour / IP | login, forgot-password, leads POST |
