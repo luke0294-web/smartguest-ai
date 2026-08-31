@@ -5,6 +5,7 @@ import { requireCeoSession } from "../lib/ceo-session";
 import { authRateLimiter, getClientIp } from "../lib/rateLimiter";
 import { supabaseAdmin } from "../lib/supabase";
 import { isHostWelcomeEmailConfigured, sendHostWelcomeEmail } from "../lib/hostWelcomeMail";
+import { isReservedPropertySlug } from "../lib/demoProperty";
 
 const router: IRouter = Router();
 const VALID_STATUSES = ["Nuovo", "Contattato", "In Trattativa", "Chiuso", "Non Interessato"] as const;
@@ -214,6 +215,10 @@ router.post("/leads/:id/convert", async (req, res): Promise<void> => {
     let slug = baseSlug;
     let counter = 1;
     while (true) {
+      if (isReservedPropertySlug(slug)) {
+        slug = `${baseSlug}-${counter++}`;
+        continue;
+      }
       const { data: clash } = await supabaseAdmin.from("properties").select("slug").eq("slug", slug).maybeSingle();
       if (!clash) break;
       slug = `${baseSlug}-${counter++}`;

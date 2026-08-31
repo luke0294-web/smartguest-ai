@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { randomBytes } from "crypto";
 import { logger } from "../lib/logger";
-import { requireCeoSession, getCeoPassword, issueCeoToken } from "../lib/ceo-session";
+import { requireCeoSession, getCeoPassword, issueCeoToken, verifyCeoPassword } from "../lib/ceo-session";
 import { getHostSessionSecret, verifyHostSessionToken, getHostTokenFromRequest } from "../lib/host-session";
 import { hashHostPassword, HOST_PASSWORD_MIN_LENGTH_MESSAGE_IT, MIN_HOST_PASSWORD_LENGTH } from "../lib/passwords";
 import { authRateLimiter, getClientIp } from "../lib/rateLimiter";
@@ -43,7 +43,7 @@ router.post("/auth/ceo-login", async (req, res): Promise<void> => {
     }
 
     const { password } = req.body ?? {};
-    if (typeof password !== "string" || String(password) !== pwd) {
+    if (typeof password !== "string" || !verifyCeoPassword(password, pwd)) {
       res.status(401).json({ error: "Password non corretta." });
       return;
     }

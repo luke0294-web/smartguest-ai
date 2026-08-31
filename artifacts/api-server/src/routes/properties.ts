@@ -9,12 +9,14 @@ import {
   ListPropertiesResponseItem,
   UpdatePropertyResponse,
   DeletePropertyParams,
+  FullEditPropertyParams,
+  FullEditPropertyBody,
 } from "@workspace/api-zod";
 import { logger } from "../lib/logger";
 import { requireCeoSession } from "../lib/ceo-session";
 import { hashHostPassword, HOST_PASSWORD_MIN_LENGTH_MESSAGE_IT, MIN_HOST_PASSWORD_LENGTH } from "../lib/passwords";
 import { generateGuestQrDataUrl } from "../lib/generateQr";
-import { DEMO_SLUG, parseDemoPropertyForGet } from "../lib/demoProperty";
+import { DEMO_SLUG, isReservedPropertySlug, parseDemoPropertyForGet } from "../lib/demoProperty";
 import { supabaseAdmin } from "../lib/supabase";
 import { isHostWelcomeEmailConfigured, sendHostWelcomeEmail } from "../lib/hostWelcomeMail";
 
@@ -239,6 +241,11 @@ router.post("/properties", async (req, res): Promise<void> => {
     finalSlug = slugFromPropertyName(name);
   }
 
+  if (isReservedPropertySlug(finalSlug)) {
+    res.status(409).json({ error: `Lo slug '${finalSlug}' è riservato e non può essere usato.` });
+    return;
+  }
+
   try {
     const { data: existingRow, error: existingError } = await supabaseAdmin
       .from("properties")
@@ -457,11 +464,23 @@ router.put("/properties/:slug", async (req, res): Promise<void> => {
 
 // PUT /properties/:slug/full-edit — inline CEO edit: name, slug, hostPassword (CEO only) → Supabase
 router.put("/properties/:slug/full-edit", async (req, res): Promise<void> => {
+  const params = FullEditPropertyParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const body = FullEditPropertyBody.safeParse(req.body);
+  if (!body.success) {
+    res.status(400).json({ error: body.error.message });
+    return;
+  }
+
   if (!requireCeoSession(req, res)) return;
 
   try {
-    const { slug } = req.params;
-    const { name, newSlug, hostPassword, email } = req.body ?? {};
+    const { slug } = params.data;
+    const { name, newSlug, hostPassword, email } = body.data;
 
     const { data: currentRow, error: curErr } = await supabaseAdmin
       .from("properties")
@@ -482,6 +501,10 @@ router.put("/properties/:slug/full-edit", async (req, res): Promise<void> => {
 
     if (newSlug !== undefined) {
       const trimmed = String(newSlug).trim().toLowerCase().replace(/[^a-z0-9-]/g, "");
+      if (trimmed && isReservedPropertySlug(trimmed)) {
+        res.status(409).json({ error: `Lo slug '${trimmed}' è riservato e non può essere usato.` });
+        return;
+      }
       if (trimmed && trimmed !== slug) {
         const { data: conflict } = await supabaseAdmin
           .from("properties")
