@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { randomBytes } from "node:crypto";
-import { HostPropertyResponse } from "@workspace/api-zod";
+import { HostPropertyResponse, HostPasswordParams, HostPasswordBody } from "@workspace/api-zod";
 import { logger } from "../lib/logger";
 import { requireCeoSession } from "../lib/ceo-session";
 import {
@@ -8,12 +8,7 @@ import {
   issueHostSessionToken,
 } from "../lib/host-session";
 import { requireHostSession, requireHostOwnsPropertySlug } from "../lib/host-auth";
-import {
-  hashHostPassword,
-  verifyHostPassword,
-  HOST_PASSWORD_MIN_LENGTH_MESSAGE_IT,
-  MIN_HOST_PASSWORD_LENGTH,
-} from "../lib/passwords";
+import { hashHostPassword, verifyHostPassword } from "../lib/passwords";
 import { authRateLimiter, getClientIp } from "../lib/rateLimiter";
 import { generateGuestQrDataUrl } from "../lib/generateQr";
 import { supabase, supabaseAdmin } from "../lib/supabase";
@@ -385,16 +380,22 @@ router.put("/properties/:slug/host-password", async (req, res): Promise<void> =>
   try {
     if (!requireCeoSession(req, res)) return;
 
-    const { slug } = req.params;
-    const { hostPassword } = req.body ?? {};
-
-    const trimmedHostPw = String(hostPassword ?? "").trim();
-    if (!trimmedHostPw) {
-      res.status(400).json({ error: "La password host non può essere vuota." });
+    const params = HostPasswordParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: params.error.message });
       return;
     }
-    if (trimmedHostPw.length < MIN_HOST_PASSWORD_LENGTH) {
-      res.status(400).json({ error: `${HOST_PASSWORD_MIN_LENGTH_MESSAGE_IT}.` });
+
+    const body = HostPasswordBody.safeParse(req.body);
+    if (!body.success) {
+      res.status(400).json({ error: body.error.message });
+      return;
+    }
+
+    const { slug } = params.data;
+    const trimmedHostPw = body.data.hostPassword.trim();
+    if (!trimmedHostPw) {
+      res.status(400).json({ error: "La password host non può essere vuota." });
       return;
     }
 

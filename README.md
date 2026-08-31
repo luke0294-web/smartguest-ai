@@ -39,7 +39,7 @@ Ospite apre /guest/:slug (o scansiona un QR code)
   → il frontend recupera i dati pubblici della proprietà
   → l'ospite scrive un messaggio
   → POST /api/properties/:slug/chat
-       → rate limiting (60 richieste/ora per IP)
+       → rate limiting (100 richieste/ora per IP)
        → categorizzazione (domanda turistica vs gestionale)
        → costruzione del system prompt (regolamento casa + language lock)
        → chiamata a OpenAI gpt-4o-mini, risposta in streaming (SSE)
@@ -51,7 +51,7 @@ Ospite apre /guest/:slug (o scansiona un QR code)
 Punti distintivi dell'implementazione:
 
 - **Risposta in streaming (SSE)**, non un singolo blocco di testo — l'ospite vede Cico scrivere in tempo reale.
-- **Language lock**: Cico risponde sempre nella lingua dell'ultimo messaggio dell'ospite, indipendentemente dalla lingua del regolamento caricato dall'host — 11 lingue supportate in UI (IT, EN, DE, FR, ES, NL, PT, RU, JA, ZH, AR).
+- **Language lock**: Cico risponde sempre nella lingua dell'ultimo messaggio dell'ospite, indipendentemente dalla lingua del regolamento caricato dall'host — 11 lingue supportate in UI (IT, EN, DE, FR, ES, NL, ZH, JA, KO, PT, PL).
 - **Manual-first**: Cico attinge solo al regolamento fornito dall'host; suggerisce il contatto WhatsApp dell'host solo per informazioni mancanti, emergenze o problemi tecnici irrisolvibili.
 - **Modalità demo pubblica** (`/demo`, `/guest/demo`): regolamento fittizio precaricato, limite più stringente (12 messaggi/ora per sessione), nessuna persistenza dei log — pensata per far provare il prodotto senza esporre dati di proprietà reali.
 
@@ -87,11 +87,13 @@ smartguest-ai/
 | `/` | Landing + form lead | Pubblico |
 | `/demo` | Chat demo incorporata | Pubblico |
 | `/guest/:slug` | Chat con Cico | Pubblico |
+| `/signup` | Redirect a `/?register=1` (apre il modale di registrazione sulla landing) | Pubblico |
 | `/login` | Login host | Host |
 | `/host/dashboard` | Lista proprietà | Host autenticato |
 | `/host/:slug` | Editor regolamento + tool AI | Host autenticato |
 | `/diario/:slug` | Super-Diario (log conversazioni) | Host autenticato |
 | `/ceo` | Pannello amministrativo | CEO |
+| `/admin` | Redirect a `/ceo` | CEO |
 | `/forgot-password`, `/reset-password/:token`, `/setup-password/:token` | Flussi di autenticazione | Pubblico (con token) |
 | `/privacy` | Privacy policy | Pubblico |
 
@@ -183,6 +185,7 @@ Tutte le rotte sono prefissate `/api`. Validazione tramite Zod, boot-check delle
 |---|---|---|
 | POST | `/send-pdf` | CEO — invia QR code proprietà via email |
 | GET | `/healthz`, `/healthz/db` | Pubblico |
+| GET | `/ciao` | Pubblico — health check legacy ("Il server è vivo e vegeto! 🚀") |
 
 > **Nota copertura OpenAPI:** lo spec in `lib/api-spec/openapi.yaml` documenta solo le rotte principali di chat e proprietà. La maggior parte delle rotte CEO/host/auth non è ancora nello spec — miglioramento noto, non bloccante.
 
@@ -213,7 +216,7 @@ La relazione host → proprietà è basata sull'email (`properties.email = hosts
 
 Alcune scelte di design pensate per un prodotto che espone una chat pubblica non autenticata:
 
-- **Rate limiting in-memory** per IP: 60 richieste/ora sulla chat, 10/ora sugli endpoint AI (trascrizione, vision), 10/ora su login/lead — rispetta `X-Forwarded-For` dietro proxy.
+- **Rate limiting in-memory** per IP: 100 richieste/ora sulla chat, 10/ora sugli endpoint AI (trascrizione, vision), 10/ora su login/lead — rispetta `X-Forwarded-For` dietro proxy.
 - **Sessioni host** firmate HMAC-SHA256, TTL di 8 ore, accettate via header `Authorization: Bearer` o `x-host-session`.
 - **Ownership check esplicito**: ogni operazione su una proprietà verifica che l'email della sessione host corrisponda a quella proprietaria (`requireHostOwnsPropertySlug`), non solo che la sessione sia valida.
 - **Guardrail AI dedicato**: limite separato di messaggi per sessione sulla modalità demo, per evitare abusi del limite di spesa OpenAI.
@@ -234,9 +237,13 @@ Obbligatorie all'avvio del server (il boot fallisce esplicitamente se mancano):
 | `RESEND_API_KEY`, `RESEND_FROM_EMAIL` | Invio email transazionali |
 | `HOST_SESSION_SECRET` **o** `SESSION_SECRET` | Firma delle sessioni host |
 
-Opzionali: `PORT` (default `8080`), `NODE_ENV`, `LOG_LEVEL`, `VITE_API_ORIGIN`, `EMAIL_FROM_NAME`, `ENABLE_RATE_LIMITING`.
+Opzionali: `PORT` (default `8080`), `NODE_ENV`, `LOG_LEVEL`, `VITE_API_ORIGIN`, `EMAIL_FROM_NAME`, `ENABLE_RATE_LIMITING`, `BASE_PATH`, `EMAIL_REPLY_TO` / `RESEND_REPLY_TO`, `REPL_ID`, `API_PROXY_TARGET`.
 
 `ENABLE_RATE_LIMITING` (`true`/`false`): forza esplicitamente l'hardening di produzione (rate limiting, limiti AI, allowlist CORS, occultamento errori Supabase dettagliati), indipendentemente da `NODE_ENV`. Se non impostata, fa fallback su `NODE_ENV === "production"` (comportamento invariato). Utile quando `NODE_ENV` non è affidabile come unico segnale di ambiente di produzione.
+
+`BASE_PATH`: base path del deploy frontend (usato da Vite in `vite.config.ts`, es. per servire l'app da un sottopercorso). `EMAIL_REPLY_TO` / `RESEND_REPLY_TO`: indirizzo reply-to per le email transazionali via Resend. `REPL_ID`: usato dal plugin Vite Replit-specific in sviluppo. `API_PROXY_TARGET`: target del proxy Vite verso l'API in sviluppo locale.
+
+**Variabili in `.env` non referenziate nel codice:** `EMAIL_USER`, `EMAIL_PASS`, `AI_INTERNAL_API_KEY`, `VITE_INTERNAL_API_KEY`, `STRIPE_PRICE_ID`, `STRIPE_SECRET_KEY`. Sono riservate per feature future (billing Stripe, non ancora implementato su `main`) e possono essere rimosse in sicurezza se non si prevede di implementarle a breve.
 
 ---
 

@@ -436,6 +436,7 @@ function HostPasswordModal({
                   onChange={(e) => { setNewPassword(e.target.value); setSaved(false); setError(""); }}
                   placeholder="Minimo 8 caratteri"
                   minLength={8}
+                  autoComplete="new-password"
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 pr-9 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all font-mono"
                 />
                 <button
@@ -1032,6 +1033,7 @@ export default function CeoPanel() {
                 name="password"
                 type="password"
                 placeholder="Password Super-Admin"
+                autoComplete="current-password"
                 className="w-full bg-background border border-border pl-12 pr-4 py-3.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50 transition-all font-sans"
                 required
               />
@@ -1253,6 +1255,7 @@ export default function CeoPanel() {
                                     className="w-full bg-white border border-border px-3 py-2 pr-10 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50 transition-all"
                                     placeholder="Minimo 8 caratteri (vuoto = rimuovi)"
                                     minLength={8}
+                                    autoComplete="new-password"
                                   />
                                   <button
                                     type="button"

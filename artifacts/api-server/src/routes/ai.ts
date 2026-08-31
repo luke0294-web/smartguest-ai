@@ -9,6 +9,7 @@ import {
 } from "../lib/rateLimiter";
 import { logOpenAi429IfNeeded } from "../lib/openaiErrors";
 import { requireHostSession } from "../lib/host-auth";
+import { looksLikeAudio, looksLikeImage } from "../lib/fileTypeSniff";
 
 const router: IRouter = Router();
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -65,6 +66,11 @@ router.post(
       return;
     }
 
+    if (!looksLikeAudio(req.file.buffer)) {
+      res.status(400).json({ error: "Il file non sembra un audio valido." });
+      return;
+    }
+
     const mime = req.file.mimetype || "audio/webm";
     const ext = mime.includes("mp4") ? "mp4"
               : mime.includes("ogg") ? "ogg"
@@ -100,6 +106,11 @@ router.post(
   async (req, res): Promise<void> => {
     if (!req.file) {
       res.status(400).json({ error: "Nessuna immagine ricevuta." });
+      return;
+    }
+
+    if (!looksLikeImage(req.file.buffer)) {
+      res.status(400).json({ error: "Il file non sembra un'immagine valida." });
       return;
     }
 

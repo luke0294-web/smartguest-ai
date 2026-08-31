@@ -158,6 +158,7 @@ export default function ResetPassword() {
                       onChange={(e) => { setNewPassword(e.target.value); setError(""); }}
                       placeholder="Minimo 8 caratteri"
                       minLength={8}
+                      autoComplete="new-password"
                       className="w-full border border-gray-200 rounded-xl pl-10 pr-12 py-3 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
                     />
                     <button
@@ -179,6 +180,7 @@ export default function ResetPassword() {
                       value={confirmPassword}
                       onChange={(e) => { setConfirmPassword(e.target.value); setError(""); }}
                       placeholder="Ripeti la password"
+                      autoComplete="new-password"
                       className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
                     />
                   </div>

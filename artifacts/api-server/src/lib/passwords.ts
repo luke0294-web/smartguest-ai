@@ -1,4 +1,5 @@
 import bcrypt from "bcryptjs";
+import { createHash, timingSafeEqual } from "node:crypto";
 
 const BCRYPT_ROUNDS = 10;
 
@@ -16,11 +17,22 @@ export async function hashHostPassword(plain: string): Promise<string> {
   return bcrypt.hash(String(plain).trim(), BCRYPT_ROUNDS);
 }
 
+/**
+ * Constant-time comparison for the legacy plaintext fallback. Candidate/stored
+ * can differ in length, so both are hashed to a fixed-size sha256 digest
+ * first — timingSafeEqual itself requires equal-length buffers.
+ */
+function constantTimeEqual(a: string, b: string): boolean {
+  const aHash = createHash("sha256").update(a, "utf8").digest();
+  const bHash = createHash("sha256").update(b, "utf8").digest();
+  return timingSafeEqual(aHash, bHash);
+}
+
 export async function verifyHostPassword(stored: string, plain: string): Promise<boolean> {
   const p = String(plain).trim();
   if (!stored || !p) return false;
   if (isBcryptHash(stored)) {
     return bcrypt.compare(p, stored);
   }
-  return stored === p;
+  return constantTimeEqual(stored, p);
 }
