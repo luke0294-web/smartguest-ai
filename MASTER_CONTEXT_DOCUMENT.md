@@ -304,7 +304,7 @@ TTL: demo counter resets after 1 hour (in-memory).
 | `pending_questions_count` | badge counter |
 | `referral_links` | plain text, max ~2000 chars |
 | `host_password` | legacy per-property password (migrating to `hosts` table) |
-| `reset_token`, `reset_requested_at` | password reset flow |
+| `reset_token`, `reset_requested_at` | password reset flow — `reset_token` stores a sha256 hash of the token, not the plaintext (see `hashResetToken` in `routes/auth.ts`) |
 | `invite_token`, `invite_token_expires_at` | first-time setup after lead conversion |
 
 #### `hosts`
