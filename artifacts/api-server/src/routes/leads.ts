@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { randomBytes } from "node:crypto";
 import { logger } from "../lib/logger";
 import { requireCeoSession } from "../lib/ceo-session";
-import { authRateLimiter, getClientIp } from "../lib/rateLimiter";
+import { authRateLimiter } from "../lib/rateLimiter";
 import { supabaseAdmin } from "../lib/supabase";
 import { isHostWelcomeEmailConfigured, sendHostWelcomeEmail } from "../lib/hostWelcomeMail";
 import { isReservedPropertySlug } from "../lib/demoProperty";
@@ -32,7 +32,7 @@ function mapLeadToApi(row: LeadRow) {
 
 router.post("/leads", async (req, res): Promise<void> => {
   try {
-    const clientIp = getClientIp(req);
+    const clientIp = req.ip ?? "unknown";
     if (!authRateLimiter.check(clientIp)) {
       const retryAfter = authRateLimiter.retryAfterSeconds(clientIp);
       res.status(429).json({ error: "Troppe richieste. Riprova più tardi.", retryAfter });
