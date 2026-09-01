@@ -123,7 +123,7 @@ router.post("/auth/host-login", async (req, res): Promise<void> => {
         password: normalizedPassword,
       });
       if (error || !data.user) {
-        console.error("[ERRORE CRITICO] auth/host-login credenziali o Supabase auth:", error?.message ?? error);
+        logger.error({ err: error }, "auth/host-login — credenziali o Supabase auth non valide");
         res.status(401).json({ error: "Email o password non corretti." });
         return;
       }
@@ -137,7 +137,7 @@ router.post("/auth/host-login", async (req, res): Promise<void> => {
       .order("name");
 
     if (propErr) {
-      console.error("[ERRORE CRITICO] host-login properties:", propErr);
+      logger.error({ err: propErr }, "host-login properties");
       res.status(500).json({ error: "Errore interno del server" });
       return;
     }
@@ -154,7 +154,7 @@ router.post("/auth/host-login", async (req, res): Promise<void> => {
     logger.info({ email: host.email, count: properties.length }, "Host login successful");
     res.json({ email: host.email, properties, sessionToken });
   } catch (error) {
-    console.error("[ERRORE CRITICO]", error);
+    logger.error({ err: error }, "auth/host-login");
     if (!res.headersSent) {
       res.status(500).json({ error: "Errore interno del server" });
     }
@@ -178,7 +178,7 @@ router.get("/host/:slug", async (req, res): Promise<void> => {
       .maybeSingle();
 
     if (error || !row) {
-      console.error("[ERRORE CRITICO] GET /host/:slug proprietà non trovata:", slug, error);
+      logger.error({ err: error, slug }, "GET /host/:slug — proprietà non trovata");
       res.status(404).json({ error: "Proprietà non trovata." });
       return;
     }
@@ -206,10 +206,10 @@ router.get("/host/:slug", async (req, res): Promise<void> => {
     const payload = qrCodeBase64 ? { ...withDates, qrCodeBase64 } : withDates;
     const parsed = HostPropertyResponse.safeParse(payload);
     if (!parsed.success) {
-      console.error("[ERRORE CRITICO] GET /host/:slug Zod HostPropertyResponse:", parsed.error.flatten(), {
-        propertyId: withDates.id,
-        idType: typeof withDates.id,
-      });
+      logger.error(
+        { zodError: parsed.error.flatten(), propertyId: withDates.id, idType: typeof withDates.id },
+        "GET /host/:slug — Zod HostPropertyResponse validation failed",
+      );
       res.status(500).json({
         error:
           "Risposta proprietà non valida (validazione). Controlla i log server per dettagli Zod.",
@@ -219,7 +219,7 @@ router.get("/host/:slug", async (req, res): Promise<void> => {
 
     res.json(parsed.data);
   } catch (error) {
-    console.error("[ERRORE CRITICO]", error);
+    logger.error({ err: error }, "GET /host/:slug");
     if (!res.headersSent) {
       res.status(500).json({ error: "Errore interno del server" });
     }
@@ -270,7 +270,7 @@ router.put("/host/:slug", async (req, res): Promise<void> => {
         .maybeSingle();
 
       if (updErr || !data) {
-        console.error("[ERRORE CRITICO] PUT /host/:slug:", updErr);
+        logger.error({ err: updErr }, "PUT /host/:slug");
         res.status(500).json({ error: "Errore interno del server" });
         return;
       }
@@ -282,7 +282,7 @@ router.put("/host/:slug", async (req, res): Promise<void> => {
         .eq("slug", slug)
         .maybeSingle();
       if (readErr || !data) {
-        console.error("[ERRORE CRITICO] PUT /host/:slug read:", readErr);
+        logger.error({ err: readErr }, "PUT /host/:slug read");
         res.status(500).json({ error: "Errore interno del server" });
         return;
       }
@@ -295,7 +295,7 @@ router.put("/host/:slug", async (req, res): Promise<void> => {
     const { hostPassword: _hidden, resetToken: _rt, resetRequestedAt: _rra, ...safe } = normalized;
     res.json(safe);
   } catch (error) {
-    console.error("[ERRORE CRITICO]", error);
+    logger.error({ err: error }, "PUT /host/:slug");
     if (!res.headersSent) {
       res.status(500).json({ error: "Errore interno del server" });
     }
@@ -317,14 +317,14 @@ router.post("/host/:slug/reset-pending-questions", async (req, res): Promise<voi
       .eq("slug", slug);
 
     if (error) {
-      console.error("[ERRORE CRITICO] reset-pending-questions:", error);
+      logger.error({ err: error }, "reset-pending-questions");
       res.status(500).json({ error: "Errore interno del server" });
       return;
     }
 
     res.json({ success: true, pendingQuestionsCount: 0 });
   } catch (error) {
-    console.error("[ERRORE CRITICO]", error);
+    logger.error({ err: error }, "reset-pending-questions");
     if (!res.headersSent) {
       res.status(500).json({ error: "Errore interno del server" });
     }
@@ -347,7 +347,6 @@ router.post("/host/:slug/resolve-all-logs", async (req, res): Promise<void> => {
       .eq("resolved", false);
 
     if (logsErr) {
-      console.error("[ERRORE CRITICO] resolve-all-logs chat_logs:", logsErr);
       logger.error({ logsErr, slug }, "resolve-all-logs chat_logs update failed");
       res.status(500).json({ error: "Errore interno del server" });
       return;
@@ -359,7 +358,6 @@ router.post("/host/:slug/resolve-all-logs", async (req, res): Promise<void> => {
       .eq("slug", slug);
 
     if (pendingErr) {
-      console.error("[ERRORE CRITICO] resolve-all-logs properties:", pendingErr);
       logger.error({ pendingErr, slug }, "resolve-all-logs pending_questions_count update failed");
       res.status(500).json({ error: "Errore interno del server" });
       return;
@@ -367,7 +365,6 @@ router.post("/host/:slug/resolve-all-logs", async (req, res): Promise<void> => {
 
     res.json({ success: true, pendingQuestionsCount: 0 });
   } catch (error) {
-    console.error("[ERRORE CRITICO]", error);
     logger.error({ error }, "resolve-all-logs");
     if (!res.headersSent) {
       res.status(500).json({ error: "Errore interno del server" });
@@ -427,7 +424,6 @@ router.put("/properties/:slug/host-password", async (req, res): Promise<void> =>
           .update({ host_password: hashed })
           .eq("email", ownerEmail);
         if (uErr) {
-          console.error("[ERRORE CRITICO] host-password update host:", uErr);
           logger.error({ uErr }, "host-password — update host");
           res.status(500).json({ error: "Impossibile aggiornare la password host." });
           return;
@@ -437,7 +433,6 @@ router.put("/properties/:slug/host-password", async (req, res): Promise<void> =>
           .from("hosts")
           .insert({ email: ownerEmail, host_password: hashed });
         if (iErr) {
-          console.error("[ERRORE CRITICO] host-password insert host:", iErr);
           logger.error({ iErr }, "host-password — insert host");
           res.status(500).json({ error: "Impossibile creare l'host su Supabase." });
           return;
@@ -449,7 +444,6 @@ router.put("/properties/:slug/host-password", async (req, res): Promise<void> =>
         .update({ host_password: null })
         .eq("slug", slug);
       if (pErr) {
-        console.error("[ERRORE CRITICO] host-password clear property:", pErr);
         logger.error({ pErr }, "host-password — clear property host_password");
         res.status(500).json({ error: "Aggiornamento proprietà fallito." });
         return;
@@ -462,7 +456,6 @@ router.put("/properties/:slug/host-password", async (req, res): Promise<void> =>
         .update({ host_password: hashed })
         .eq("slug", slug);
       if (pErr) {
-        console.error("[ERRORE CRITICO] host-password property-only:", pErr);
         logger.error({ pErr }, "host-password — property-only password");
         res.status(500).json({ error: "Aggiornamento proprietà fallito." });
         return;
@@ -472,7 +465,7 @@ router.put("/properties/:slug/host-password", async (req, res): Promise<void> =>
 
     res.json({ success: true, slug, hostPasswordSet: true });
   } catch (error) {
-    console.error("[ERRORE CRITICO]", error);
+    logger.error({ err: error }, "PUT /properties/:slug/host-password");
     if (!res.headersSent) {
       res.status(500).json({ error: "Errore interno del server" });
     }

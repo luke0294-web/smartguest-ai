@@ -19,6 +19,7 @@ import {
   getListPropertiesQueryKey,
   type Property,
 } from "@workspace/api-client-react";
+import { isReservedPropertySlug } from "@workspace/api-zod";
 import { useQueryClient } from "@tanstack/react-query";
 import { apiUrl } from "@/lib/apiUrl";
 import { toast } from "@/hooks/use-toast";
@@ -31,7 +32,7 @@ import {
 
 const createPropertySchema = z.object({
   name: z.string().min(1, "Il nome è obbligatorio"),
-  slug: z.string().min(1, "Lo slug è obbligatorio").regex(/^[a-z0-9-]+$/, "Solo lettere minuscole, numeri e trattini"),
+  slug: z.string().min(1, "Lo slug è obbligatorio").regex(/^[a-z0-9-]+$/, "Solo lettere minuscole, numeri e trattini").refine((val) => !isReservedPropertySlug(val), "Questo slug è riservato dal sistema, scegline un altro"),
   whatsappNumber: z.string().optional(),
   ownerEmail: z.string().email("Email non valida").optional().or(z.literal("")),
   content: z.string().optional(),
@@ -275,213 +276,6 @@ function QrModal({
   );
 }
 
-function HostPasswordModal({
-  property,
-  ceoSessionHeaders,
-  onClose,
-  onSaved,
-}: {
-  property: { name: string; slug: string; hostPassword?: string | null };
-  ceoSessionHeaders: HeadersInit;
-  onClose: () => void;
-  onSaved: (newPassword: string) => void;
-}) {
-  const [newPassword, setNewPassword] = useState("");
-  const [isSaving, setIsSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [savedPassword, setSavedPassword] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-  const [error, setError] = useState("");
-  const [showCurrent, setShowCurrent] = useState(false);
-  const [showNew, setShowNew] = useState(false);
-
-  const base = import.meta.env.BASE_URL.replace(/\/$/, "");
-  const hostLink = `${window.location.origin}${base}/host/${property.slug}`;
-
-  // The displayed current password — updated locally after save
-  const currentPassword = savedPassword ?? property.hostPassword ?? null;
-
-  const handleSave = async () => {
-    const trimmed = newPassword.trim();
-    if (!trimmed) return;
-    if (trimmed.length < 8) {
-      setError("La password deve contenere almeno 8 caratteri.");
-      return;
-    }
-    setError("");
-    setSaved(false);
-    setIsSaving(true);
-    try {
-      const res = await fetch(apiUrl(`/api/properties/${property.slug}/host-password`), {
-        method: "PUT",
-        headers: { "Content-Type": "application/json", ...ceoSessionHeaders },
-        body: JSON.stringify({ hostPassword: trimmed }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Errore nel salvataggio.");
-      setSavedPassword(trimmed);
-      setSaved(true);
-      onSaved(trimmed);
-      setNewPassword("");
-    } catch (err: unknown) {
-      setError(getErrorMessage(err));
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(hostLink);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2500);
-  };
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ backgroundColor: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)" }}
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-    >
-      <motion.div
-        initial={{ opacity: 0, scale: 0.92 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.92 }}
-        transition={{ duration: 0.22 }}
-        className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden"
-      >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <div>
-            <h3 className="font-bold text-gray-900 text-[15px] flex items-center gap-2">
-              <UserCog className="w-4 h-4 text-blue-600" />
-              Gestione Host
-            </h3>
-            <p className="text-gray-400 text-[12px] mt-0.5 truncate max-w-[200px]">{property.name}</p>
-          </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors">
-            <X className="w-4 h-4 text-gray-500" />
-          </button>
-        </div>
-
-        <div className="p-5 flex flex-col gap-4">
-
-          {/* ID Accesso */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
-              ID Accesso (Slug)
-            </label>
-            <div className="flex items-center gap-2 bg-blue-50 rounded-xl px-3 py-2.5 border border-blue-100">
-              <p className="text-[13px] font-mono font-bold text-blue-700 flex-1">{property.slug}</p>
-              <button
-                onClick={() => { navigator.clipboard.writeText(property.slug); }}
-                className="p-1.5 rounded-lg text-blue-400 hover:text-blue-600 hover:bg-blue-100 transition-colors flex-shrink-0"
-                title="Copia ID"
-              >
-                <Copy className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
-
-          {/* Current password */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
-              Password Attuale
-            </label>
-            {currentPassword ? (
-              <div className="flex items-center gap-2 bg-emerald-50 rounded-xl px-3 py-2.5 border border-emerald-100">
-                <p className="text-[13px] font-mono font-bold text-emerald-700 flex-1 break-all">
-                  {showCurrent ? currentPassword : "•".repeat(Math.min(currentPassword.length, 12))}
-                </p>
-                <button
-                  onClick={() => setShowCurrent(!showCurrent)}
-                  className="p-1.5 rounded-lg text-emerald-400 hover:text-emerald-600 hover:bg-emerald-100 transition-colors flex-shrink-0"
-                  title={showCurrent ? "Nascondi" : "Mostra"}
-                >
-                  {showCurrent ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 bg-amber-50 text-amber-700 px-3 py-2.5 rounded-xl border border-amber-100 text-sm">
-                <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                Nessuna password impostata
-              </div>
-            )}
-          </div>
-
-          {/* Link host */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
-              <Link2 className="w-3 h-3" /> Link da inviare all'host
-            </label>
-            <div className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2.5 border border-gray-100">
-              <p className="text-[11px] font-mono text-gray-600 flex-1 break-all">{hostLink}</p>
-              <button
-                onClick={handleCopyLink}
-                className={`p-1.5 rounded-lg transition-colors flex-shrink-0 ${copied ? "text-emerald-600 bg-emerald-100" : "text-gray-400 hover:text-gray-600 hover:bg-gray-200"}`}
-              >
-                {copied ? <CheckCheck className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-              </button>
-            </div>
-          </div>
-
-          {/* Set new password */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-semibold text-gray-700">
-              {currentPassword ? "Reimposta password host" : "Imposta password host"}
-            </label>
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <input
-                  type={showNew ? "text" : "password"}
-                  value={newPassword}
-                  onChange={(e) => { setNewPassword(e.target.value); setSaved(false); setError(""); }}
-                  placeholder="Minimo 8 caratteri"
-                  minLength={8}
-                  autoComplete="new-password"
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 pr-9 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all font-mono"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowNew(!showNew)}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                >
-                  {showNew ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                </button>
-              </div>
-              <button
-                onClick={handleSave}
-                disabled={isSaving || newPassword.trim().length < 8}
-                className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold transition-colors disabled:opacity-50 flex items-center gap-1.5 whitespace-nowrap"
-              >
-                {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                {isSaving ? "" : "Salva"}
-              </button>
-            </div>
-          </div>
-
-          {/* Success */}
-          {saved && (
-            <motion.div
-              initial={{ opacity: 0, y: -6 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm px-4 py-3 rounded-xl font-medium"
-            >
-              <CheckCheck className="w-4 h-4 flex-shrink-0" />
-              Dati salvati correttamente nel database!
-            </motion.div>
-          )}
-
-          {/* Error */}
-          {error && (
-            <div className="flex items-center gap-2 bg-red-50 border border-red-100 text-red-600 text-sm px-4 py-2.5 rounded-xl">
-              <AlertCircle className="w-4 h-4" /> {error}
-            </div>
-          )}
-        </div>
-      </motion.div>
-    </div>
-  );
-}
-
 function ContentEditModal({
   property,
   ceoSessionHeaders,
@@ -616,7 +410,6 @@ export default function CeoPanel() {
   const [loginLoading, setLoginLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"properties" | "leads" | "resets" | "hosts">("properties");
   const [qrProperty, setQrProperty] = useState<{ name: string; slug: string } | null>(null);
-  const [hostManageProp, setHostManageProp] = useState<{ name: string; slug: string; hostPassword?: string | null } | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [leadsLoading, setLeadsLoading] = useState(false);
   const [resetRequests, setResetRequests] = useState<Array<{ slug: string; name: string; email: string | null; resetRequestedAt: string | null; expired: boolean }>>([]);
@@ -983,6 +776,13 @@ export default function CeoPanel() {
       }));
       return;
     }
+    if (isReservedPropertySlug(inlineEdit.slug)) {
+      setInlineEdit((prev) => ({
+        ...prev,
+        error: "Questo slug è riservato dal sistema, scegline un altro.",
+      }));
+      return;
+    }
     setInlineEdit((prev) => ({ ...prev, saving: true, error: "", saved: false }));
     try {
       const res = await fetch(apiUrl(`/api/properties/${originalSlug}/full-edit`), {
@@ -1060,17 +860,6 @@ export default function CeoPanel() {
             property={qrProperty}
             ceoSessionHeaders={ceoSessionHeaders}
             onClose={() => setQrProperty(null)}
-          />
-        )}
-        {hostManageProp && (
-          <HostPasswordModal
-            property={hostManageProp}
-            ceoSessionHeaders={ceoSessionHeaders}
-            onClose={() => setHostManageProp(null)}
-            onSaved={(newPwd) => {
-              setHostManageProp((prev) => prev ? { ...prev, hostPassword: newPwd } : null);
-              queryClient.invalidateQueries({ queryKey: getListPropertiesQueryKey() });
-            }}
           />
         )}
         {contentModal && (

@@ -1,21 +1,8 @@
-import { GetPropertyResponse } from "@workspace/api-zod";
+import { GetPropertyResponse, isReservedPropertySlug } from "@workspace/api-zod";
 
 export const DEMO_SLUG = "demo";
 
-/**
- * Slug che una proprietà reale non può mai usare:
- * - "demo" è intercettato ovunque nell'app (chat, AI guard, GET property)
- *   per servire il contenuto demo statico — una proprietà reale con questo
- *   slug verrebbe mascherata per sempre;
- * - "dashboard" collide con la route letterale /host/dashboard del frontend
- *   (distinta da /host/:slug) — una proprietà con questo slug sarebbe
- *   irraggiungibile dal proprio link host.
- */
-const RESERVED_PROPERTY_SLUGS = new Set<string>([DEMO_SLUG, "dashboard"]);
-
-export function isReservedPropertySlug(slug: string): boolean {
-  return RESERVED_PROPERTY_SLUGS.has(slug.trim().toLowerCase());
-}
+export { isReservedPropertySlug };
 
 /** Dummy WA number so guest UI shows the button; not used for real chat in demo. */
 export const DEMO_MOCK_WHATSAPP_NUMBER = "+390000000000";

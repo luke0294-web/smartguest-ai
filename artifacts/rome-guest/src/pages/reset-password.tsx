@@ -18,7 +18,6 @@ export default function ResetPassword() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
-  const [successSlug, setSuccessSlug] = useState("");
 
   useEffect(() => {
     if (!token) {
@@ -75,7 +74,6 @@ export default function ResetPassword() {
         return;
       }
       setSuccess(true);
-      setSuccessSlug(data.slug ?? "");
     } catch {
       setError("Errore di connessione. Riprova tra qualche secondo.");
     } finally {
@@ -224,13 +222,13 @@ export default function ResetPassword() {
               </div>
               <h2 className="text-xl font-extrabold text-gray-900 mb-2">Password Aggiornata!</h2>
               <p className="text-gray-500 text-sm leading-relaxed mb-6">
-                La tua nuova password è attiva. Puoi accedere subito al tuo pannello.
+                La tua nuova password è attiva. Accedi con le tue nuove credenziali.
               </p>
               <Link
-                href={successSlug ? `/host/${successSlug}` : "/login"}
+                href="/login"
                 className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-bold px-8 py-3 rounded-xl text-sm transition-all shadow-lg shadow-blue-100"
               >
-                Accedi al Pannello
+                Vai al Login
               </Link>
             </motion.div>
           )}

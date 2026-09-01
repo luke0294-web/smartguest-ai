@@ -62,7 +62,7 @@ Punti distintivi dell'implementazione:
 ```
 smartguest-ai/
 ├── artifacts/
-│   ├── rome-guest/       # Frontend — React 18 + Vite (SPA)
+│   ├── rome-guest/       # Frontend — React 19 + Vite (SPA)
 │   ├── api-server/       # Backend — Express 5 + OpenAI + Supabase
 │   └── mockup-sandbox/   # Mockup UI, non in produzione
 ├── lib/
@@ -78,7 +78,7 @@ smartguest-ai/
 
 ## Frontend — `artifacts/rome-guest`
 
-**Stack:** React 18, Vite, Tailwind CSS, Framer Motion, Wouter, React Hook Form, Zod, react-markdown, qrcode.react, jsPDF.
+**Stack:** React 19, Vite, Tailwind CSS, Framer Motion, Wouter, React Hook Form, Zod, react-markdown, qrcode.react, jsPDF.
 
 ### Rotte
 
