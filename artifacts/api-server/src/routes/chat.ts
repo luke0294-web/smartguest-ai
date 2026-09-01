@@ -6,7 +6,7 @@ import {
   SendPropertyChatParams,
 } from "@workspace/api-zod";
 import { logger } from "../lib/logger";
-import { chatRateLimiter, getClientIp } from "../lib/rateLimiter";
+import { chatRateLimiter } from "../lib/rateLimiter";
 import { DEMO_SLUG, DEMO_MASTER_MANUAL, demoPropertyRowForChat } from "../lib/demoProperty";
 import { requireHostSession, requireHostOwnsPropertySlug } from "../lib/host-auth";
 import { detectNeedsAttention } from "../lib/detectNeedsAttention";
@@ -164,7 +164,7 @@ const GUEST_CANNED: Record<
 router.post("/properties/:slug/chat", async (req, res): Promise<void> => {
   if (!enforceAiMessageLimit(req, res)) return;
 
-  const clientIp = getClientIp(req);
+  const clientIp = req.ip ?? "unknown";
 
   const params = SendPropertyChatParams.safeParse(req.params);
   if (!params.success) {

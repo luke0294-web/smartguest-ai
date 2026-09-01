@@ -4,7 +4,7 @@ import { logger } from "../lib/logger";
 import { requireCeoSession, getCeoPassword, issueCeoToken, verifyCeoPassword } from "../lib/ceo-session";
 import { getHostSessionSecret, verifyHostSessionToken, getHostTokenFromRequest } from "../lib/host-session";
 import { hashHostPassword, HOST_PASSWORD_MIN_LENGTH_MESSAGE_IT, MIN_HOST_PASSWORD_LENGTH } from "../lib/passwords";
-import { authRateLimiter, getClientIp } from "../lib/rateLimiter";
+import { authRateLimiter } from "../lib/rateLimiter";
 import { supabaseAdmin } from "../lib/supabase";
 import { isHostWelcomeEmailConfigured, sendPasswordResetEmail } from "../lib/hostWelcomeMail";
 
@@ -38,7 +38,7 @@ const router: IRouter = Router();
 // POST /auth/ceo-login — validate CEO password, issue session token (no env default for password)
 router.post("/auth/ceo-login", async (req, res): Promise<void> => {
   try {
-    const clientIp = getClientIp(req);
+    const clientIp = req.ip ?? "unknown";
     if (!authRateLimiter.check(clientIp)) {
       const retryAfter = authRateLimiter.retryAfterSeconds(clientIp);
       res.status(429).json({ error: "Troppi tentativi di accesso. Riprova più tardi.", retryAfter });
@@ -121,7 +121,7 @@ router.get("/auth/host/me", async (req, res): Promise<void> => {
 // POST /auth/forgot-password — host requests reset by email
 router.post("/auth/forgot-password", async (req, res): Promise<void> => {
   try {
-    const clientIp = getClientIp(req);
+    const clientIp = req.ip ?? "unknown";
     if (!authRateLimiter.check(clientIp)) {
       const retryAfter = authRateLimiter.retryAfterSeconds(clientIp);
       res.status(429).json({ error: "Troppe richieste. Riprova più tardi.", retryAfter });

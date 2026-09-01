@@ -1,6 +1,5 @@
 import type { Request, Response } from "express";
 import { DEMO_SLUG } from "./demoProperty";
-import { getClientIp } from "./rateLimiter";
 import { isProductionSecurityEnabled } from "./validateEnv";
 
 const AI_MAX_MESSAGES_PER_SESSION = 12;
@@ -76,7 +75,7 @@ function readSlugForAiLimit(req: Request): string | undefined {
 function getAiCounterKey(req: Request): string {
   const sessionId = readSessionIdFromBody(req) ?? readSessionIdFromHeaders(req);
   if (sessionId) return `session:${sessionId}`;
-  return `ip:${getClientIp(req)}`;
+  return `ip:${req.ip ?? "unknown"}`;
 }
 
 /**
@@ -104,7 +103,7 @@ export function enforceAiMessageLimit(req: Request, res: Response): boolean {
   }
 
   const sessionId = readXSessionIdForProdLimit(req);
-  const key = sessionId ? `prod:${sessionId}` : `prod-ip:${getClientIp(req)}`;
+  const key = sessionId ? `prod:${sessionId}` : `prod-ip:${req.ip ?? "unknown"}`;
 
   const now = Date.now();
   const timestamps = prodRateTimestampsBySession.get(key) ?? [];

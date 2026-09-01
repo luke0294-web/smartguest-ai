@@ -105,20 +105,3 @@ export const authRateLimiter = new RateLimiter({
   maxRequests: 10,
   windowMs: 60 * 60 * 1000,
 });
-
-/**
- * Extracts the real client IP from an Express request,
- * honouring X-Forwarded-For when behind a proxy (Replit's edge).
- */
-export function getClientIp(req: {
-  ip?: string;
-  headers: Record<string, string | string[] | undefined>;
-}): string {
-  const forwarded = req.headers["x-forwarded-for"];
-  if (forwarded) {
-    const first = Array.isArray(forwarded) ? forwarded[0] : forwarded.split(",")[0];
-    const ip = first?.trim();
-    if (ip) return ip;
-  }
-  return req.ip ?? "unknown";
-}

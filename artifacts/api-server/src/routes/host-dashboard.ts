@@ -9,7 +9,7 @@ import {
 } from "../lib/host-session";
 import { requireHostSession, requireHostOwnsPropertySlug } from "../lib/host-auth";
 import { hashHostPassword, verifyHostPassword } from "../lib/passwords";
-import { authRateLimiter, getClientIp } from "../lib/rateLimiter";
+import { authRateLimiter } from "../lib/rateLimiter";
 import { generateGuestQrDataUrl } from "../lib/generateQr";
 import { supabase, supabaseAdmin } from "../lib/supabase";
 import { propertyRowToCamel, type PropertyRowSnake } from "../lib/supabaseMaps";
@@ -97,7 +97,7 @@ async function ensureLocalHostShell(email: string): Promise<HostRow> {
 // POST /api/auth/host-login — email+password → list of owned properties + session token
 router.post("/auth/host-login", async (req, res): Promise<void> => {
   try {
-    const clientIp = getClientIp(req);
+    const clientIp = req.ip ?? "unknown";
     if (!authRateLimiter.check(clientIp)) {
       const retryAfter = authRateLimiter.retryAfterSeconds(clientIp);
       res.status(429).json({ error: "Troppi tentativi di accesso. Riprova più tardi.", retryAfter });
