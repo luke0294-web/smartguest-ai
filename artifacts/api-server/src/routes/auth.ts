@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { randomBytes } from "crypto";
+import { randomBytes, createHash } from "crypto";
 import { logger } from "../lib/logger";
 import { requireCeoSession, getCeoPassword, issueCeoToken, verifyCeoPassword } from "../lib/ceo-session";
 import { getHostSessionSecret, verifyHostSessionToken, getHostTokenFromRequest } from "../lib/host-session";
@@ -22,6 +22,15 @@ function isInviteTokenExpired(inviteTokenExpiresAt: string | null | undefined): 
   const t = new Date(inviteTokenExpiresAt).getTime();
   if (Number.isNaN(t)) return true;
   return Date.now() > t;
+}
+
+/**
+ * properties.reset_token stores only this hash, never the plaintext — the
+ * plaintext exists solely in the URL/email sent at generation time. Lookups
+ * compare hash-to-hash instead of the raw token.
+ */
+function hashResetToken(token: string): string {
+  return createHash("sha256").update(token, "utf8").digest("hex");
 }
 
 const router: IRouter = Router();
@@ -155,7 +164,7 @@ router.post("/auth/forgot-password", async (req, res): Promise<void> => {
     const { error: updErr } = await supabaseAdmin
       .from("properties")
       .update({
-        reset_token: token,
+        reset_token: hashResetToken(token),
         reset_requested_at: new Date().toISOString(),
       })
       .eq("id", property.id);
@@ -210,7 +219,7 @@ router.get("/auth/reset-password/:token", async (req, res): Promise<void> => {
     const { data: property, error } = await supabaseAdmin
       .from("properties")
       .select("slug, name, reset_requested_at")
-      .eq("reset_token", token)
+      .eq("reset_token", hashResetToken(token))
       .maybeSingle<{ slug: string; name: string; reset_requested_at: string | null }>();
 
     if (error) {
@@ -261,7 +270,7 @@ router.post("/auth/reset-password/:token", async (req, res): Promise<void> => {
     const { data: property, error: selErr } = await supabaseAdmin
       .from("properties")
       .select("id, slug, email, reset_requested_at")
-      .eq("reset_token", token)
+      .eq("reset_token", hashResetToken(token))
       .maybeSingle<{ id: number; slug: string; email: string | null; reset_requested_at: string | null }>();
 
     if (selErr) {
@@ -486,7 +495,7 @@ router.post("/auth/setup-password/:token", async (req, res): Promise<void> => {
   }
 });
 
-// GET /auth/resets — CEO only — list all pending reset tokens with magic links
+// GET /auth/resets — CEO only — list pending reset requests with status (no token value: it's hashed at rest)
 router.get("/auth/resets", async (req, res): Promise<void> => {
   if (!requireCeoSession(req, res)) return;
 
@@ -507,8 +516,8 @@ router.get("/auth/resets", async (req, res): Promise<void> => {
       slug: r.slug,
       name: r.name,
       email: r.email,
-      resetToken: r.reset_token,
       resetRequestedAt: r.reset_requested_at,
+      expired: isPasswordResetTokenExpired(r.reset_requested_at),
     }));
 
     res.json(pending);

@@ -619,7 +619,7 @@ export default function CeoPanel() {
   const [hostManageProp, setHostManageProp] = useState<{ name: string; slug: string; hostPassword?: string | null } | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [leadsLoading, setLeadsLoading] = useState(false);
-  const [resetRequests, setResetRequests] = useState<Array<{ slug: string; name: string; email: string | null; resetToken: string | null; resetRequestedAt: string | null }>>([]);
+  const [resetRequests, setResetRequests] = useState<Array<{ slug: string; name: string; email: string | null; resetRequestedAt: string | null; expired: boolean }>>([]);
   const [resetsLoading, setResetsLoading] = useState(false);
   const [cancellingReset, setCancellingReset] = useState<string | null>(null);
   const [editingSlug, setEditingSlug] = useState<string | null>(null);
@@ -1639,7 +1639,7 @@ export default function CeoPanel() {
                   <div>
                     <h2 className="text-xl font-serif font-semibold">Richieste di Reset Password</h2>
                     <p className="text-muted-foreground text-sm mt-0.5">
-                      Copia il link magico e invialo all'host via WhatsApp. Il link è <strong>monouso</strong>.
+                      Il link di reset viene inviato automaticamente all'host via email. Qui vedi lo stato delle richieste pendenti — il link stesso non è più recuperabile dal pannello.
                     </p>
                   </div>
                   <button
@@ -1672,20 +1672,18 @@ export default function CeoPanel() {
                 {!resetsLoading && resetRequests.length > 0 && (
                   <div className="flex flex-col gap-3">
                     {resetRequests.map((req) => {
-                      const base = import.meta.env.BASE_URL.replace(/\/$/, "");
-                      const magicLink = `${window.location.origin}${base}/reset-password/${req.resetToken}`;
                       return (
                         <motion.div
                           key={req.slug}
                           initial={{ opacity: 0, y: 6 }}
                           animate={{ opacity: 1, y: 0 }}
-                          className="glass-panel p-5 rounded-2xl border border-amber-200 bg-amber-50/30"
+                          className={`glass-panel p-5 rounded-2xl border ${req.expired ? "border-gray-200 bg-gray-50/30" : "border-amber-200 bg-amber-50/30"}`}
                         >
                           <div className="flex flex-col gap-4">
                             {/* Host info */}
                             <div className="flex items-start justify-between gap-4">
                               <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-[15px] flex-shrink-0">
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-[15px] flex-shrink-0 ${req.expired ? "bg-gray-100 text-gray-500" : "bg-amber-100 text-amber-700"}`}>
                                   {req.name[0]?.toUpperCase()}
                                 </div>
                                 <div>
@@ -1703,30 +1701,21 @@ export default function CeoPanel() {
                               </div>
                             </div>
 
-                            {/* Magic link box */}
+                            {/* Status */}
                             <div className="space-y-1.5">
-                              <label className="text-[11px] font-semibold text-amber-700 uppercase tracking-wider">Link Magico (monouso — mandalo via WhatsApp)</label>
-                              <div className="flex items-center gap-2 bg-white border border-amber-200 rounded-xl px-3 py-2.5">
-                                <Link2 className="w-4 h-4 text-amber-500 flex-shrink-0" />
-                                <span className="text-[12px] font-mono text-foreground truncate flex-1">{magicLink}</span>
-                                <button
-                                  onClick={() => navigator.clipboard.writeText(magicLink)}
-                                  className="text-amber-600 hover:text-amber-800 flex-shrink-0 p-1 rounded-lg hover:bg-amber-50 transition-colors"
-                                  title="Copia link"
-                                >
-                                  <Copy className="w-4 h-4" />
-                                </button>
+                              <label className={`text-[11px] font-semibold uppercase tracking-wider ${req.expired ? "text-gray-500" : "text-amber-700"}`}>Stato</label>
+                              <div className={`flex items-center gap-2 bg-white border rounded-xl px-3 py-2.5 ${req.expired ? "border-gray-200" : "border-amber-200"}`}>
+                                <Link2 className={`w-4 h-4 flex-shrink-0 ${req.expired ? "text-gray-400" : "text-amber-500"}`} />
+                                <span className="text-[12px] text-foreground flex-1">
+                                  {req.expired
+                                    ? "Scaduto — l'host deve richiedere un nuovo reset dalla pagina di login."
+                                    : "In attesa — l'host ha ricevuto il link via email (valido 2 ore dalla richiesta)."}
+                                </span>
                               </div>
                             </div>
 
                             {/* Actions */}
                             <div className="flex gap-2 justify-end">
-                              <button
-                                onClick={() => navigator.clipboard.writeText(magicLink)}
-                                className="px-4 py-2 text-[13px] font-semibold rounded-xl bg-amber-500 text-white hover:bg-amber-600 transition-all flex items-center gap-1.5"
-                              >
-                                <Copy className="w-3.5 h-3.5" /> Copia Link
-                              </button>
                               <button
                                 onClick={() => cancelReset(req.slug)}
                                 disabled={cancellingReset === req.slug}
