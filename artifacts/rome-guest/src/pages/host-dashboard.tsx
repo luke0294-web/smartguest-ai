@@ -109,6 +109,7 @@ export default function HostDashboard() {
   const [pendingCount, setPendingCount] = useState(0);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -281,6 +282,7 @@ export default function HostDashboard() {
     audioChunksRef.current = [];
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
       const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
         ? "audio/webm;codecs=opus"
         : MediaRecorder.isTypeSupported("audio/webm")
@@ -293,6 +295,7 @@ export default function HostDashboard() {
       };
       recorder.onstop = async () => {
         stream.getTracks().forEach((t) => t.stop());
+        mediaStreamRef.current = null;
         await sendAudioForTranscription(
           new Blob(audioChunksRef.current, { type: mimeType }),
           mimeType,
@@ -317,6 +320,20 @@ export default function HostDashboard() {
       setAiState({ type: "transcribing" });
     }
   };
+
+  /**
+   * Release the microphone if the host navigates away mid-recording instead of
+   * clicking "Stop" — otherwise the stream keeps capturing (and the browser's
+   * mic indicator stays on) with no way to stop it short of a page reload.
+   * Stops the raw tracks directly rather than going through stopRecording()/
+   * recorder.onstop, which would call setAiState after this component unmounted.
+   */
+  useEffect(() => {
+    return () => {
+      mediaStreamRef.current?.getTracks().forEach((t) => t.stop());
+      mediaStreamRef.current = null;
+    };
+  }, []);
 
   const sendAudioForTranscription = async (blob: Blob, mimeType: string) => {
     setAiState({ type: "transcribing" });

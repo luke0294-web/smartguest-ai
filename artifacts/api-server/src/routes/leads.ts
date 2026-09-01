@@ -6,6 +6,7 @@ import { authRateLimiter } from "../lib/rateLimiter";
 import { supabaseAdmin } from "../lib/supabase";
 import { isHostWelcomeEmailConfigured, sendHostWelcomeEmail } from "../lib/hostWelcomeMail";
 import { isReservedPropertySlug } from "../lib/demoProperty";
+import { hashToken } from "../lib/tokens";
 
 const router: IRouter = Router();
 const VALID_STATUSES = ["Nuovo", "Contattato", "In Trattativa", "Chiuso", "Non Interessato"] as const;
@@ -231,7 +232,7 @@ router.post("/leads/:id/convert", async (req, res): Promise<void> => {
       manual_content: "",
       email: normalizedEmail,
       pending_questions_count: 0,
-      invite_token: inviteToken,
+      invite_token: hashToken(inviteToken),
       invite_token_expires_at: inviteTokenExpiresAt,
     });
 

@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { randomBytes, createHash } from "crypto";
+import { randomBytes } from "crypto";
 import { logger } from "../lib/logger";
 import { requireCeoSession, getCeoPassword, issueCeoToken, verifyCeoPassword } from "../lib/ceo-session";
 import { getHostSessionSecret, verifyHostSessionToken, getHostTokenFromRequest } from "../lib/host-session";
@@ -7,6 +7,7 @@ import { hashHostPassword, HOST_PASSWORD_MIN_LENGTH_MESSAGE_IT, MIN_HOST_PASSWOR
 import { authRateLimiter } from "../lib/rateLimiter";
 import { supabaseAdmin } from "../lib/supabase";
 import { isHostWelcomeEmailConfigured, sendPasswordResetEmail } from "../lib/hostWelcomeMail";
+import { hashToken } from "../lib/tokens";
 
 const RESET_TOKEN_TTL_MS = 2 * 60 * 60 * 1000;
 
@@ -22,15 +23,6 @@ function isInviteTokenExpired(inviteTokenExpiresAt: string | null | undefined): 
   const t = new Date(inviteTokenExpiresAt).getTime();
   if (Number.isNaN(t)) return true;
   return Date.now() > t;
-}
-
-/**
- * properties.reset_token stores only this hash, never the plaintext — the
- * plaintext exists solely in the URL/email sent at generation time. Lookups
- * compare hash-to-hash instead of the raw token.
- */
-function hashResetToken(token: string): string {
-  return createHash("sha256").update(token, "utf8").digest("hex");
 }
 
 const router: IRouter = Router();
@@ -164,7 +156,7 @@ router.post("/auth/forgot-password", async (req, res): Promise<void> => {
     const { error: updErr } = await supabaseAdmin
       .from("properties")
       .update({
-        reset_token: hashResetToken(token),
+        reset_token: hashToken(token),
         reset_requested_at: new Date().toISOString(),
       })
       .eq("id", property.id);
@@ -219,7 +211,7 @@ router.get("/auth/reset-password/:token", async (req, res): Promise<void> => {
     const { data: property, error } = await supabaseAdmin
       .from("properties")
       .select("slug, name, reset_requested_at")
-      .eq("reset_token", hashResetToken(token))
+      .eq("reset_token", hashToken(token))
       .maybeSingle<{ slug: string; name: string; reset_requested_at: string | null }>();
 
     if (error) {
@@ -270,7 +262,7 @@ router.post("/auth/reset-password/:token", async (req, res): Promise<void> => {
     const { data: property, error: selErr } = await supabaseAdmin
       .from("properties")
       .select("id, slug, email, reset_requested_at")
-      .eq("reset_token", hashResetToken(token))
+      .eq("reset_token", hashToken(token))
       .maybeSingle<{ id: number; slug: string; email: string | null; reset_requested_at: string | null }>();
 
     if (selErr) {
@@ -361,7 +353,7 @@ router.get("/auth/setup-password/:token", async (req, res): Promise<void> => {
     const { data: property, error } = await supabaseAdmin
       .from("properties")
       .select("slug, name, invite_token_expires_at")
-      .eq("invite_token", token)
+      .eq("invite_token", hashToken(token))
       .maybeSingle<{ slug: string; name: string; invite_token_expires_at: string | null }>();
 
     if (error) {
@@ -412,7 +404,7 @@ router.post("/auth/setup-password/:token", async (req, res): Promise<void> => {
     const { data: property, error: selErr } = await supabaseAdmin
       .from("properties")
       .select("id, slug, email, invite_token_expires_at")
-      .eq("invite_token", token)
+      .eq("invite_token", hashToken(token))
       .maybeSingle<{
         id: number;
         slug: string;
