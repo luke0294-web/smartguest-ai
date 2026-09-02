@@ -18,6 +18,7 @@ import { hashHostPassword, HOST_PASSWORD_MIN_LENGTH_MESSAGE_IT, MIN_HOST_PASSWOR
 import { generateGuestQrDataUrl } from "../lib/generateQr";
 import { DEMO_SLUG, isReservedPropertySlug, parseDemoPropertyForGet } from "../lib/demoProperty";
 import { supabaseAdmin } from "../lib/supabase";
+import { upsertHostPassword } from "../lib/hostPasswordUpsert";
 import { isHostWelcomeEmailConfigured, sendHostWelcomeEmail } from "../lib/hostWelcomeMail";
 
 function isInviteTokenExpiredForResend(inviteTokenExpiresAt: string | null | undefined): boolean {
@@ -532,31 +533,16 @@ router.put("/properties/:slug/full-edit", async (req, res): Promise<void> => {
         return;
       } else if (effectiveEmail) {
         const hashed = await hashHostPassword(trimmedPw);
-        const { data: existingHost } = await supabaseAdmin
-          .from("hosts")
-          .select("email")
-          .eq("email", effectiveEmail)
-          .maybeSingle();
-
-        if (existingHost) {
-          const { error: hErr } = await supabaseAdmin
-            .from("hosts")
-            .update({ host_password: hashed })
-            .eq("email", effectiveEmail);
-          if (hErr) {
-            logger.error({ hErr }, "full-edit — update host password");
-            res.status(500).json({ error: "Impossibile aggiornare la password host." });
-            return;
-          }
-        } else {
-          const { error: hIns } = await supabaseAdmin
-            .from("hosts")
-            .insert({ email: effectiveEmail, host_password: hashed });
-          if (hIns) {
-            logger.error({ hIns }, "full-edit — insert host");
-            res.status(500).json({ error: "Impossibile creare l'host su Supabase." });
-            return;
-          }
+        const upsertResult = await upsertHostPassword(effectiveEmail, hashed);
+        if (!upsertResult.ok) {
+          logger.error({ err: upsertResult.error, op: upsertResult.op }, "full-edit — upsert host");
+          res.status(500).json({
+            error:
+              upsertResult.op === "update"
+                ? "Impossibile aggiornare la password host."
+                : "Impossibile creare l'host su Supabase.",
+          });
+          return;
         }
         propPatch.host_password = null;
       } else {
