@@ -13,6 +13,7 @@ import { authRateLimiter } from "../lib/rateLimiter";
 import { generateGuestQrDataUrl } from "../lib/generateQr";
 import { supabase, supabaseAdmin } from "../lib/supabase";
 import { propertyRowToCamel, type PropertyRowSnake } from "../lib/supabaseMaps";
+import { upsertHostPassword } from "../lib/hostPasswordUpsert";
 
 const router: IRouter = Router();
 
@@ -412,31 +413,16 @@ router.put("/properties/:slug/host-password", async (req, res): Promise<void> =>
     const ownerEmail = property.email?.trim().toLowerCase() || null;
 
     if (ownerEmail) {
-      const { data: existingHost } = await supabaseAdmin
-        .from("hosts")
-        .select("email")
-        .eq("email", ownerEmail)
-        .maybeSingle();
-
-      if (existingHost) {
-        const { error: uErr } = await supabaseAdmin
-          .from("hosts")
-          .update({ host_password: hashed })
-          .eq("email", ownerEmail);
-        if (uErr) {
-          logger.error({ uErr }, "host-password — update host");
-          res.status(500).json({ error: "Impossibile aggiornare la password host." });
-          return;
-        }
-      } else {
-        const { error: iErr } = await supabaseAdmin
-          .from("hosts")
-          .insert({ email: ownerEmail, host_password: hashed });
-        if (iErr) {
-          logger.error({ iErr }, "host-password — insert host");
-          res.status(500).json({ error: "Impossibile creare l'host su Supabase." });
-          return;
-        }
+      const upsertResult = await upsertHostPassword(ownerEmail, hashed);
+      if (!upsertResult.ok) {
+        logger.error({ err: upsertResult.error, op: upsertResult.op }, "host-password — upsert host");
+        res.status(500).json({
+          error:
+            upsertResult.op === "update"
+              ? "Impossibile aggiornare la password host."
+              : "Impossibile creare l'host su Supabase.",
+        });
+        return;
       }
 
       const { error: pErr } = await supabaseAdmin

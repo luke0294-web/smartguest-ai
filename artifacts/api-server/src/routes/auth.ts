@@ -7,6 +7,7 @@ import { hashHostPassword, HOST_PASSWORD_MIN_LENGTH_MESSAGE_IT, MIN_HOST_PASSWOR
 import { authRateLimiter } from "../lib/rateLimiter";
 import { supabaseAdmin } from "../lib/supabase";
 import { isHostWelcomeEmailConfigured, sendPasswordResetEmail } from "../lib/hostWelcomeMail";
+import { upsertHostPassword } from "../lib/hostPasswordUpsert";
 
 const RESET_TOKEN_TTL_MS = 2 * 60 * 60 * 1000;
 
@@ -294,31 +295,11 @@ router.post("/auth/reset-password/:token", async (req, res): Promise<void> => {
     const ownerEmail = property.email?.trim().toLowerCase() ?? null;
 
     if (ownerEmail) {
-      const { data: existingHost } = await supabaseAdmin
-        .from("hosts")
-        .select("email")
-        .eq("email", ownerEmail)
-        .maybeSingle();
-
-      if (existingHost) {
-        const { error: uErr } = await supabaseAdmin
-          .from("hosts")
-          .update({ host_password: hashed })
-          .eq("email", ownerEmail);
-        if (uErr) {
-          logger.error({ err: uErr }, "reset-password update host");
-          res.status(500).json({ error: "Errore interno del server" });
-          return;
-        }
-      } else {
-        const { error: iErr } = await supabaseAdmin
-          .from("hosts")
-          .insert({ email: ownerEmail, host_password: hashed });
-        if (iErr) {
-          logger.error({ err: iErr }, "reset-password insert host");
-          res.status(500).json({ error: "Errore interno del server" });
-          return;
-        }
+      const upsertResult = await upsertHostPassword(ownerEmail, hashed);
+      if (!upsertResult.ok) {
+        logger.error({ err: upsertResult.error, op: upsertResult.op }, "reset-password — upsert host");
+        res.status(500).json({ error: "Errore interno del server" });
+        return;
       }
     }
 
@@ -441,31 +422,11 @@ router.post("/auth/setup-password/:token", async (req, res): Promise<void> => {
     const ownerEmail = property.email?.trim().toLowerCase() ?? null;
 
     if (ownerEmail) {
-      const { data: existingHost } = await supabaseAdmin
-        .from("hosts")
-        .select("email")
-        .eq("email", ownerEmail)
-        .maybeSingle();
-
-      if (existingHost) {
-        const { error: uErr } = await supabaseAdmin
-          .from("hosts")
-          .update({ host_password: hashed })
-          .eq("email", ownerEmail);
-        if (uErr) {
-          logger.error({ err: uErr }, "setup-password update host");
-          res.status(500).json({ error: "Errore interno del server" });
-          return;
-        }
-      } else {
-        const { error: iErr } = await supabaseAdmin
-          .from("hosts")
-          .insert({ email: ownerEmail, host_password: hashed });
-        if (iErr) {
-          logger.error({ err: iErr }, "setup-password insert host");
-          res.status(500).json({ error: "Errore interno del server" });
-          return;
-        }
+      const upsertResult = await upsertHostPassword(ownerEmail, hashed);
+      if (!upsertResult.ok) {
+        logger.error({ err: upsertResult.error, op: upsertResult.op }, "setup-password — upsert host");
+        res.status(500).json({ error: "Errore interno del server" });
+        return;
       }
     }
 
