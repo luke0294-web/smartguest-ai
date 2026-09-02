@@ -1,6 +1,12 @@
 import { Router, type IRouter } from "express";
 import { randomBytes } from "node:crypto";
-import { HostPropertyResponse, HostPasswordParams, HostPasswordBody } from "@workspace/api-zod";
+import {
+  HostPropertyResponse,
+  HostPasswordParams,
+  HostPasswordBody,
+  HostUpdatePropertyParams,
+  HostUpdatePropertyBody,
+} from "@workspace/api-zod";
 import { logger } from "../lib/logger";
 import { requireCeoSession } from "../lib/ceo-session";
 import {
@@ -233,8 +239,20 @@ router.put("/host/:slug", async (req, res): Promise<void> => {
     const session = requireHostSession(req, res);
     if (!session) return;
 
-    const { slug } = req.params;
-    const { name, content, whatsappNumber, referralLinks } = req.body ?? {};
+    const params = HostUpdatePropertyParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: params.error.message });
+      return;
+    }
+
+    const body = HostUpdatePropertyBody.safeParse(req.body);
+    if (!body.success) {
+      res.status(400).json({ error: body.error.message });
+      return;
+    }
+
+    const { slug } = params.data;
+    const { name, content, whatsappNumber, referralLinks } = body.data;
     if (!(await requireHostOwnsPropertySlug(res, session, slug))) return;
 
     const { data: existing, error: selErr } = await supabaseAdmin

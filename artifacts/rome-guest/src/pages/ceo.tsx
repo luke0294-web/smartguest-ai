@@ -647,12 +647,35 @@ export default function CeoPanel() {
   const [hostsLoading, setHostsLoading] = useState(false);
   const [newHostEmail, setNewHostEmail] = useState("");
   const [newHostPassword, setNewHostPassword] = useState("");
+  const [showNewHostPassword, setShowNewHostPassword] = useState(false);
   const [hostFormMsg, setHostFormMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [hostFormSaving, setHostFormSaving] = useState(false);
   const [hostDeleting, setHostDeleting] = useState<Record<string, boolean>>({});
   const queryClient = useQueryClient();
 
   const ceoSessionHeaders = { "X-CEO-Session": ceoToken };
+
+  const handleCeoSessionExpired = () => {
+    sessionStorage.removeItem(CEO_SESSION_KEY);
+    setCeoToken("");
+    alert("Sessione non valida o scaduta. Accedi di nuovo.");
+  };
+
+  /**
+   * fetch() wrapper for CEO-only endpoints: merges the session header and
+   * redirects to login on 401 instead of leaving the tab silently stuck
+   * with no data and no way back.
+   */
+  const ceoFetch = async (path: string, options: RequestInit = {}): Promise<Response> => {
+    const res = await fetch(apiUrl(path), {
+      ...options,
+      headers: { ...ceoSessionHeaders, ...(options.headers ?? {}) },
+    });
+    if (res.status === 401) {
+      handleCeoSessionExpired();
+    }
+    return res;
+  };
 
   const { data: properties, isLoading: isListLoading, error: listError } = useListProperties({
     query: {
@@ -686,9 +709,7 @@ export default function CeoPanel() {
 
   useEffect(() => {
     if (listError && isHttp401(listError)) {
-      sessionStorage.removeItem(CEO_SESSION_KEY);
-      setCeoToken("");
-      alert("Sessione non valida o scaduta. Accedi di nuovo.");
+      handleCeoSessionExpired();
     }
   }, [listError]);
 
@@ -696,9 +717,16 @@ export default function CeoPanel() {
     if (!ceoToken) return;
     setLeadsLoading(true);
     try {
-      const res = await fetch(apiUrl("/api/leads"), { headers: ceoSessionHeaders });
+      const res = await ceoFetch("/api/leads");
+      if (res.status === 401) return;
       const data = await res.json();
-      if (res.ok) setLeads(data);
+      if (res.ok) {
+        setLeads(data);
+      } else {
+        toast({ title: "Errore", description: data.error ?? "Impossibile caricare i lead.", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Errore di rete", description: "Impossibile caricare i lead. Riprova.", variant: "destructive" });
     } finally {
       setLeadsLoading(false);
     }
@@ -714,9 +742,16 @@ export default function CeoPanel() {
     if (!ceoToken) return;
     setResetsLoading(true);
     try {
-      const res = await fetch(apiUrl("/api/auth/resets"), { headers: ceoSessionHeaders });
+      const res = await ceoFetch("/api/auth/resets");
+      if (res.status === 401) return;
       const data = await res.json();
-      if (res.ok) setResetRequests(data);
+      if (res.ok) {
+        setResetRequests(data);
+      } else {
+        toast({ title: "Errore", description: data.error ?? "Impossibile caricare i reset pendenti.", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Errore di rete", description: "Impossibile caricare i reset pendenti. Riprova.", variant: "destructive" });
     } finally {
       setResetsLoading(false);
     }
@@ -725,11 +760,15 @@ export default function CeoPanel() {
   const cancelReset = async (slug: string) => {
     setCancellingReset(slug);
     try {
-      await fetch(apiUrl(`/api/auth/resets/${slug}`), {
-        method: "DELETE",
-        headers: { ...ceoSessionHeaders },
-      });
-      setResetRequests((prev) => prev.filter((r) => r.slug !== slug));
+      const res = await ceoFetch(`/api/auth/resets/${slug}`, { method: "DELETE" });
+      if (res.status === 401) return;
+      if (res.ok) {
+        setResetRequests((prev) => prev.filter((r) => r.slug !== slug));
+      } else {
+        toast({ title: "Errore", description: "Impossibile annullare il reset. Riprova.", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Errore di rete", description: "Impossibile annullare il reset. Riprova.", variant: "destructive" });
     } finally {
       setCancellingReset(null);
     }
@@ -818,9 +857,16 @@ export default function CeoPanel() {
     if (!ceoToken) return;
     setHostsLoading(true);
     try {
-      const res = await fetch(apiUrl("/api/admin/hosts"), { headers: ceoSessionHeaders });
+      const res = await ceoFetch("/api/admin/hosts");
+      if (res.status === 401) return;
       const data = await res.json();
-      if (res.ok) setHosts(data);
+      if (res.ok) {
+        setHosts(data);
+      } else {
+        toast({ title: "Errore", description: data.error ?? "Impossibile caricare gli host.", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Errore di rete", description: "Impossibile caricare gli host. Riprova.", variant: "destructive" });
     } finally {
       setHostsLoading(false);
     }
@@ -896,11 +942,16 @@ export default function CeoPanel() {
     if (!window.confirm(`Sei sicuro di voler eliminare l'host ${email}?`)) return;
     setHostDeleting((prev) => ({ ...prev, [email]: true }));
     try {
-      await fetch(apiUrl(`/api/admin/hosts/${encodeURIComponent(email)}`), {
-        method: "DELETE",
-        headers: { ...ceoSessionHeaders },
-      });
-      setHosts((prev) => prev.filter((h) => h.email !== email));
+      const res = await ceoFetch(`/api/admin/hosts/${encodeURIComponent(email)}`, { method: "DELETE" });
+      if (res.status === 401) return;
+      if (res.ok) {
+        setHosts((prev) => prev.filter((h) => h.email !== email));
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast({ title: "Errore", description: data.error ?? "Impossibile eliminare l'host.", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Errore di rete", description: "Impossibile eliminare l'host. Riprova.", variant: "destructive" });
     } finally {
       setHostDeleting((prev) => { const n = { ...prev }; delete n[email]; return n; });
     }
@@ -1862,14 +1913,24 @@ export default function CeoPanel() {
                         <label className="text-sm font-semibold text-foreground flex items-center gap-1.5">
                           <KeyRound className="w-3.5 h-3.5 text-indigo-500" /> Password Host
                         </label>
-                        <input
-                          type="text"
-                          value={newHostPassword}
-                          onChange={(e) => { setNewHostPassword(e.target.value); setHostFormMsg(null); }}
-                          placeholder="Minimo 8 caratteri"
-                          minLength={8}
-                          className="w-full bg-background border border-border px-4 py-2.5 rounded-xl focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all font-mono text-sm"
-                        />
+                        <div className="relative">
+                          <input
+                            type={showNewHostPassword ? "text" : "password"}
+                            value={newHostPassword}
+                            onChange={(e) => { setNewHostPassword(e.target.value); setHostFormMsg(null); }}
+                            placeholder="Minimo 8 caratteri"
+                            minLength={8}
+                            autoComplete="new-password"
+                            className="w-full bg-background border border-border px-4 py-2.5 pr-10 rounded-xl focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all font-mono text-sm"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowNewHostPassword((prev) => !prev)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            {showNewHostPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
                       </div>
 
                       {hostFormMsg && (

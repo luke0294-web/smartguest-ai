@@ -108,6 +108,24 @@ export const HostPasswordBody = zod.object({
     .min(updatePropertyBodyHostPasswordMin, "La password deve contenere almeno 8 caratteri"),
 });
 
+/**
+ * @summary Host self-service property update (host session only) — not part
+ * of the OpenAPI spec yet, kept here alongside the other property schemas.
+ */
+export const HostUpdatePropertyParams = zod.object({
+  slug: zod.coerce.string(),
+});
+
+export const HostUpdatePropertyBody = zod.object({
+  name: zod.string().optional(),
+  content: zod
+    .string()
+    .max(createPropertyBodyContentMax, "Il manuale casa non può superare 20.000 caratteri")
+    .optional(),
+  whatsappNumber: zod.string().optional(),
+  referralLinks: zod.string().optional(),
+});
+
 export const UpdatePropertyBody = zod.object({
   hostPassword: zod
     .string()

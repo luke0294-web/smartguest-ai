@@ -20,13 +20,7 @@ import { DEMO_SLUG, isReservedPropertySlug, parseDemoPropertyForGet } from "../l
 import { supabaseAdmin } from "../lib/supabase";
 import { upsertHostPassword } from "../lib/hostPasswordUpsert";
 import { isHostWelcomeEmailConfigured, sendHostWelcomeEmail } from "../lib/hostWelcomeMail";
-
-function isInviteTokenExpiredForResend(inviteTokenExpiresAt: string | null | undefined): boolean {
-  if (inviteTokenExpiresAt == null || String(inviteTokenExpiresAt).trim() === "") return true;
-  const t = new Date(inviteTokenExpiresAt).getTime();
-  if (Number.isNaN(t)) return true;
-  return Date.now() > t;
-}
+import { hashToken } from "../lib/tokens";
 
 type SupabasePropertyRowPublic = {
   id: number | string;
@@ -120,38 +114,23 @@ function mapSupabaseRowToPropertyCore(row: SupabasePropertyRowPublic): PropertyC
   };
 }
 
-/** Matches UUID-shaped primary keys (some deployments use uuid for `properties.id`). */
-const UUID_PROPERTY_ID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
 /**
  * Public guest read: uses service role (same as chat) so RLS cannot block listing by slug.
- * Tries `slug` first, then numeric `id`, then UUID `id`.
+ * Slug-only by design: `properties.id` is a sequential integer, and accepting it here
+ * would let anyone enumerate every tenant's property (name, full house manual, host
+ * WhatsApp number) by looping numeric IDs instead of needing the actual slug/QR link.
  */
-async function loadPropertyBySlugOrId(segment: string): Promise<{
+async function loadPropertyBySlug(segment: string): Promise<{
   row: SupabasePropertyRowPublic | null;
   error: { message: string } | null;
 }> {
-  const from = () => supabaseAdmin.from("properties").select("*");
-
-  const bySlug = await from().eq("slug", segment).maybeSingle<SupabasePropertyRowPublic>();
+  const bySlug = await supabaseAdmin
+    .from("properties")
+    .select("*")
+    .eq("slug", segment)
+    .maybeSingle<SupabasePropertyRowPublic>();
   if (bySlug.data) return { row: bySlug.data, error: null };
   if (bySlug.error) return { row: null, error: bySlug.error };
-
-  if (/^\d+$/.test(segment)) {
-    const idNum = parseInt(segment, 10);
-    if (!Number.isNaN(idNum) && idNum > 0) {
-      const byId = await from().eq("id", idNum).maybeSingle<SupabasePropertyRowPublic>();
-      if (byId.data) return { row: byId.data, error: null };
-      if (byId.error) return { row: null, error: byId.error };
-    }
-  }
-
-  if (UUID_PROPERTY_ID_RE.test(segment)) {
-    const byUuid = await from().eq("id", segment).maybeSingle<SupabasePropertyRowPublic>();
-    if (byUuid.data) return { row: byUuid.data, error: null };
-    if (byUuid.error) return { row: null, error: byUuid.error };
-  }
 
   return { row: null, error: null };
 }
@@ -345,7 +324,7 @@ router.get("/properties/:slug", async (req, res): Promise<void> => {
     }
 
     const segment = params.data.slug.trim();
-    const { row, error: supabaseError } = await loadPropertyBySlugOrId(segment);
+    const { row, error: supabaseError } = await loadPropertyBySlug(segment);
 
     if (supabaseError || !row) {
       logger.warn(
@@ -617,14 +596,12 @@ router.post("/properties/:slug/resend-host-welcome", async (req, res): Promise<v
   try {
     const { data: row, error } = await supabaseAdmin
       .from("properties")
-      .select("slug, name, email, invite_token, invite_token_expires_at")
+      .select("slug, name, email")
       .eq("slug", slug)
       .maybeSingle<{
         slug: string;
         name: string;
         email: string | null;
-        invite_token: string | null;
-        invite_token_expires_at: string | null;
       }>();
 
     if (error) {
@@ -643,25 +620,23 @@ router.post("/properties/:slug/resend-host-welcome", async (req, res): Promise<v
       return;
     }
 
-    let inviteToken = row.invite_token?.trim() ?? "";
-    const needsNewToken = !inviteToken || isInviteTokenExpiredForResend(row.invite_token_expires_at);
+    // Always issue a fresh invite token: invite_token is hashed at rest (like
+    // reset_token), so the previous plaintext can't be recovered to resend it
+    // unchanged. This also invalidates any not-yet-used earlier link.
+    const inviteToken = randomBytes(32).toString("hex");
+    const inviteTokenExpiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+    const { error: upErr } = await supabaseAdmin
+      .from("properties")
+      .update({
+        invite_token: hashToken(inviteToken),
+        invite_token_expires_at: inviteTokenExpiresAt,
+      })
+      .eq("slug", slug);
 
-    if (needsNewToken) {
-      inviteToken = randomBytes(32).toString("hex");
-      const inviteTokenExpiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
-      const { error: upErr } = await supabaseAdmin
-        .from("properties")
-        .update({
-          invite_token: inviteToken,
-          invite_token_expires_at: inviteTokenExpiresAt,
-        })
-        .eq("slug", slug);
-
-      if (upErr) {
-        logger.error({ upErr, slug }, "resend-host-welcome token update");
-        res.status(500).json({ error: "Impossibile aggiornare il token invito." });
-        return;
-      }
+    if (upErr) {
+      logger.error({ upErr, slug }, "resend-host-welcome token update");
+      res.status(500).json({ error: "Impossibile aggiornare il token invito." });
+      return;
     }
 
     const displayName = row.email.trim().split("@")[0] || "Host";
