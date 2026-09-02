@@ -600,14 +600,32 @@ router.post("/super-diario/:slug/refresh-all", async (req, res): Promise<void> =
       return;
     }
 
+    const resolvedIds: number[] = [];
+    const unresolvedIds: number[] = [];
     for (const log of logs ?? []) {
       const isHostFallback = shouldIncrementPendingQuestions(log.marco_reply);
       const resolved = isHostFallback ? false : !detectNeedsAttention(log.marco_reply);
+      (resolved ? resolvedIds : unresolvedIds).push(log.id);
+    }
 
+    if (resolvedIds.length > 0) {
       const { error: updErr } = await supabaseAdmin
         .from("chat_logs")
-        .update({ resolved })
-        .eq("id", log.id);
+        .update({ resolved: true })
+        .in("id", resolvedIds);
+
+      if (updErr) {
+        console.error("[ERRORE CRITICO] refresh-all update:", updErr);
+        res.status(500).json({ error: "Impossibile fare il refresh." });
+        return;
+      }
+    }
+
+    if (unresolvedIds.length > 0) {
+      const { error: updErr } = await supabaseAdmin
+        .from("chat_logs")
+        .update({ resolved: false })
+        .in("id", unresolvedIds);
 
       if (updErr) {
         console.error("[ERRORE CRITICO] refresh-all update:", updErr);

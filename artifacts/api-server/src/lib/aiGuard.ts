@@ -10,6 +10,20 @@ const PROD_MAX_PER_MINUTE = 60;
 const PROD_WINDOW_MS = 60_000;
 const prodRateTimestampsBySession = new Map<string, number[]>();
 
+/** Periodic full cleanup so keys with no recent activity don't accumulate forever. */
+function pruneProdRateTimestamps(): void {
+  const cutoff = Date.now() - PROD_WINDOW_MS;
+  for (const [key, timestamps] of prodRateTimestampsBySession) {
+    const recent = timestamps.filter((t) => t > cutoff);
+    if (recent.length === 0) {
+      prodRateTimestampsBySession.delete(key);
+    } else {
+      prodRateTimestampsBySession.set(key, recent);
+    }
+  }
+}
+setInterval(pruneProdRateTimestamps, 10 * 60 * 1000).unref();
+
 const aiMessageCountByKey = new Map<string, number>();
 const aiCounterCleanupTimers = new Map<string, ReturnType<typeof setTimeout>>();
 

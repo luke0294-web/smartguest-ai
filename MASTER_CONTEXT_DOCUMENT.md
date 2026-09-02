@@ -259,7 +259,7 @@ In-memory sliding window per IP (not shared across API instances):
 | Mode | Rule |
 |------|------|
 | Demo slug | 12 messages / hour per key: `sessionId` body → `x-session-id` header → IP fallback |
-| Production | 60 req / minute per `x-session-id` header only; **no header = no session limit** |
+| Production | 60 req / minute per `x-session-id` header; **no header = fallback to per-IP limit** (fail closed, not open) |
 
 TTL: demo counter resets after 1 hour (in-memory).
 

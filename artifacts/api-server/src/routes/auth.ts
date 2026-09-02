@@ -53,7 +53,7 @@ router.post("/auth/ceo-login", async (req, res): Promise<void> => {
     const token = issueCeoToken();
     res.json({ token });
   } catch (error) {
-    console.error("[ERRORE CRITICO]", error);
+    logger.error({ err: error }, "auth/ceo-login");
     if (!res.headersSent) {
       res.status(500).json({ error: "Errore interno del server" });
     }
@@ -90,7 +90,7 @@ router.get("/auth/host/me", async (req, res): Promise<void> => {
       .order("name");
 
     if (error) {
-      console.error("[ERRORE CRITICO] GET /auth/host/me:", error);
+      logger.error({ err: error }, "GET /auth/host/me");
       res.status(500).json({ error: "Errore interno del server" });
       return;
     }
@@ -104,7 +104,7 @@ router.get("/auth/host/me", async (req, res): Promise<void> => {
 
     res.json({ email: payload.email, properties });
   } catch (error) {
-    console.error("[ERRORE CRITICO]", error);
+    logger.error({ err: error }, "GET /auth/host/me");
     if (!res.headersSent) {
       res.status(500).json({ error: "Errore interno del server" });
     }
@@ -141,7 +141,7 @@ router.post("/auth/forgot-password", async (req, res): Promise<void> => {
       .maybeSingle<{ id: number; slug: string; name: string }>();
 
     if (selErr) {
-      console.error("[ERRORE CRITICO] forgot-password select:", selErr);
+      logger.error({ err: selErr }, "forgot-password select");
       res.status(500).json({ error: "Errore interno del server" });
       return;
     }
@@ -163,7 +163,7 @@ router.post("/auth/forgot-password", async (req, res): Promise<void> => {
       .eq("id", property.id);
 
     if (updErr) {
-      console.error("[ERRORE CRITICO] forgot-password update:", updErr);
+      logger.error({ err: updErr }, "forgot-password update");
       res.status(500).json({ error: "Errore interno del server" });
       return;
     }
@@ -178,7 +178,6 @@ router.post("/auth/forgot-password", async (req, res): Promise<void> => {
           resetToken: token,
         });
       } catch (mailErr) {
-        console.error("[ERRORE CRITICO] forgot-password send email:", mailErr);
         logger.error(
           { mailErr, slug: property.slug, email: normalizedEmail },
           "Forgot password — email send failed",
@@ -192,7 +191,7 @@ router.post("/auth/forgot-password", async (req, res): Promise<void> => {
 
     res.json({ success: true });
   } catch (error) {
-    console.error("[ERRORE CRITICO]", error);
+    logger.error({ err: error }, "forgot-password");
     if (!res.headersSent) {
       res.status(500).json({ error: "Errore interno del server" });
     }
@@ -216,7 +215,7 @@ router.get("/auth/reset-password/:token", async (req, res): Promise<void> => {
       .maybeSingle<{ slug: string; name: string; reset_requested_at: string | null }>();
 
     if (error) {
-      console.error("[ERRORE CRITICO] reset-password GET:", error);
+      logger.error({ err: error }, "reset-password GET");
       res.status(500).json({ valid: false, error: "Errore interno del server" });
       return;
     }
@@ -227,7 +226,7 @@ router.get("/auth/reset-password/:token", async (req, res): Promise<void> => {
     }
 
     if (isPasswordResetTokenExpired(property.reset_requested_at)) {
-      console.error("[ERRORE CRITICO] Token reset scaduto", { tokenSuffix: token.slice(-6) });
+      logger.warn({ tokenSuffix: token.slice(-6) }, "Token reset scaduto");
       res.status(410).json({
         valid: false,
         error: "Token scaduto. Richiedi un nuovo reset.",
@@ -237,7 +236,7 @@ router.get("/auth/reset-password/:token", async (req, res): Promise<void> => {
 
     res.json({ valid: true, propertyName: property.name, slug: property.slug });
   } catch (error) {
-    console.error("[ERRORE CRITICO]", error);
+    logger.error({ err: error }, "reset-password GET");
     if (!res.headersSent) {
       res.status(500).json({ valid: false, error: "Errore interno del server" });
     }
@@ -267,7 +266,7 @@ router.post("/auth/reset-password/:token", async (req, res): Promise<void> => {
       .maybeSingle<{ id: number; slug: string; email: string | null; reset_requested_at: string | null }>();
 
     if (selErr) {
-      console.error("[ERRORE CRITICO] reset-password POST select:", selErr);
+      logger.error({ err: selErr }, "reset-password POST select");
       res.status(500).json({ error: "Errore interno del server" });
       return;
     }
@@ -278,7 +277,7 @@ router.post("/auth/reset-password/:token", async (req, res): Promise<void> => {
     }
 
     if (isPasswordResetTokenExpired(property.reset_requested_at)) {
-      console.error("[ERRORE CRITICO] Token reset scaduto", { tokenSuffix: token.slice(-6) });
+      logger.warn({ tokenSuffix: token.slice(-6) }, "Token reset scaduto");
       res.status(410).json({ error: "Token scaduto. Richiedi un nuovo reset." });
       return;
     }
@@ -290,7 +289,7 @@ router.post("/auth/reset-password/:token", async (req, res): Promise<void> => {
     if (ownerEmail) {
       const upsertResult = await upsertHostPassword(ownerEmail, hashed);
       if (!upsertResult.ok) {
-        console.error(`[ERRORE CRITICO] reset-password ${upsertResult.op} host:`, upsertResult.error);
+        logger.error({ err: upsertResult.error, op: upsertResult.op }, "reset-password — upsert host");
         res.status(500).json({ error: "Errore interno del server" });
         return;
       }
@@ -306,7 +305,7 @@ router.post("/auth/reset-password/:token", async (req, res): Promise<void> => {
       .eq("id", property.id);
 
     if (pErr) {
-      console.error("[ERRORE CRITICO] reset-password update property:", pErr);
+      logger.error({ err: pErr }, "reset-password update property");
       res.status(500).json({ error: "Errore interno del server" });
       return;
     }
@@ -314,7 +313,7 @@ router.post("/auth/reset-password/:token", async (req, res): Promise<void> => {
     logger.info({ slug: property.slug }, "Host password reset via token");
     res.json({ success: true, slug: property.slug });
   } catch (error) {
-    console.error("[ERRORE CRITICO]", error);
+    logger.error({ err: error }, "reset-password POST");
     if (!res.headersSent) {
       res.status(500).json({ error: "Errore interno del server" });
     }
@@ -338,7 +337,7 @@ router.get("/auth/setup-password/:token", async (req, res): Promise<void> => {
       .maybeSingle<{ slug: string; name: string; invite_token_expires_at: string | null }>();
 
     if (error) {
-      console.error("[ERRORE CRITICO] setup-password GET:", error);
+      logger.error({ err: error }, "setup-password GET");
       res.status(500).json({ valid: false, error: "Errore interno del server" });
       return;
     }
@@ -349,7 +348,7 @@ router.get("/auth/setup-password/:token", async (req, res): Promise<void> => {
     }
 
     if (isInviteTokenExpired(property.invite_token_expires_at)) {
-      console.error("[ERRORE CRITICO] Token invito scaduto", { tokenSuffix: token.slice(-6) });
+      logger.warn({ tokenSuffix: token.slice(-6) }, "Token invito scaduto");
       res.status(410).json({
         valid: false,
         error: "Token scaduto. Richiedi un nuovo invito al gestore.",
@@ -359,7 +358,7 @@ router.get("/auth/setup-password/:token", async (req, res): Promise<void> => {
 
     res.json({ valid: true, propertyName: property.name, slug: property.slug });
   } catch (error) {
-    console.error("[ERRORE CRITICO]", error);
+    logger.error({ err: error }, "setup-password GET");
     if (!res.headersSent) {
       res.status(500).json({ valid: false, error: "Errore interno del server" });
     }
@@ -394,7 +393,7 @@ router.post("/auth/setup-password/:token", async (req, res): Promise<void> => {
       }>();
 
     if (selErr) {
-      console.error("[ERRORE CRITICO] setup-password POST select:", selErr);
+      logger.error({ err: selErr }, "setup-password POST select");
       res.status(500).json({ error: "Errore interno del server" });
       return;
     }
@@ -405,7 +404,7 @@ router.post("/auth/setup-password/:token", async (req, res): Promise<void> => {
     }
 
     if (isInviteTokenExpired(property.invite_token_expires_at)) {
-      console.error("[ERRORE CRITICO] Token invito scaduto", { tokenSuffix: token.slice(-6) });
+      logger.warn({ tokenSuffix: token.slice(-6) }, "Token invito scaduto");
       res.status(410).json({ error: "Token scaduto. Richiedi un nuovo invito al gestore." });
       return;
     }
@@ -417,7 +416,7 @@ router.post("/auth/setup-password/:token", async (req, res): Promise<void> => {
     if (ownerEmail) {
       const upsertResult = await upsertHostPassword(ownerEmail, hashed);
       if (!upsertResult.ok) {
-        console.error(`[ERRORE CRITICO] setup-password ${upsertResult.op} host:`, upsertResult.error);
+        logger.error({ err: upsertResult.error, op: upsertResult.op }, "setup-password — upsert host");
         res.status(500).json({ error: "Errore interno del server" });
         return;
       }
@@ -433,7 +432,7 @@ router.post("/auth/setup-password/:token", async (req, res): Promise<void> => {
       .eq("id", property.id);
 
     if (pErr) {
-      console.error("[ERRORE CRITICO] setup-password update property:", pErr);
+      logger.error({ err: pErr }, "setup-password update property");
       res.status(500).json({ error: "Errore interno del server" });
       return;
     }
@@ -441,7 +440,7 @@ router.post("/auth/setup-password/:token", async (req, res): Promise<void> => {
     logger.info({ slug: property.slug }, "Host password impostata via invite token");
     res.json({ success: true, slug: property.slug });
   } catch (error) {
-    console.error("[ERRORE CRITICO]", error);
+    logger.error({ err: error }, "setup-password POST");
     if (!res.headersSent) {
       res.status(500).json({ error: "Errore interno del server" });
     }
@@ -459,7 +458,6 @@ router.get("/auth/resets", async (req, res): Promise<void> => {
       .not("reset_token", "is", null);
 
     if (error) {
-      console.error("[ERRORE CRITICO] GET /auth/resets:", error);
       logger.error({ error }, "GET /auth/resets");
       res.status(500).json({ error: "Impossibile caricare i reset pendenti." });
       return;
@@ -475,7 +473,7 @@ router.get("/auth/resets", async (req, res): Promise<void> => {
 
     res.json(pending);
   } catch (error) {
-    console.error("[ERRORE CRITICO]", error);
+    logger.error({ err: error }, "GET /auth/resets");
     if (!res.headersSent) {
       res.status(500).json({ error: "Errore interno del server" });
     }
@@ -495,7 +493,6 @@ router.delete("/auth/resets/:slug", async (req, res): Promise<void> => {
       .eq("slug", slug);
 
     if (error) {
-      console.error("[ERRORE CRITICO] DELETE /auth/resets:", error);
       logger.error({ error, slug }, "DELETE /auth/resets");
       res.status(500).json({ error: "Impossibile annullare il reset." });
       return;
@@ -504,7 +501,7 @@ router.delete("/auth/resets/:slug", async (req, res): Promise<void> => {
     logger.info({ slug }, "Reset token cancelled by CEO");
     res.json({ success: true });
   } catch (error) {
-    console.error("[ERRORE CRITICO]", error);
+    logger.error({ err: error }, "DELETE /auth/resets");
     if (!res.headersSent) {
       res.status(500).json({ error: "Errore interno del server" });
     }

@@ -61,10 +61,5 @@ export function detectNeedsAttention(marcoReply: string): boolean {
     }
   }
 
-  // 3. Pattern aggiuntivo: "I" + "sorry" (es: "I'm sorry, we...")
-  if (normalized.includes("i") && normalized.includes("sorry")) {
-    return true;
-  }
-
   return false;
 }

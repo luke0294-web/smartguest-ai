@@ -127,14 +127,6 @@ export const HostUpdatePropertyBody = zod.object({
 });
 
 export const UpdatePropertyBody = zod.object({
-  hostPassword: zod
-    .string()
-    .min(
-      updatePropertyBodyHostPasswordMin,
-      "La password deve contenere almeno 8 caratteri",
-    )
-    .optional()
-    .describe("Property-specific host password (minimum 8 characters when provided)"),
   name: zod.string().optional(),
   content: zod
     .string()
@@ -209,9 +201,10 @@ export const SendPropertyChatBody = zod.object({
     .array(
       zod.object({
         role: zod.enum(["user", "assistant"]),
-        content: zod.string(),
+        content: zod.string().max(2000),
       }),
     )
+    .max(20)
     .optional(),
   language: zod.string().optional(),
   /** Demo chat only: city id (e.g. roma, milano) for localized AI context */

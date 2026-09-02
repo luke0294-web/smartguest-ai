@@ -2,9 +2,9 @@ import { useEffect, useState } from "react";
 import { useParams, Link, useLocation } from "wouter";
 import ReactMarkdown from "react-markdown";
 import { ArrowLeft, BookOpen, Loader2, MessageCircle, Bot, Calendar, AlertTriangle, CheckCircle2, Eraser } from "lucide-react";
-import { detectNeedsAttention } from "../lib/detectNeedsAttention";
 import { apiUrl } from "@/lib/apiUrl";
 import { clearHostSession, getHostSession } from "@/lib/hostSession";
+import { toast } from "@/hooks/use-toast";
 
 interface ChatLog {
   id: number;
@@ -109,7 +109,11 @@ export default function DiarioDiBordo() {
       if (!res.ok) throw new Error("Errore nel salvataggio");
       setLogs((prev) => prev.map((log) => (log.id === id ? { ...log, resolved: true } : log)));
     } catch {
-      // silently fail — UI will retain previous state
+      toast({
+        title: "Errore",
+        description: "Non è stato possibile segnare il messaggio come gestito. Riprova.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -140,21 +144,25 @@ export default function DiarioDiBordo() {
       if (!res.ok) throw new Error("Errore nel salvataggio");
       setLogs((prev) => prev.map((log) => ({ ...log, resolved: true })));
     } catch {
-      // keep previous state
+      toast({
+        title: "Errore",
+        description: "Non è stato possibile segnare tutti i messaggi come gestiti. Riprova.",
+        variant: "destructive",
+      });
     } finally {
       setIsResolvingAll(false);
     }
   };
 
+  // `resolved` è già calcolato lato backend (con il contesto LLM completo) al momento
+  // del salvataggio del log — non lo ricalcoliamo qui per evitare che le due euristiche divergano.
   const pendingLogs = logs
-    .filter((l) => !l.resolved && detectNeedsAttention(l.marcoReply))
+    .filter((l) => !l.resolved)
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  const resolvedLogs = logs.filter((l) => l.resolved);
-  const successLogs = logs.filter((l) => !l.resolved && !detectNeedsAttention(l.marcoReply));
 
-  const historyLogs = [...successLogs, ...resolvedLogs].sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-  );
+  const historyLogs = logs
+    .filter((l) => l.resolved)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   return (
     <div className="min-h-[100dvh] bg-gradient-to-br from-slate-50 to-blue-50 py-8 px-4">
