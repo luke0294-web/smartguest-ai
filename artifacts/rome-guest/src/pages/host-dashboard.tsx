@@ -105,6 +105,7 @@ export default function HostDashboard() {
   const [isSaving, setIsSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveAbortControllerRef = useRef<AbortController | null>(null);
   const [aiState, setAiState] = useState<AiState>({ type: "idle" });
   const [pendingCount, setPendingCount] = useState(0);
 
@@ -244,6 +245,14 @@ export default function HostDashboard() {
 
   const handleUpdate = async (data: UpdateValues) => {
     if (!session) return;
+
+    // Abort any save still in flight so at most one PUT is ever pending — otherwise
+    // an older, superseded response could land after a newer one and either overwrite
+    // it client-side or race it server-side.
+    saveAbortControllerRef.current?.abort();
+    const controller = new AbortController();
+    saveAbortControllerRef.current = controller;
+
     setIsSaving(true);
     try {
       const res = await fetch(apiUrl(`/api/host/${slug}`), {
@@ -253,17 +262,29 @@ export default function HostDashboard() {
           Authorization: `Bearer ${session.sessionToken}`,
         },
         body: JSON.stringify(data),
+        signal: controller.signal,
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Errore nel salvataggio.");
-      updateForm.reset(data);
+
+      // Only clear the dirty state if the form still matches what we just saved —
+      // if the host kept typing while this request was in flight, resetting here
+      // would silently discard those keystrokes. Leaving isDirty true lets the
+      // next debounce cycle pick up and save the newer content instead.
+      if (JSON.stringify(updateForm.getValues()) === JSON.stringify(data)) {
+        updateForm.reset(data);
+      }
+
       if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
       setIsSaved(true);
       savedTimerRef.current = setTimeout(() => setIsSaved(false), 3000);
     } catch (err: unknown) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
       alert(getErrorMessage(err, "Errore nel salvataggio."));
     } finally {
-      setIsSaving(false);
+      if (saveAbortControllerRef.current === controller) {
+        setIsSaving(false);
+      }
     }
   };
 

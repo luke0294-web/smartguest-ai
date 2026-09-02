@@ -130,6 +130,12 @@ function QrModal({
     };
   }, [base, property.slug, ceoSessionHeaders]);
 
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    };
+  }, []);
+
   const buildPdfDocument = (): jsPDF => {
     if (!qrCodeBase64) throw new Error("QR Code non trovato");
 
@@ -624,6 +630,13 @@ export default function CeoPanel() {
   const [cancellingReset, setCancellingReset] = useState<string | null>(null);
   const [editingSlug, setEditingSlug] = useState<string | null>(null);
   const [inlineEdit, setInlineEdit] = useState<InlineEditState>({ name: "", slug: "", hostPassword: "", email: "", saving: false, saved: false, error: "" });
+  const inlineEditTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (inlineEditTimerRef.current) clearTimeout(inlineEditTimerRef.current);
+    };
+  }, []);
   const [showInlineHostPassword, setShowInlineHostPassword] = useState(false);
   const [contentModal, setContentModal] = useState<{ name: string; slug: string; content?: string | null } | null>(null);
   const [leadDeleting, setLeadDeleting] = useState<Record<number, boolean>>({});
@@ -1053,7 +1066,8 @@ export default function CeoPanel() {
       }
       setInlineEdit((prev) => ({ ...prev, saving: false, saved: true, error: "" }));
       queryClient.invalidateQueries({ queryKey: getListPropertiesQueryKey() });
-      setTimeout(() => {
+      if (inlineEditTimerRef.current) clearTimeout(inlineEditTimerRef.current);
+      inlineEditTimerRef.current = setTimeout(() => {
         setEditingSlug(null);
         setInlineEdit({ name: "", slug: "", hostPassword: "", email: "", saving: false, saved: false, error: "" });
       }, 1800);
