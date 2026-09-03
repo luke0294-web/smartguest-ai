@@ -13,6 +13,20 @@ tags:
     description: Property management
   - name: chat
     description: Guest chat operations
+  - name: diario
+    description: Super-diario (chat log review) — host tools
+  - name: host
+    description: Host dashboard self-service
+  - name: auth
+    description: CEO and host authentication, password reset/setup
+  - name: ai
+    description: AI-assisted host tools (transcription, vision)
+  - name: leads
+    description: Public lead capture and CEO pipeline management
+  - name: admin
+    description: CEO host account administration
+  - name: misc
+    description: Miscellaneous endpoints
 
 paths:
   /healthz:
@@ -220,6 +234,1448 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /super-diario/{slug}:
+    get:
+      operationId: getSuperDiario
+      tags: [diario]
+      summary: List all chat logs for a property (host only)
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/HostSessionHeader"
+      responses:
+        "200":
+          description: Chat logs, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ChatLog"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Not the owner of this property
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /super-diario/{slug}/unresolved-count:
+    get:
+      operationId: getSuperDiarioUnresolvedCount
+      tags: [diario]
+      summary: Count of unresolved chat logs for a property (host only)
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/HostSessionHeader"
+      responses:
+        "200":
+          description: Unresolved count
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+                required:
+                  - count
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Not the owner of this property
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /super-diario/{slug}/resolve/{id}:
+    patch:
+      operationId: resolveSuperDiarioLog
+      tags: [diario]
+      summary: Mark a single chat log as resolved (host only)
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - $ref: "#/components/parameters/HostSessionHeader"
+      responses:
+        "200":
+          description: Log marked resolved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Invalid id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Not the owner of this property
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /super-diario/{slug}/refresh-all:
+    post:
+      operationId: refreshSuperDiario
+      tags: [diario]
+      summary: |
+        Recompute the resolved/unresolved status of every chat log for a
+        property using the current detection logic (host only)
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/HostSessionHeader"
+      responses:
+        "200":
+          description: Diario refreshed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                required:
+                  - message
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Not the owner of this property
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /properties/{slug}/full-edit:
+    put:
+      operationId: fullEditProperty
+      tags: [properties]
+      summary: Inline full edit of a property — name, slug, host password, owner email (CEO only)
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/CeoSessionHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FullEditPropertyRequest"
+      responses:
+        "200":
+          description: Property updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Property"
+        "400":
+          description: Bad request (e.g. host password too short)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Property not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: New slug reserved or already in use
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /properties/{slug}/resend-host-welcome:
+    post:
+      operationId: resendHostWelcome
+      tags: [properties]
+      summary: |
+        Resend the host welcome email with a fresh invite token, invalidating
+        any previous unused invite link (CEO only)
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/CeoSessionHeader"
+      responses:
+        "200":
+          description: Email resent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Missing slug, demo property, or property has no owner email
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Transactional email not configured on the server
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /properties/{slug}/host-password:
+    put:
+      operationId: setHostPassword
+      tags: [host]
+      summary: Set or reset the host password for a property (CEO only)
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/CeoSessionHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetHostPasswordRequest"
+      responses:
+        "200":
+          description: Password set
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  slug:
+                    type: string
+                  hostPasswordSet:
+                    type: boolean
+                required:
+                  - success
+                  - slug
+                  - hostPasswordSet
+        "400":
+          description: Bad request (empty or too-short password)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Property not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/host-login:
+    post:
+      operationId: hostLogin
+      tags: [auth]
+      summary: Host login by email + password (public, rate limited)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HostLoginRequest"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HostLoginResponse"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Too many attempts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RateLimitedErrorResponse"
+        "503":
+          description: Server not configured (missing HOST_SESSION_SECRET)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /host/{slug}:
+    get:
+      operationId: getHostProperty
+      tags: [host]
+      summary: Get full property details for the dashboard (host only)
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/HostSessionHeader"
+      responses:
+        "200":
+          description: Property details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HostPropertyResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Not the owner of this property
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Property not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      operationId: hostUpdateProperty
+      tags: [host]
+      summary: Update property content — name, house manual, WhatsApp number, referral links (host only)
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/HostSessionHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HostUpdatePropertyRequest"
+      responses:
+        "200":
+          description: Property updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HostPropertyResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Not the owner of this property
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Property not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /host/{slug}/reset-pending-questions:
+    post:
+      operationId: resetPendingQuestions
+      tags: [host]
+      summary: Reset the pending-questions badge counter to zero (host only)
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/HostSessionHeader"
+      responses:
+        "200":
+          description: Counter reset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PendingQuestionsResetResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Not the owner of this property
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /host/{slug}/resolve-all-logs:
+    post:
+      operationId: resolveAllLogs
+      tags: [host]
+      summary: Mark every unresolved chat log for a property as resolved and clear the badge (host only)
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/HostSessionHeader"
+      responses:
+        "200":
+          description: Logs resolved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PendingQuestionsResetResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Not the owner of this property
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/ceo-login:
+    post:
+      operationId: ceoLogin
+      tags: [auth]
+      summary: CEO login by password (public, rate limited)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CeoLoginRequest"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CeoLoginResponse"
+        "401":
+          description: Incorrect password
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Too many attempts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RateLimitedErrorResponse"
+        "503":
+          description: Server not configured (missing CEO_PASSWORD)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/host/me:
+    get:
+      operationId: getHostMe
+      tags: [auth]
+      summary: Properties owned by the current host session (Bearer token)
+      parameters:
+        - $ref: "#/components/parameters/HostSessionHeader"
+      responses:
+        "200":
+          description: Host email and owned properties
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HostMeResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Server not configured (missing HOST_SESSION_SECRET)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/forgot-password:
+    post:
+      operationId: forgotPassword
+      tags: [auth]
+      summary: |
+        Request a password reset email by owner email (public, rate limited).
+        Always returns success even if the email is unknown, to avoid
+        leaking which addresses have an account.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForgotPasswordRequest"
+      responses:
+        "200":
+          description: Request accepted (email sent if the address is known)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Missing or invalid email
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RateLimitedErrorResponse"
+        "500":
+          description: Internal server error, or email send failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/reset-password/{token}:
+    get:
+      operationId: getResetPasswordToken
+      tags: [auth]
+      summary: Validate a password reset token before showing the reset form (public)
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Token valid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenValidationResponse"
+        "404":
+          description: Token invalid or already used
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenValidationResponse"
+        "410":
+          description: Token expired
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenValidationResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenValidationResponse"
+    post:
+      operationId: resetPassword
+      tags: [auth]
+      summary: Consume a password reset token and set a new host password (public)
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetNewPasswordRequest"
+      responses:
+        "200":
+          description: Password reset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PasswordSetResponse"
+        "400":
+          description: Missing token or password too short
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Token invalid or already used
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "410":
+          description: Token expired
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/setup-password/{token}:
+    get:
+      operationId: getSetupPasswordToken
+      tags: [auth]
+      summary: Validate an invite token before showing the initial setup form (public)
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Token valid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenValidationResponse"
+        "404":
+          description: Token invalid or already used
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenValidationResponse"
+        "410":
+          description: Token expired
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenValidationResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenValidationResponse"
+    post:
+      operationId: setupPassword
+      tags: [auth]
+      summary: Consume an invite token and set the initial host password (public)
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetNewPasswordRequest"
+      responses:
+        "200":
+          description: Password set
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PasswordSetResponse"
+        "400":
+          description: Missing token or password too short
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Token invalid or already used
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "410":
+          description: Token expired
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/resets:
+    get:
+      operationId: listPasswordResets
+      tags: [auth]
+      summary: List pending password reset requests (CEO only)
+      parameters:
+        - $ref: "#/components/parameters/CeoSessionHeader"
+      responses:
+        "200":
+          description: Pending resets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PendingReset"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/resets/{slug}:
+    delete:
+      operationId: cancelPasswordReset
+      tags: [auth]
+      summary: Clear a pending password reset token (CEO only)
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/CeoSessionHeader"
+      responses:
+        "200":
+          description: Reset cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /ai/transcribe:
+    post:
+      operationId: aiTranscribe
+      tags: [ai]
+      summary: Transcribe an audio recording with Whisper (host only, max 25MB)
+      parameters:
+        - $ref: "#/components/parameters/HostSessionHeader"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                audio:
+                  type: string
+                  format: binary
+              required:
+                - audio
+      responses:
+        "200":
+          description: Transcription result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiTextResponse"
+        "400":
+          description: Missing or invalid audio file
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RateLimitedErrorResponse"
+        "500":
+          description: Transcription failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /ai/vision:
+    post:
+      operationId: aiVision
+      tags: [ai]
+      summary: Extract house-manual-style text from a photo with GPT-4o Vision (host only)
+      parameters:
+        - $ref: "#/components/parameters/HostSessionHeader"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                image:
+                  type: string
+                  format: binary
+              required:
+                - image
+      responses:
+        "200":
+          description: Extracted text
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiTextResponse"
+        "400":
+          description: Missing or invalid image file
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RateLimitedErrorResponse"
+        "500":
+          description: Vision analysis failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /leads:
+    post:
+      operationId: createLead
+      tags: [leads]
+      summary: Submit a new lead from the public landing page (rate limited)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateLeadRequest"
+      responses:
+        "201":
+          description: Lead registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Invalid lead data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RateLimitedErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    get:
+      operationId: listLeads
+      tags: [leads]
+      summary: List all leads, newest first (CEO only)
+      parameters:
+        - $ref: "#/components/parameters/CeoSessionHeader"
+      responses:
+        "200":
+          description: Leads
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Lead"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /leads/{id}:
+    delete:
+      operationId: deleteLead
+      tags: [leads]
+      summary: Delete a lead (CEO only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - $ref: "#/components/parameters/CeoSessionHeader"
+      responses:
+        "200":
+          description: Lead deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  id:
+                    type: integer
+                required:
+                  - success
+                  - id
+        "400":
+          description: Invalid id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Lead not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /leads/{id}/status:
+    put:
+      operationId: updateLeadStatus
+      tags: [leads]
+      summary: Update a lead's pipeline status (CEO only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - $ref: "#/components/parameters/CeoSessionHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateLeadStatusRequest"
+      responses:
+        "200":
+          description: Lead updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Lead"
+        "400":
+          description: Invalid id or status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Lead not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /leads/{id}/convert:
+    post:
+      operationId: convertLead
+      tags: [leads]
+      summary: |
+        Convert a lead into a property with a time-limited invite token, and
+        send the host welcome email (CEO only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - $ref: "#/components/parameters/CeoSessionHeader"
+      responses:
+        "201":
+          description: Lead converted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConvertLeadResponse"
+        "400":
+          description: Invalid id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Lead not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: |
+            Internal server error, or the welcome email failed to send after
+            the property was already created (the property and invite token
+            exist regardless — see notes)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/hosts:
+    get:
+      operationId: listAdminHosts
+      tags: [admin]
+      summary: List all host accounts (CEO only)
+      parameters:
+        - $ref: "#/components/parameters/CeoSessionHeader"
+      responses:
+        "200":
+          description: Hosts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminHost"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: upsertAdminHost
+      tags: [admin]
+      summary: Create a host account, or reset its password if it already exists (CEO only)
+      parameters:
+        - $ref: "#/components/parameters/CeoSessionHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpsertAdminHostRequest"
+      responses:
+        "200":
+          description: Existing host's password updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UpsertAdminHostResponse"
+        "201":
+          description: New host created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UpsertAdminHostResponse"
+        "400":
+          description: Missing or invalid email/password
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/hosts/{email}:
+    delete:
+      operationId: deleteAdminHost
+      tags: [admin]
+      summary: Delete a host account (CEO only)
+      parameters:
+        - name: email
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/CeoSessionHeader"
+      responses:
+        "204":
+          description: Host deleted
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Host not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/properties-by-email:
+    get:
+      operationId: getAdminPropertiesByEmail
+      tags: [admin]
+      summary: List properties owned by a given host email (CEO only)
+      parameters:
+        - name: email
+          in: query
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/CeoSessionHeader"
+      responses:
+        "200":
+          description: Properties owned by this email
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminPropertySummary"
+        "400":
+          description: Missing email query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /send-pdf:
+    post:
+      operationId: sendPdf
+      tags: [misc]
+      summary: Email a property's QR-code PDF cartello to an address (CEO only)
+      parameters:
+        - $ref: "#/components/parameters/CeoSessionHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendPdfRequest"
+      responses:
+        "200":
+          description: Email sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SendPdfResponse"
+        "400":
+          description: Missing email, property name, or PDF data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Transactional email not configured on the server
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /healthz/db:
+    get:
+      operationId: healthCheckDb
+      tags: [health]
+      summary: Database connectivity diagnostic (public)
+      responses:
+        "200":
+          description: Database reachable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthCheckDbResponse"
+        "503":
+          description: Database unreachable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthCheckDbResponse"
+
+  /ciao:
+    get:
+      operationId: ciao
+      tags: [misc]
+      summary: Legacy plain-text health check (public)
+      responses:
+        "200":
+          description: Server is alive
+          content:
+            text/plain:
+              schema:
+                type: string
+
 components:
   parameters:
     CeoSessionHeader:
@@ -227,6 +1683,15 @@ components:
       in: header
       required: true
       description: HMAC session token from POST /auth/ceo-login
+      schema:
+        type: string
+    HostSessionHeader:
+      name: x-host-session
+      in: header
+      required: true
+      description: |
+        HMAC session token from POST /auth/host-login. Also accepted via
+        `Authorization: Bearer <token>`.
       schema:
         type: string
 
@@ -318,6 +1783,12 @@ components:
         language:
           type: string
           description: UI language code (e.g. en, it) for reply language
+        city:
+          type: string
+          maxLength: 50
+          description: |
+            Demo chat only: city id (e.g. roma, milano) for localized AI context.
+            Accepted by validation but not currently read by the handler.
       required:
         - message
 
@@ -352,3 +1823,462 @@ components:
           type: string
       required:
         - error
+
+    RateLimitedErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        retryAfter:
+          type: number
+          description: Seconds until the client may retry
+      required:
+        - error
+        - retryAfter
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+      required:
+        - success
+
+    HostOwnedPropertySummary:
+      type: object
+      properties:
+        id:
+          oneOf:
+            - type: integer
+            - type: string
+              format: uuid
+        slug:
+          type: string
+        name:
+          type: string
+        whatsappNumber:
+          type: ["string", "null"]
+      required:
+        - id
+        - slug
+        - name
+        - whatsappNumber
+
+    ChatLog:
+      type: object
+      properties:
+        id:
+          type: integer
+        propertySlug:
+          type: string
+        guestMessage:
+          type: string
+        marcoReply:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        resolved:
+          type: boolean
+      required:
+        - id
+        - propertySlug
+        - guestMessage
+        - marcoReply
+        - createdAt
+        - resolved
+
+    FullEditPropertyRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        newSlug:
+          type: string
+        hostPassword:
+          type: string
+          description: |
+            Empty string clears the property-only password fallback.
+            No minimum length is enforced by the schema — the route checks
+            it explicitly so an empty string can still mean "clear".
+        email:
+          type: string
+          description: Owner email — reassigns which host account the property belongs to
+      required: []
+
+    SetHostPasswordRequest:
+      type: object
+      properties:
+        hostPassword:
+          type: string
+          minLength: 8
+      required:
+        - hostPassword
+
+    HostLoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+      required:
+        - email
+        - password
+
+    HostLoginResponse:
+      type: object
+      properties:
+        email:
+          type: string
+        properties:
+          type: array
+          items:
+            $ref: "#/components/schemas/HostOwnedPropertySummary"
+        sessionToken:
+          type: string
+      required:
+        - email
+        - properties
+        - sessionToken
+
+    HostPropertyResponse:
+      type: object
+      properties:
+        id:
+          oneOf:
+            - type: integer
+            - type: string
+              format: uuid
+        slug:
+          type: string
+        name:
+          type: string
+        content:
+          type: string
+        whatsappNumber:
+          type: ["string", "null"]
+        pendingQuestionsCount:
+          type: integer
+        referralLinks:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        email:
+          type: ["string", "null"]
+        qrCodeBase64:
+          type: string
+      required:
+        - id
+        - slug
+        - name
+        - content
+        - whatsappNumber
+        - pendingQuestionsCount
+        - createdAt
+        - updatedAt
+        - email
+
+    HostUpdatePropertyRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        content:
+          type: string
+          maxLength: 20000
+        whatsappNumber:
+          type: string
+        referralLinks:
+          type: string
+      required: []
+
+    PendingQuestionsResetResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        pendingQuestionsCount:
+          type: integer
+      required:
+        - success
+        - pendingQuestionsCount
+
+    CeoLoginRequest:
+      type: object
+      properties:
+        password:
+          type: string
+      required:
+        - password
+
+    CeoLoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+      required:
+        - token
+
+    HostMeResponse:
+      type: object
+      properties:
+        email:
+          type: string
+        properties:
+          type: array
+          items:
+            $ref: "#/components/schemas/HostOwnedPropertySummary"
+      required:
+        - email
+        - properties
+
+    ForgotPasswordRequest:
+      type: object
+      properties:
+        email:
+          type: string
+      required:
+        - email
+
+    TokenValidationResponse:
+      type: object
+      description: |
+        `propertyName`/`slug` are present only when `valid` is true;
+        `error` is present only when `valid` is false.
+      properties:
+        valid:
+          type: boolean
+        propertyName:
+          type: string
+        slug:
+          type: string
+        error:
+          type: string
+      required:
+        - valid
+
+    SetNewPasswordRequest:
+      type: object
+      properties:
+        newPassword:
+          type: string
+          minLength: 8
+      required:
+        - newPassword
+
+    PasswordSetResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        slug:
+          type: string
+      required:
+        - success
+        - slug
+
+    PendingReset:
+      type: object
+      properties:
+        slug:
+          type: string
+        name:
+          type: string
+        email:
+          type: ["string", "null"]
+        resetRequestedAt:
+          type: ["string", "null"]
+          format: date-time
+        expired:
+          type: boolean
+      required:
+        - slug
+        - name
+        - email
+        - resetRequestedAt
+        - expired
+
+    AiTextResponse:
+      type: object
+      properties:
+        text:
+          type: string
+      required:
+        - text
+
+    CreateLeadRequest:
+      type: object
+      properties:
+        hostName:
+          type: string
+        email:
+          type: string
+        propertyName:
+          type: string
+      required:
+        - hostName
+        - email
+        - propertyName
+
+    LeadStatus:
+      type: string
+      enum: ["Nuovo", "Contattato", "In Trattativa", "Chiuso", "Non Interessato"]
+
+    Lead:
+      type: object
+      properties:
+        id:
+          type: integer
+        hostName:
+          type: string
+        email:
+          type: string
+        propertyName:
+          type: string
+        status:
+          $ref: "#/components/schemas/LeadStatus"
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - hostName
+        - email
+        - propertyName
+        - status
+        - createdAt
+
+    UpdateLeadStatusRequest:
+      type: object
+      properties:
+        status:
+          $ref: "#/components/schemas/LeadStatus"
+      required:
+        - status
+
+    ConvertLeadResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        slug:
+          type: string
+        emailSent:
+          type: boolean
+      required:
+        - success
+        - slug
+        - emailSent
+
+    AdminHost:
+      type: object
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - email
+        - createdAt
+
+    UpsertAdminHostRequest:
+      type: object
+      properties:
+        email:
+          type: string
+        hostPassword:
+          type: string
+          minLength: 8
+      required:
+        - email
+        - hostPassword
+
+    UpsertAdminHostResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        email:
+          type: string
+        action:
+          type: string
+          enum: [created, updated]
+      required:
+        - success
+        - email
+        - action
+
+    AdminPropertySummary:
+      type: object
+      properties:
+        id:
+          oneOf:
+            - type: integer
+            - type: string
+              format: uuid
+        slug:
+          type: string
+        name:
+          type: string
+      required:
+        - id
+        - slug
+        - name
+
+    SendPdfRequest:
+      type: object
+      properties:
+        email:
+          type: string
+        propertyName:
+          type: string
+        pdfBase64:
+          type: string
+          description: PDF file as a base64 string or data URI
+        chatLink:
+          type: string
+      required:
+        - email
+        - propertyName
+        - pdfBase64
+
+    SendPdfResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+      required:
+        - success
+        - message
+
+    HealthCheckDbResponse:
+      type: object
+      description: |
+        Shape varies: on success, `db: true` with an optional `sample` row.
+        On failure, either `message` (production security enabled) or
+        `db: false` + `error` (otherwise) — never both.
+      properties:
+        status:
+          type: string
+          enum: [ok, error]
+        db:
+          type: boolean
+        sample:
+          type: ["object", "null"]
+        message:
+          type: string
+        error:
+          type: string
+      required:
+        - status

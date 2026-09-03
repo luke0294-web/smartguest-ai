@@ -1,9 +1,9 @@
 import { Router, type IRouter } from "express";
 import { randomBytes } from "node:crypto";
 import {
-  HostPropertyResponse,
-  HostPasswordParams,
-  HostPasswordBody,
+  GetHostPropertyResponse,
+  SetHostPasswordParams,
+  SetHostPasswordBody,
   HostUpdatePropertyParams,
   HostUpdatePropertyBody,
 } from "@workspace/api-zod";
@@ -211,11 +211,11 @@ router.get("/host/:slug", async (req, res): Promise<void> => {
     }
 
     const payload = qrCodeBase64 ? { ...withDates, qrCodeBase64 } : withDates;
-    const parsed = HostPropertyResponse.safeParse(payload);
+    const parsed = GetHostPropertyResponse.safeParse(payload);
     if (!parsed.success) {
       logger.error(
         { zodError: parsed.error.flatten(), propertyId: withDates.id, idType: typeof withDates.id },
-        "GET /host/:slug — Zod HostPropertyResponse validation failed",
+        "GET /host/:slug — Zod GetHostPropertyResponse validation failed",
       );
       res.status(500).json({
         error:
@@ -396,13 +396,13 @@ router.put("/properties/:slug/host-password", async (req, res): Promise<void> =>
   try {
     if (!requireCeoSession(req, res)) return;
 
-    const params = HostPasswordParams.safeParse(req.params);
+    const params = SetHostPasswordParams.safeParse(req.params);
     if (!params.success) {
       res.status(400).json({ error: params.error.message });
       return;
     }
 
-    const body = HostPasswordBody.safeParse(req.body);
+    const body = SetHostPasswordBody.safeParse(req.body);
     if (!body.success) {
       res.status(400).json({ error: body.error.message });
       return;
