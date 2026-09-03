@@ -70,6 +70,10 @@ async function authenticateHost(
   if (legacyPlain) {
     const hashed = await hashHostPassword(password);
     await supabaseAdmin.from("hosts").update({ host_password: hashed }).eq("email", normalized);
+    // Keep in sync with the DB write above — the session is signed with
+    // host.host_password right after this returns, so it must reflect the
+    // hash that's now actually stored, not the stale legacy value.
+    host.host_password = hashed;
   }
 
   return host;
@@ -156,7 +160,7 @@ router.post("/auth/host-login", async (req, res): Promise<void> => {
       whatsappNumber: r.whatsapp_number,
     }));
 
-    const sessionToken = issueHostSessionToken({ id: host.id, email: host.email });
+    const sessionToken = issueHostSessionToken({ id: host.id, email: host.email, passwordHash: host.host_password });
 
     logger.info({ email: host.email, count: properties.length }, "Host login successful");
     res.json({ email: host.email, properties, sessionToken });
@@ -171,7 +175,7 @@ router.post("/auth/host-login", async (req, res): Promise<void> => {
 // GET /api/host/:slug — get property info (host session only)
 router.get("/host/:slug", async (req, res): Promise<void> => {
   try {
-    const session = requireHostSession(req, res);
+    const session = await requireHostSession(req, res);
     if (!session) return;
 
     const { slug } = req.params;
@@ -236,7 +240,7 @@ router.get("/host/:slug", async (req, res): Promise<void> => {
 // PUT /api/host/:slug — update property (host session only)
 router.put("/host/:slug", async (req, res): Promise<void> => {
   try {
-    const session = requireHostSession(req, res);
+    const session = await requireHostSession(req, res);
     if (!session) return;
 
     const params = HostUpdatePropertyParams.safeParse(req.params);
@@ -324,7 +328,7 @@ router.put("/host/:slug", async (req, res): Promise<void> => {
 // POST /api/host/:slug/reset-pending-questions — reset diario badge counter (host session only)
 router.post("/host/:slug/reset-pending-questions", async (req, res): Promise<void> => {
   try {
-    const session = requireHostSession(req, res);
+    const session = await requireHostSession(req, res);
     if (!session) return;
 
     const { slug } = req.params;
@@ -353,7 +357,7 @@ router.post("/host/:slug/reset-pending-questions", async (req, res): Promise<voi
 // POST /api/host/:slug/resolve-all-logs — mark all chat logs resolved + clear pending badge (host session only)
 router.post("/host/:slug/resolve-all-logs", async (req, res): Promise<void> => {
   try {
-    const session = requireHostSession(req, res);
+    const session = await requireHostSession(req, res);
     if (!session) return;
 
     const { slug } = req.params;

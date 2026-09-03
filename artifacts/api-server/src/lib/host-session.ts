@@ -11,10 +11,17 @@ export function getHostSessionSecret(): string | undefined {
   return s.trim();
 }
 
-function hostSigningKey(): Buffer {
+/**
+ * Signing key includes the host's current bcrypt password hash, not just the
+ * server-wide secret — same design as the CEO session (keyed off
+ * CEO_PASSWORD itself). This means any password reset changes the key and
+ * immediately invalidates every token signed under the old password,
+ * without needing a separate token-version column.
+ */
+function hostSigningKey(passwordHash: string): Buffer {
   const secret = getHostSessionSecret();
   if (!secret) throw new Error("HOST_SESSION_SECRET is not configured");
-  return createHmac("sha256", secret).update(HOST_TOKEN_SALT).digest();
+  return createHmac("sha256", secret).update(`${HOST_TOKEN_SALT}:${passwordHash}`).digest();
 }
 
 export interface HostSessionPayload {
@@ -23,15 +30,36 @@ export interface HostSessionPayload {
   exp: number;
 }
 
-export function issueHostSessionToken(host: { id: number; email: string }): string {
+export function issueHostSessionToken(host: { id: number; email: string; passwordHash: string }): string {
   const exp = Math.floor(Date.now() / 1000) + HOST_SESSION_TTL_SEC;
   const payload: HostSessionPayload = { hostId: host.id, email: host.email, exp };
   const payloadB64 = Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
-  const sig = createHmac("sha256", hostSigningKey()).update(payloadB64).digest("hex");
+  const sig = createHmac("sha256", hostSigningKey(host.passwordHash)).update(payloadB64).digest("hex");
   return `${payloadB64}.${sig}`;
 }
 
-export function verifyHostSessionToken(token: string): HostSessionPayload | null {
+/**
+ * Reads the `hostId` out of a token's payload without verifying its
+ * signature yet — used only to know which host's current password hash to
+ * fetch before calling `verifyHostSessionToken`. Never trust the returned
+ * id for anything but that lookup.
+ */
+export function peekHostSessionHostId(token: string): number | null {
+  const parts = token.split(".");
+  if (parts.length !== 2) return null;
+  const [payloadB64] = parts;
+  if (!payloadB64) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(payloadB64, "base64url").toString("utf8")) as {
+      hostId?: unknown;
+    };
+    return typeof payload.hostId === "number" ? payload.hostId : null;
+  } catch {
+    return null;
+  }
+}
+
+export function verifyHostSessionToken(token: string, passwordHash: string): HostSessionPayload | null {
   try {
     if (!getHostSessionSecret()) return null;
 
@@ -40,7 +68,7 @@ export function verifyHostSessionToken(token: string): HostSessionPayload | null
     const [payloadB64, sigHex] = parts;
     if (!payloadB64 || !sigHex) return null;
 
-    const expectedSig = createHmac("sha256", hostSigningKey()).update(payloadB64).digest("hex");
+    const expectedSig = createHmac("sha256", hostSigningKey(passwordHash)).update(payloadB64).digest("hex");
     const sigBuf = Buffer.from(sigHex, "hex");
     const expBuf = Buffer.from(expectedSig, "hex");
     if (sigBuf.length !== expBuf.length) return null;

@@ -3,6 +3,7 @@ import { supabaseAdmin } from "./supabase";
 import {
   getHostSessionSecret,
   verifyHostSessionToken,
+  peekHostSessionHostId,
   getHostTokenFromRequest,
   type HostSessionPayload,
 } from "./host-session";
@@ -12,8 +13,11 @@ export type { HostSessionPayload };
 /**
  * Validates host Bearer / X-Host-Session token. On failure, sends JSON error and returns null.
  * Same usage pattern as requireCeoSession (not Express next()-style middleware).
+ *
+ * The token's signature is keyed off the host's current password hash (see
+ * host-session.ts), so verification needs a DB lookup — this is now async.
  */
-export function requireHostSession(req: Request, res: Response): HostSessionPayload | null {
+export async function requireHostSession(req: Request, res: Response): Promise<HostSessionPayload | null> {
   if (!getHostSessionSecret()) {
     res.status(503).json({
       error: "Server non configurato: impostare HOST_SESSION_SECRET o SESSION_SECRET.",
@@ -27,13 +31,36 @@ export function requireHostSession(req: Request, res: Response): HostSessionPayl
     return null;
   }
 
-  const payload = verifyHostSessionToken(raw);
-  if (!payload) {
+  const hostId = peekHostSessionHostId(raw);
+  if (hostId === null) {
     res.status(401).json({ error: "Sessione non valida o scaduta." });
     return null;
   }
 
-  return payload;
+  try {
+    const { data: host, error } = await supabaseAdmin
+      .from("hosts")
+      .select("host_password")
+      .eq("id", hostId)
+      .maybeSingle<{ host_password: string }>();
+
+    if (error || !host) {
+      res.status(401).json({ error: "Sessione non valida o scaduta." });
+      return null;
+    }
+
+    const payload = verifyHostSessionToken(raw, host.host_password);
+    if (!payload) {
+      res.status(401).json({ error: "Sessione non valida o scaduta." });
+      return null;
+    }
+
+    return payload;
+  } catch (err) {
+    console.error("[ERRORE CRITICO] requireHostSession:", err);
+    res.status(500).json({ error: "Errore interno del server" });
+    return null;
+  }
 }
 
 /** Ensures the authenticated host owns the property identified by slug (properties.email matches session). */
