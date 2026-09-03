@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { randomBytes } from "crypto";
 import { logger } from "../lib/logger";
 import { requireCeoSession, getCeoPassword, issueCeoToken, verifyCeoPassword } from "../lib/ceo-session";
-import { getHostSessionSecret, verifyHostSessionToken, getHostTokenFromRequest } from "../lib/host-session";
+import { requireHostSession } from "../lib/host-auth";
 import { hashHostPassword, HOST_PASSWORD_MIN_LENGTH_MESSAGE_IT, MIN_HOST_PASSWORD_LENGTH } from "../lib/passwords";
 import { authRateLimiter } from "../lib/rateLimiter";
 import { supabaseAdmin } from "../lib/supabase";
@@ -63,30 +63,13 @@ router.post("/auth/ceo-login", async (req, res): Promise<void> => {
 // GET /auth/host/me — properties for current host session (Bearer token)
 router.get("/auth/host/me", async (req, res): Promise<void> => {
   try {
-    const secret = getHostSessionSecret();
-    if (!secret) {
-      res.status(503).json({
-        error: "Server non configurato: impostare HOST_SESSION_SECRET o SESSION_SECRET.",
-      });
-      return;
-    }
-
-    const raw = getHostTokenFromRequest(req);
-    if (!raw) {
-      res.status(401).json({ error: "Autenticazione richiesta." });
-      return;
-    }
-
-    const payload = verifyHostSessionToken(raw);
-    if (!payload) {
-      res.status(401).json({ error: "Sessione non valida o scaduta." });
-      return;
-    }
+    const session = await requireHostSession(req, res);
+    if (!session) return;
 
     const { data: rows, error } = await supabaseAdmin
       .from("properties")
       .select("id, slug, name, whatsapp_number")
-      .eq("email", payload.email)
+      .eq("email", session.email)
       .order("name");
 
     if (error) {
@@ -102,7 +85,7 @@ router.get("/auth/host/me", async (req, res): Promise<void> => {
       whatsappNumber: r.whatsapp_number,
     }));
 
-    res.json({ email: payload.email, properties });
+    res.json({ email: session.email, properties });
   } catch (error) {
     logger.error({ err: error }, "GET /auth/host/me");
     if (!res.headersSent) {

@@ -48,8 +48,8 @@ const rateLimitAiVision: RequestHandler = (req, res, next) => {
 };
 
 /** Dopo rate limit, prima di multer: solo host con sessione Bearer valida. */
-const requireHostSessionForAi: RequestHandler = (req, res, next) => {
-  const session = requireHostSession(req, res);
+const requireHostSessionForAi: RequestHandler = async (req, res, next) => {
+  const session = await requireHostSession(req, res);
   if (session) next();
 };
 

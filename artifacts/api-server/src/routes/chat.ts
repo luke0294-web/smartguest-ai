@@ -478,7 +478,7 @@ CRITICAL: Reply in [Guest language: ${languageCode}]. Manual first. Bold 3-4 key
 // GET /super-diario/:slug — tutti i log
 // ─────────────────────────────────────────────
 router.get("/super-diario/:slug", async (req, res): Promise<void> => {
-  const session = requireHostSession(req, res);
+  const session = await requireHostSession(req, res);
   if (!session) return;
   if (!(await requireHostOwnsPropertySlug(res, session, req.params.slug))) return;
 
@@ -511,7 +511,7 @@ router.get("/super-diario/:slug", async (req, res): Promise<void> => {
 router.get(
   "/super-diario/:slug/unresolved-count",
   async (req, res): Promise<void> => {
-    const session = requireHostSession(req, res);
+    const session = await requireHostSession(req, res);
     if (!session) return;
     if (!(await requireHostOwnsPropertySlug(res, session, req.params.slug))) return;
 
@@ -544,7 +544,7 @@ router.get(
 router.patch(
   "/super-diario/:slug/resolve/:id",
   async (req, res): Promise<void> => {
-    const session = requireHostSession(req, res);
+    const session = await requireHostSession(req, res);
     if (!session) return;
 
     try {
@@ -584,7 +584,7 @@ router.patch(
 // Ricalcola la logica di risoluzione su tutti i log esistenti
 // ─────────────────────────────────────────────
 router.post("/super-diario/:slug/refresh-all", async (req, res): Promise<void> => {
-  const session = requireHostSession(req, res);
+  const session = await requireHostSession(req, res);
   if (!session) return;
   if (!(await requireHostOwnsPropertySlug(res, session, req.params.slug))) return;
 
