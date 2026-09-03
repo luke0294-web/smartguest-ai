@@ -51,12 +51,15 @@ export default defineConfig({
       workspace: apiZodSrc,
       client: "zod",
       target: "generated",
-      schemas: { path: "generated/types", type: "typescript" },
       mode: "split",
       clean: true,
       prettier: true,
       override: {
         zod: {
+          // Workspace pins zod to v3 (catalog) — without this, orval's "auto"
+          // detection can emit v4-only syntax (zod.int(), zod.uuid()) that
+          // doesn't exist on the v3 top-level export.
+          version: 3,
           coerce: {
             query: ['boolean', 'number', 'string'],
             param: ['boolean', 'number', 'string'],
