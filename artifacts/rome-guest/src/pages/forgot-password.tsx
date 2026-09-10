@@ -2,15 +2,15 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { motion } from "framer-motion";
 import { Mail, ArrowLeft, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
-import { apiUrl } from "@/lib/apiUrl";
+import { useForgotPassword } from "@workspace/api-client-react";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [sent, setSent] = useState(false);
+  const { mutate: forgotPassword, isPending: isLoading } = useForgotPassword();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
@@ -20,24 +20,16 @@ export default function ForgotPassword() {
       return;
     }
 
-    setIsLoading(true);
-    try {
-      const res = await fetch(apiUrl("/api/auth/forgot-password"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: trimmed }),
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        setError(data.error ?? "Errore. Riprova.");
-        return;
-      }
-      setSent(true);
-    } catch {
-      setError("Errore di connessione. Riprova tra qualche secondo.");
-    } finally {
-      setIsLoading(false);
-    }
+    forgotPassword(
+      { data: { email: trimmed } },
+      {
+        onSuccess: () => setSent(true),
+        onError: (err) => {
+          const data = err && typeof err === "object" ? (err as { data?: { error?: string } }).data : undefined;
+          setError(data?.error ?? "Errore di connessione. Riprova tra qualche secondo.");
+        },
+      },
+    );
   };
 
   return (
