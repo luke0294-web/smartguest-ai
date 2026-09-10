@@ -57,7 +57,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Property"
+                  $ref: "#/components/schemas/ListPropertiesResponseItem"
         "401":
           description: Unauthorized
           content:
@@ -227,6 +227,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Per-IP rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatRateLimitedResponse"
         "500":
           description: Internal server error
           content:
@@ -1736,6 +1742,28 @@ components:
         - createdAt
         - updatedAt
 
+    ListPropertiesResponseItem:
+      description: >-
+        Shape returned only by GET /properties (CEO-only list) — adds
+        CEO-visible fields not present on the public single-property
+        endpoints (GET /properties/{slug}, POST /properties).
+      allOf:
+        - $ref: "#/components/schemas/Property"
+        - type: object
+          properties:
+            email:
+              description: Owner email, or null if the property has no linked host account.
+              type: ["string", "null"]
+            pendingQuestionsCount:
+              type: integer
+            hasPassword:
+              description: Whether a host password has been set for this property.
+              type: boolean
+          required:
+            - email
+            - pendingQuestionsCount
+            - hasPassword
+
     CreatePropertyRequest:
       type: object
       properties:
@@ -1835,6 +1863,27 @@ components:
       required:
         - error
         - retryAfter
+
+    ChatRateLimitedResponse:
+      description: >-
+        Rate-limit response shape specific to the guest chat endpoint — it
+        mirrors the success response shape (reply/propertyName) instead of
+        the generic ErrorResponse, because the frontend renders it inline as
+        an assistant chat bubble rather than as a toast/error banner.
+      type: object
+      properties:
+        reply:
+          type: string
+          description: Localized, user-facing message shown as the assistant's chat bubble.
+        propertyName:
+          type: string
+        rateLimited:
+          type: boolean
+          enum: [true]
+      required:
+        - reply
+        - propertyName
+        - rateLimited
 
     SuccessResponse:
       type: object

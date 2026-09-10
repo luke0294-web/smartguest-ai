@@ -21,6 +21,20 @@ export interface Property {
   updatedAt: string;
 }
 
+/**
+ * Shape returned only by GET /properties (CEO-only list) — adds CEO-visible fields not present on the public single-property endpoints (GET /properties/{slug}, POST /properties).
+ */
+export type ListPropertiesResponseItem = Property & ({
+  /**
+     * Owner email, or null if the property has no linked host account.
+     * @nullable
+     */
+  email: string | null;
+  pendingQuestionsCount: number;
+  /** Whether a host password has been set for this property. */
+  hasPassword: boolean;
+});
+
 export interface CreatePropertyRequest {
   /** Unique URL-friendly identifier (e.g. 'fleming-1') */
   slug: string;
@@ -84,6 +98,16 @@ export interface RateLimitedErrorResponse {
   error: string;
   /** Seconds until the client may retry */
   retryAfter: number;
+}
+
+/**
+ * Rate-limit response shape specific to the guest chat endpoint — it mirrors the success response shape (reply/propertyName) instead of the generic ErrorResponse, because the frontend renders it inline as an assistant chat bubble rather than as a toast/error banner.
+ */
+export interface ChatRateLimitedResponse {
+  /** Localized, user-facing message shown as the assistant's chat bubble. */
+  reply: string;
+  propertyName: string;
+  rateLimited: true;
 }
 
 export interface SuccessResponse {

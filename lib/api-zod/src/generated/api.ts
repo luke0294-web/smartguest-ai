@@ -31,7 +31,11 @@ export const ListPropertiesResponseItem = zod.object({
   "whatsappNumber": zod.string().nullable(),
   "createdAt": zod.date(),
   "updatedAt": zod.date()
-})
+}).and(zod.object({
+  "email": zod.string().nullable().describe('Owner email, or null if the property has no linked host account.'),
+  "pendingQuestionsCount": zod.number().int(),
+  "hasPassword": zod.boolean().describe('Whether a host password has been set for this property.')
+})).describe('Shape returned only by GET \/properties (CEO-only list) — adds CEO-visible fields not present on the public single-property endpoints (GET \/properties\/{slug}, POST \/properties).')
 export const ListPropertiesResponse = zod.array(ListPropertiesResponseItem)
 
 

@@ -155,19 +155,7 @@ router.get("/properties", async (req, res): Promise<void> => {
 
     const list = rows ?? [];
     type ListRow = SupabasePropertyRowPublic & { email?: string | null };
-    type ListPayloadItem = {
-      id: number | string;
-      slug: string;
-      name: string;
-      content: string;
-      whatsappNumber: string | null;
-      createdAt: Date;
-      updatedAt: Date;
-      email?: string | null;
-      pendingQuestionsCount: number;
-      hasPassword: boolean;
-    };
-    const payload: ListPayloadItem[] = [];
+    const payload: ReturnType<typeof ListPropertiesResponseItem.parse>[] = [];
 
     for (const raw of list as ListRow[]) {
       const core = mapSupabaseRowToPropertyCore(raw);
@@ -184,14 +172,12 @@ router.get("/properties", async (req, res): Promise<void> => {
         whatsappNumber: core.whatsappNumber,
         createdAt: core.createdAt,
         updatedAt: core.updatedAt,
-      });
-
-      payload.push({
-        ...item,
         email: raw.email?.trim() ? raw.email.trim().toLowerCase() : null,
         pendingQuestionsCount: core.pendingQuestionsCount,
         hasPassword: Boolean(raw.host_password?.trim()),
       });
+
+      payload.push(item);
     }
 
     res.json(payload);

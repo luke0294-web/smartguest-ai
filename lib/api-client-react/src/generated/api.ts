@@ -29,6 +29,7 @@ import type {
   CeoLoginResponse,
   ChatLog,
   ChatMessageRequest,
+  ChatRateLimitedResponse,
   ConvertLeadResponse,
   CreateLeadRequest,
   CreatePropertyRequest,
@@ -46,6 +47,7 @@ import type {
   HostPropertyResponse,
   HostUpdatePropertyRequest,
   Lead,
+  ListPropertiesResponseItem,
   PasswordSetResponse,
   PendingQuestionsResetResponse,
   PendingReset,
@@ -180,9 +182,9 @@ export const getListPropertiesUrl = () => {
 /**
  * @summary List all properties (CEO only)
  */
-export const listProperties = async ( options?: Parameters<typeof customFetch>[1]): Promise<Property[]> => {
+export const listProperties = async ( options?: Parameters<typeof customFetch>[1]): Promise<ListPropertiesResponseItem[]> => {
 
-  return customFetch<Property[]>(getListPropertiesUrl(),
+  return customFetch<ListPropertiesResponseItem[]>(getListPropertiesUrl(),
   {
     ...options,
     method: 'GET'
@@ -593,7 +595,7 @@ return customFetch<string>(getSendPropertyChatUrl(slug),
 
 export const getSendPropertyChatMutationKey = () => ['sendPropertyChat'] as const;
 
-export const getSendPropertyChatMutationOptions = <TError = ErrorType<ErrorResponse>,
+export const getSendPropertyChatMutationOptions = <TError = ErrorType<ErrorResponse | ChatRateLimitedResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendPropertyChat>>, TError,SendPropertyChatMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof sendPropertyChat>>, TError,SendPropertyChatMutationVariables, TContext> => {
 
@@ -622,13 +624,13 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type SendPropertyChatMutationResult = NonNullable<Awaited<ReturnType<typeof sendPropertyChat>>>
     export type SendPropertyChatMutationBody = BodyType<ChatMessageRequest>
-    export type SendPropertyChatMutationError = ErrorType<ErrorResponse>
+    export type SendPropertyChatMutationError = ErrorType<ErrorResponse | ChatRateLimitedResponse>
     export type SendPropertyChatMutationVariables = {slug: string;data: BodyType<ChatMessageRequest>}
 
     /**
  * @summary Send a chat message for a specific property
  */
-export const useSendPropertyChat = <TError = ErrorType<ErrorResponse>,
+export const useSendPropertyChat = <TError = ErrorType<ErrorResponse | ChatRateLimitedResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendPropertyChat>>, TError,SendPropertyChatMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof sendPropertyChat>>,
