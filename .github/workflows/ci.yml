@@ -5,6 +5,10 @@ on:
     branches: [main]
   push:
     branches: [main]
+  schedule:
+    # Catches CVEs disclosed after the last push — pnpm audit only runs on
+    # push/PR otherwise, so a quiet main can go stale on security advisories.
+    - cron: "0 6 * * 1"
 
 jobs:
   typecheck-build-audit:
