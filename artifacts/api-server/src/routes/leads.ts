@@ -260,9 +260,11 @@ router.post("/leads/:id/convert", async (req, res): Promise<void> => {
         });
         emailSent = true;
       } catch (mailErr: unknown) {
+        // La proprietà è già stata creata e il lead già chiuso sopra: un errore
+        // di invio email qui è un successo parziale, non un fallimento della
+        // conversione — non deve rispondere 500 nascondendo lo stato reale
+        // (il client rischierebbe di pensare che vada ritentata da capo).
         logger.error({ slug, email: normalizedEmail, err: mailErr }, "Lead convert — welcome email failed");
-        res.status(500).json({ error: "Errore durante l'invio dell'email. Riprova più tardi." });
-        return;
       }
     } else {
       logger.warn({ slug }, "Lead convert — invio email non configurato (Resend), email di benvenuto non inviata");
