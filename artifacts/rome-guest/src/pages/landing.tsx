@@ -707,7 +707,7 @@ export default function Landing() {
             <span className="text-[13px] font-semibold text-gray-700">HeyCico</span>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-5 text-[13px] text-gray-400">
+          <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-5 text-[13px] text-gray-600">
             <Link href="/privacy" className="hover:text-gray-700 transition-colors">Privacy Policy</Link>
             <a href="mailto:hello.heycico@gmail.com" className="hover:text-gray-700 transition-colors">
               hello.heycico@gmail.com
@@ -717,7 +717,7 @@ export default function Landing() {
             </Link>
           </div>
 
-          <p className="text-[12px] text-gray-300">
+          <p className="text-[12px] text-gray-600">
             © {new Date().getFullYear()} HeyCico. Tutti i diritti riservati.
           </p>
         </div>

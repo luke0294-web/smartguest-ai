@@ -787,12 +787,12 @@ export default function GuestChat(props: GuestChatProps = {}) {
               <h1 className="font-sans text-sm sm:text-base font-semibold text-white tracking-tight whitespace-normal leading-snug line-clamp-2 break-words">
                 {property.name}
               </h1>
-              <p className="text-[10px] sm:text-[11px] text-white/70 flex items-center gap-1 mt-0.5">
+              <p className="text-[10px] sm:text-[11px] text-white/95 flex items-center gap-1 mt-0.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                 {t.onlineStatus}
               </p>
               {isDemo && (
-                <span className="inline-flex mt-1 text-[8px] sm:text-[9px] font-medium tracking-wide text-white/40 px-1.5 py-px rounded-md bg-white/[0.07] border border-white/10">
+                <span className="inline-flex mt-1 text-[8px] sm:text-[9px] font-medium tracking-wide text-white px-1.5 py-px rounded-md bg-white/[0.07] border border-white/10">
                   Modalità demo
                 </span>
               )}
@@ -808,7 +808,7 @@ export default function GuestChat(props: GuestChatProps = {}) {
                 value={lang}
                 onChange={(e) => handleLangChange(e.target.value as Lang)}
                 aria-label="Select language"
-                className="appearance-none bg-white/15 hover:bg-white/25 text-white text-[12px] font-semibold pl-2 pr-6 py-1.5 rounded-full cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-white/40 border border-white/20"
+                className="appearance-none bg-white/8 hover:bg-white/15 text-white text-[12px] font-semibold pl-2 pr-6 py-1.5 rounded-full cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-white/40 border border-white/20"
                 style={{ backgroundImage: "none" }}
               >
                 {LANGUAGES.map((l) => (
@@ -846,7 +846,7 @@ export default function GuestChat(props: GuestChatProps = {}) {
                       }
                     : undefined
                 }
-                className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-white text-[12px] font-semibold px-3 py-1.5 rounded-full transition-all shadow-md shadow-emerald-900/30"
+                className="flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white text-[12px] font-semibold px-3 py-1.5 rounded-full transition-all shadow-md shadow-emerald-900/30"
                 title={t.helpBtn}
               >
                 <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-current" xmlns="http://www.w3.org/2000/svg">
@@ -1077,7 +1077,7 @@ export default function GuestChat(props: GuestChatProps = {}) {
                 {DEMO_USER_MESSAGE_LIMIT - userMessageCount}/{DEMO_USER_MESSAGE_LIMIT}
               </p>
             )}
-          <p className="text-center text-[10px] text-muted-foreground/50 mt-2.5 uppercase tracking-widest font-sans">
+          <p className="text-center text-[10px] text-muted-foreground mt-2.5 uppercase tracking-widest font-sans">
             {t.powered}
           </p>
         </div>
