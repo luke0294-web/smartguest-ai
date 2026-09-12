@@ -963,6 +963,7 @@ export default function GuestChat(props: GuestChatProps = {}) {
           <div ref={messagesEndRef} className="h-1" />
         </main>
 
+        <footer>
         {/* ── Arrival quick actions (🔑 📶 📍 only; hidden after reload once marco_welcomed_{slug}) ── */}
         <AnimatePresence>
           {showBigArrivalActions && (
@@ -1081,6 +1082,7 @@ export default function GuestChat(props: GuestChatProps = {}) {
             {t.powered}
           </p>
         </div>
+        </footer>
       </div>
     </div>
   );

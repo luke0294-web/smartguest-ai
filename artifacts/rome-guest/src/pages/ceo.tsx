@@ -238,7 +238,7 @@ function QrModal({
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <div>
             <h3 className="font-bold text-gray-900 text-[15px]">QR Code</h3>
-            <p className="text-gray-400 text-[12px] mt-0.5 truncate max-w-[180px]">{property.name}</p>
+            <p className="text-gray-600 text-[12px] mt-0.5 truncate max-w-[180px]">{property.name}</p>
           </div>
           <button
             onClick={onClose}
@@ -260,7 +260,7 @@ function QrModal({
           </div>
 
           <div className="w-full bg-gray-50 rounded-xl px-3 py-2 text-center">
-            <p className="text-[11px] text-gray-400 mb-0.5">Link chat ospiti</p>
+            <p className="text-[11px] text-gray-600 mb-0.5">Link chat ospiti</p>
             <p className="text-[12px] font-mono text-gray-600 break-all">{chatUrl}</p>
           </div>
 
@@ -347,7 +347,7 @@ function ContentEditModal({
               <FileText className="w-4 h-4 text-emerald-600" />
               Modifica Regole & Knowledge Base
             </h3>
-            <p className="text-gray-400 text-[12px] mt-0.5 truncate max-w-[320px]">{property.name}</p>
+            <p className="text-gray-600 text-[12px] mt-0.5 truncate max-w-[320px]">{property.name}</p>
           </div>
           <button onClick={onClose} className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors">
             <X className="w-4 h-4 text-gray-500" />
@@ -365,7 +365,7 @@ function ContentEditModal({
             placeholder="Inserisci qui il regolamento completo, info WiFi, istruzioni check-in/check-out, consigli locali..."
             className="w-full h-72 resize-none border border-gray-200 rounded-2xl px-4 py-3 text-sm leading-relaxed text-gray-800 focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all font-sans"
           />
-          <p className="text-[11px] text-gray-400 mt-1.5">{text.length} caratteri</p>
+          <p className="text-[11px] text-gray-600 mt-1.5">{text.length} caratteri</p>
         </div>
 
         {/* Footer */}
@@ -885,7 +885,7 @@ export default function CeoPanel() {
   // ── AUTH SCREEN ──
   if (!ceoToken) {
     return (
-      <div className="min-h-[100dvh] flex items-center justify-center p-4">
+      <main className="min-h-[100dvh] flex items-center justify-center p-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -918,7 +918,7 @@ export default function CeoPanel() {
             </button>
           </form>
         </motion.div>
-      </div>
+      </main>
     );
   }
 
@@ -973,6 +973,7 @@ export default function CeoPanel() {
             </a>
           </header>
 
+          <main className="flex flex-col gap-6">
           {/* Tabs */}
           <div className="flex gap-1.5 px-1 overflow-x-auto pb-1">
             <button
@@ -1180,7 +1181,7 @@ export default function CeoPanel() {
                                 </span>
                               </h3>
                               <div className="flex items-center gap-1.5">
-                                <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">ID Accesso:</span>
+                                <span className="text-[11px] font-semibold text-gray-600 uppercase tracking-wider">ID Accesso:</span>
                                 <span className="font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md text-[12px] border border-blue-100">
                                   {prop.slug}
                                 </span>
@@ -1759,6 +1760,7 @@ export default function CeoPanel() {
             )}
 
           </AnimatePresence>
+          </main>
         </div>
       </div>
     </>

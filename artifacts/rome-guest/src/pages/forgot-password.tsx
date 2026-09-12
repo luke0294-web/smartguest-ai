@@ -33,7 +33,7 @@ export default function ForgotPassword() {
   };
 
   return (
-    <div className="min-h-[100dvh] bg-gradient-to-br from-slate-50 to-blue-50 flex flex-col items-center justify-center p-4">
+    <main className="min-h-[100dvh] bg-gradient-to-br from-slate-50 to-blue-50 flex flex-col items-center justify-center p-4">
 
       {/* Logo */}
       <Link href="/" className="flex items-center gap-2 mb-8 group">
@@ -63,7 +63,7 @@ export default function ForgotPassword() {
                   <Mail className="w-8 h-8 text-blue-600" />
                 </div>
                 <h1 className="text-2xl font-extrabold text-gray-900 mb-1">Recupero Accesso</h1>
-                <p className="text-gray-400 text-sm">
+                <p className="text-gray-600 text-sm">
                   Inserisci l'email associata al tuo appartamento. Ti invieremo le istruzioni.
                 </p>
               </div>
@@ -84,7 +84,7 @@ export default function ForgotPassword() {
                       className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
                     />
                   </div>
-                  <p className="text-[11px] text-gray-400">
+                  <p className="text-[11px] text-gray-600">
                     Usa la stessa email che hai comunicato al supporto HeyCico al momento dell'attivazione.
                   </p>
                 </div>
@@ -127,7 +127,7 @@ export default function ForgotPassword() {
                 Abbiamo inviato le istruzioni di recupero all'indirizzo:
               </p>
               <p className="font-semibold text-blue-600 mb-4">{email}</p>
-              <p className="text-gray-400 text-xs leading-relaxed">
+              <p className="text-gray-600 text-xs leading-relaxed">
                 Controlla anche la cartella spam. Il link è monouso e valido per il recupero della tua password.
               </p>
             </motion.div>
@@ -137,7 +137,7 @@ export default function ForgotPassword() {
         <div className="border-t border-gray-100 px-8 py-4 text-center">
           <Link
             href="/login"
-            className="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-blue-600 transition-colors font-medium"
+            className="inline-flex items-center gap-1.5 text-xs text-gray-600 hover:text-blue-600 transition-colors font-medium"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             Torna al Login
@@ -145,9 +145,9 @@ export default function ForgotPassword() {
         </div>
       </motion.div>
 
-      <p className="text-center text-[11px] text-gray-300 mt-6">
+      <p className="text-center text-[11px] text-gray-600 mt-6">
         Powered by HeyCico · Accesso sicuro
       </p>
-    </div>
+    </main>
   );
 }

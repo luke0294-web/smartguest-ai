@@ -2,7 +2,7 @@ import { Link } from "wouter";
 
 export default function PrivacyPolicy() {
   return (
-    <div className="min-h-screen bg-gray-50 py-16 px-4">
+    <main className="min-h-screen bg-gray-50 py-16 px-4">
       <div className="max-w-2xl mx-auto bg-white rounded-2xl shadow-sm border border-gray-100 p-10">
         <div className="mb-8">
           <Link href="/" className="text-sm text-gray-600 hover:text-gray-800 transition-colors">
@@ -91,6 +91,6 @@ export default function PrivacyPolicy() {
           © {new Date().getFullYear()} HeyCico — Tutti i diritti riservati.
         </div>
       </div>
-    </div>
+    </main>
   );
 }
