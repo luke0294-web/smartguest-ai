@@ -13,7 +13,7 @@ import {
   Loader2,
   ChevronDown,
 } from "lucide-react";
-import { apiUrl } from "@/lib/apiUrl";
+import { apiUrl, extractErrorMessage } from "@/lib/apiUrl";
 
 const fadeUp: Variants = {
   hidden: { opacity: 0, y: 28 },
@@ -99,8 +99,7 @@ function RegistrationModal({ onClose }: { onClose: () => void }) {
       });
 
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error ?? "Errore durante l'invio");
+        throw new Error(await extractErrorMessage(res, "Errore durante l'invio"));
       }
 
       setSuccess(true);

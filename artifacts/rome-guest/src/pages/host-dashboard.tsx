@@ -71,8 +71,14 @@ const updateSchema = z.object({
 
 type UpdateValues = z.infer<typeof updateSchema>;
 
+/**
+ * A SyntaxError from a failed `res.json()` (non-JSON body: a proxy/gateway
+ * error page, an empty body, a network-level failure) must never surface
+ * as the displayed message — only genuine `throw new Error(...)` text is
+ * safe to show the user.
+ */
 function getErrorMessage(err: unknown, fallback: string): string {
-  return err instanceof Error ? err.message : fallback;
+  return err instanceof Error && !(err instanceof SyntaxError) ? err.message : fallback;
 }
 
 interface PropertyData {

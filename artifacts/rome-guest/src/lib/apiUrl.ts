@@ -30,3 +30,22 @@ export function getAiSecurityHeaders(): Record<string, string> {
     "x-session-id": getOrCreateDemoSessionId(),
   };
 }
+
+/**
+ * Extracts a user-facing error message from a failed fetch Response.
+ * `res.json()` throws its own parser exception (e.g. "Unexpected end of
+ * JSON input") when the body isn't valid JSON — a proxy/gateway error page,
+ * an empty body, or a network-level failure all produce this. That raw
+ * exception message must never reach the UI as the displayed error text.
+ */
+export async function extractErrorMessage(res: Response, fallback = "Errore. Riprova."): Promise<string> {
+  try {
+    const data: unknown = await res.json();
+    if (data && typeof data === "object" && typeof (data as { error?: unknown }).error === "string") {
+      return (data as { error: string }).error;
+    }
+    return fallback;
+  } catch {
+    return fallback;
+  }
+}
