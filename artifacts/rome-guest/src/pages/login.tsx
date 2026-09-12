@@ -60,7 +60,7 @@ export default function HostLogin() {
       <Link href="/" className="flex items-center gap-2 mb-8 group">
         <img
           src="/logo.png?v=2"
-          alt="HeyCico"
+          alt=""
           className="h-8 w-8 object-contain rounded-lg flex-shrink-0 shadow-sm shadow-blue-200/50"
         />
         <span className="font-bold text-[15px] tracking-tight text-gray-800 group-hover:text-blue-600 transition-colors">

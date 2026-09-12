@@ -380,7 +380,7 @@ export default function Landing() {
           <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
             <img
               src="/logo.png?v=2"
-              alt="HeyCico"
+              alt=""
               className="h-7 w-7 sm:h-8 sm:w-8 object-contain object-center flex-shrink-0"
             />
             <span className="font-bold text-[14px] sm:text-[16px] tracking-tight text-slate-900 truncate">
@@ -701,7 +701,7 @@ export default function Landing() {
           <div className="flex items-center gap-2">
             <img
               src="/logo.png?v=2"
-              alt="HeyCico"
+              alt=""
               className="h-6 w-6 object-contain flex-shrink-0 rounded-md"
             />
             <span className="text-[13px] font-semibold text-gray-700">HeyCico</span>
