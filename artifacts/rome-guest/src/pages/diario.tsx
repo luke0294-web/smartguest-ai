@@ -165,7 +165,7 @@ export default function DiarioDiBordo() {
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   return (
-    <div className="min-h-[100dvh] bg-gradient-to-br from-slate-50 to-blue-50 py-8 px-4">
+    <main className="min-h-[100dvh] bg-gradient-to-br from-slate-50 to-blue-50 py-8 px-4">
       <div className="max-w-2xl mx-auto flex flex-col gap-6">
 
         <div className="bg-white rounded-3xl shadow-sm border border-gray-100 px-5 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -175,7 +175,7 @@ export default function DiarioDiBordo() {
             </div>
             <div>
               <h1 className="font-extrabold text-gray-900 text-[16px] leading-tight">Diario di Bordo</h1>
-              <p className="text-gray-400 text-[11px] font-mono">{slug}</p>
+              <p className="text-gray-600 text-[11px] font-mono">{slug}</p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2 justify-end">
@@ -196,7 +196,7 @@ export default function DiarioDiBordo() {
             )}
             <Link
               href={`/host/${slug}`}
-              className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-600 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors"
+              className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-800 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Dashboard</span>
@@ -208,7 +208,7 @@ export default function DiarioDiBordo() {
           <div className="flex justify-center py-16">
             <div className="flex flex-col items-center gap-3 text-indigo-500">
               <Loader2 className="w-8 h-8 animate-spin" />
-              <p className="text-sm text-gray-400">Caricamento conversazioni...</p>
+              <p className="text-sm text-gray-600">Caricamento conversazioni...</p>
             </div>
           </div>
         )}
@@ -228,7 +228,7 @@ export default function DiarioDiBordo() {
               <BookOpen className="w-7 h-7 text-indigo-300" />
             </div>
             <p className="text-gray-500 font-medium">Nessuna conversazione ancora.</p>
-            <p className="text-gray-400 text-sm mt-1">Le chat degli ospiti appariranno qui.</p>
+            <p className="text-gray-600 text-sm mt-1">Le chat degli ospiti appariranno qui.</p>
           </div>
         )}
 
@@ -287,7 +287,7 @@ export default function DiarioDiBordo() {
 
             <div>
               {historyLogs.length > 0 && (
-                <p className="text-xs text-gray-400 font-medium px-1 mb-3">
+                <p className="text-xs text-gray-600 font-medium px-1 mb-3">
                   {historyLogs.length} conversazion{historyLogs.length === 1 ? "e" : "i"} gestit{historyLogs.length === 1 ? "a" : "e"}
                 </p>
               )}
@@ -296,7 +296,7 @@ export default function DiarioDiBordo() {
                   <div key={log.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                     <div className="px-5 py-2.5 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
                       <Calendar className="w-3.5 h-3.5 text-gray-400" />
-                      <span className="text-[11px] text-gray-400 font-mono">{formatDate(log.createdAt)}</span>
+                      <span className="text-[11px] text-gray-600 font-mono">{formatDate(log.createdAt)}</span>
                       {log.resolved && (
                         <span className="ml-auto text-[10px] text-green-600 font-semibold bg-green-50 px-2 py-0.5 rounded">Risolto</span>
                       )}
@@ -332,6 +332,6 @@ export default function DiarioDiBordo() {
         )}
 
       </div>
-    </div>
+    </main>
   );
 }

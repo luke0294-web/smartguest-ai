@@ -61,17 +61,17 @@ export default function HostProperties() {
 
   if (isLoading) {
     return (
-      <div className="min-h-[100dvh] bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
+      <main className="min-h-[100dvh] bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
         <div className="flex flex-col items-center gap-3 text-blue-600">
           <Loader2 className="w-8 h-8 animate-spin" />
           <p className="font-medium text-gray-500">Caricamento strutture...</p>
         </div>
-      </div>
+      </main>
     );
   }
 
   return (
-    <div className="min-h-[100dvh] bg-gradient-to-br from-slate-50 to-blue-50 py-8 px-4">
+    <main className="min-h-[100dvh] bg-gradient-to-br from-slate-50 to-blue-50 py-8 px-4">
       <div className="max-w-3xl mx-auto flex flex-col gap-6">
 
         <motion.div
@@ -85,12 +85,12 @@ export default function HostProperties() {
             </div>
             <div>
               <h1 className="font-extrabold text-gray-900 text-[17px] leading-tight">Le mie Strutture</h1>
-              <p className="text-gray-400 text-[12px] mt-0.5 truncate max-w-[220px]">{session?.email}</p>
+              <p className="text-gray-600 text-[12px] mt-0.5 truncate max-w-[220px]">{session?.email}</p>
             </div>
           </div>
           <button
             onClick={handleLogout}
-            className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-red-500 px-3 py-2 rounded-xl hover:bg-red-50 transition-colors"
+            className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-red-500 px-3 py-2 rounded-xl hover:bg-red-50 transition-colors"
           >
             <LogOut className="w-4 h-4" />
             Esci
@@ -114,7 +114,7 @@ export default function HostProperties() {
               <Home className="w-8 h-8 text-blue-300" />
             </div>
             <h2 className="font-bold text-gray-700 text-lg mb-2">Nessuna struttura assegnata</h2>
-            <p className="text-gray-400 text-sm max-w-xs mx-auto">
+            <p className="text-gray-600 text-sm max-w-xs mx-auto">
               Contatta il supporto HeyCico per associare le tue strutture a questo account.
             </p>
           </motion.div>
@@ -136,7 +136,7 @@ export default function HostProperties() {
                   </div>
                   <div className="min-w-0">
                     <h2 className="font-bold text-gray-900 text-[15px] leading-tight truncate">{prop.name}</h2>
-                    <p className="text-[11px] text-gray-400 font-mono mt-0.5">/guest/{prop.slug}</p>
+                    <p className="text-[11px] text-gray-600 font-mono mt-0.5">/guest/{prop.slug}</p>
                   </div>
                 </div>
 
@@ -169,10 +169,10 @@ export default function HostProperties() {
           </div>
         )}
 
-        <p className="text-center text-[11px] text-gray-300 mt-2 uppercase tracking-widest">
+        <p className="text-center text-[11px] text-gray-600 mt-2 uppercase tracking-widest">
           Powered by HeyCico
         </p>
       </div>
-    </div>
+    </main>
   );
 }

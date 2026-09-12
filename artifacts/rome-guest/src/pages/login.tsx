@@ -54,7 +54,7 @@ export default function HostLogin() {
   };
 
   return (
-    <div className="min-h-[100dvh] bg-gradient-to-br from-slate-50 to-blue-50 flex flex-col items-center justify-center p-4">
+    <main className="min-h-[100dvh] bg-gradient-to-br from-slate-50 to-blue-50 flex flex-col items-center justify-center p-4">
 
       {/* Logo */}
       <Link href="/" className="flex items-center gap-2 mb-8 group">
@@ -84,7 +84,7 @@ export default function HostLogin() {
               <KeyRound className="w-8 h-8 text-blue-600" />
             </div>
             <h1 className="text-2xl font-extrabold text-gray-900 mb-1">Accesso Host</h1>
-            <p className="text-gray-400 text-sm">
+            <p className="text-gray-600 text-sm">
               Accedi per gestire tutte le tue strutture
             </p>
           </div>
@@ -160,7 +160,7 @@ export default function HostLogin() {
             <div className="text-center pt-1">
               <Link
                 href="/forgot-password"
-                className="inline-flex items-center gap-1.5 text-[13px] text-gray-400 hover:text-blue-600 transition-colors font-medium"
+                className="inline-flex items-center gap-1.5 text-[13px] text-gray-600 hover:text-blue-600 transition-colors font-medium"
               >
                 <HelpCircle className="w-3.5 h-3.5" />
                 Hai dimenticato la password?
@@ -171,7 +171,7 @@ export default function HostLogin() {
 
         {/* Footer */}
         <div className="border-t border-gray-100 px-8 py-4 text-center">
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-gray-600">
             Non hai ancora le credenziali?{" "}
             <Link href="/" className="text-blue-600 hover:text-blue-700 font-medium transition-colors">
               Contattaci
@@ -180,9 +180,9 @@ export default function HostLogin() {
         </div>
       </motion.div>
 
-      <p className="text-center text-[11px] text-gray-300 mt-6">
+      <p className="text-center text-[11px] text-gray-600 mt-6">
         Powered by HeyCico · Accesso sicuro
       </p>
-    </div>
+    </main>
   );
 }

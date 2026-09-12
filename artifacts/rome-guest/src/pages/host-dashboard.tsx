@@ -430,19 +430,19 @@ export default function HostDashboard() {
   // ── LOADING SCREEN ──
   if (isLoading) {
     return (
-      <div className="min-h-[100dvh] bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
+      <main className="min-h-[100dvh] bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
         <div className="flex flex-col items-center gap-3 text-blue-600">
           <Loader2 className="w-8 h-8 animate-spin" />
           <p className="font-medium text-gray-500">Caricamento struttura...</p>
         </div>
-      </div>
+      </main>
     );
   }
 
   // ── ERROR SCREEN ──
   if (loadError || !property) {
     return (
-      <div className="min-h-[100dvh] bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
+      <main className="min-h-[100dvh] bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -454,7 +454,7 @@ export default function HostDashboard() {
           <h2 className="font-bold text-gray-900 text-xl mb-2">
             Accesso negato
           </h2>
-          <p className="text-gray-400 text-sm mb-6">
+          <p className="text-gray-600 text-sm mb-6">
             {loadError || "Struttura non trovata."}
           </p>
           <div className="flex gap-3 justify-center">
@@ -472,7 +472,7 @@ export default function HostDashboard() {
             </Link>
           </div>
         </motion.div>
-      </div>
+      </main>
     );
   }
 
@@ -483,7 +483,7 @@ export default function HostDashboard() {
     aiState.type === "scanning";
 
   return (
-    <div className="min-h-[100dvh] bg-gradient-to-br from-slate-50 to-blue-50 py-8 px-4 overflow-x-hidden">
+    <main className="min-h-[100dvh] bg-gradient-to-br from-slate-50 to-blue-50 py-8 px-4 overflow-x-hidden">
       <div className="max-w-2xl mx-auto flex flex-col gap-6 w-full">
         {/* Header */}
         <motion.div
@@ -592,7 +592,7 @@ export default function HostDashboard() {
                 placeholder="es. 393901234567"
                 className="border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
               />
-              <p className="text-[11px] text-gray-400">
+              <p className="text-[11px] text-gray-600">
                 Solo numeri, senza spazi o + (es: 393901234567)
               </p>
             </div>
@@ -604,7 +604,7 @@ export default function HostDashboard() {
                   <Wifi className="w-3.5 h-3.5 text-blue-500" />
                   Regolamento e Informazioni
                 </span>
-                <span className="text-[10px] font-normal text-gray-400 uppercase tracking-wider">
+                <span className="text-[10px] font-normal text-gray-600 uppercase tracking-wider">
                   Visibile a Cico
                 </span>
               </label>
@@ -628,7 +628,7 @@ export default function HostDashboard() {
                   Inserisci i tuoi link affiliati (es. noleggio auto, tour, ristoranti convenzionati). Cico li
                   consiglierà quando gli ospiti chiedono suggerimenti. Formato consigliato:
                   <br />
-                  <span className="font-mono text-[10px] text-gray-400">
+                  <span className="font-mono text-[10px] text-gray-600">
                     - Auto: https://...
                     <br />- Tour Colosseo: https://...
                   </span>
@@ -742,7 +742,7 @@ export default function HostDashboard() {
                   />
                 </div>
 
-                <div className="flex gap-2 text-[10px] text-gray-400">
+                <div className="flex gap-2 text-[10px] text-gray-600">
                   <span className="flex-1 text-center">
                     Parla per dettare il regolamento — il testo apparirà nella
                     textarea.
@@ -753,7 +753,7 @@ export default function HostDashboard() {
                   </span>
                 </div>
 
-                <div className="flex items-center justify-center gap-1 text-[10px] text-gray-300 pt-0.5">
+                <div className="flex items-center justify-center gap-1 text-[10px] text-gray-600 pt-0.5">
                   <Sparkles className="w-2.5 h-2.5" />
                   Powered by HeyCico
                 </div>
@@ -762,10 +762,10 @@ export default function HostDashboard() {
           </form>
         </motion.div>
 
-        <p className="text-center text-[11px] text-gray-300 uppercase tracking-widest">
+        <p className="text-center text-[11px] text-gray-600 uppercase tracking-widest">
           Powered by HeyCico
         </p>
       </div>
-    </div>
+    </main>
   );
 }

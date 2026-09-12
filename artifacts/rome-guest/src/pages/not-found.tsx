@@ -3,7 +3,7 @@ import { AlertCircle } from "lucide-react";
 
 export default function NotFound() {
   return (
-    <div className="flex h-[100dvh] items-center justify-center p-6 bg-background">
+    <main className="flex h-[100dvh] items-center justify-center p-6 bg-background">
       <div className="glass-panel p-8 md:p-12 rounded-[2rem] max-w-md w-full text-center flex flex-col items-center gap-4">
         <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center text-primary mb-2 shadow-inner">
           <AlertCircle className="w-10 h-10" />
@@ -16,6 +16,6 @@ export default function NotFound() {
           Vai al Pannello
         </Link>
       </div>
-    </div>
+    </main>
   );
 }
