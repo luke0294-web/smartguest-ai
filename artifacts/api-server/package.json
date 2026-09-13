@@ -21,7 +21,7 @@
     "express": "^5",
     "helmet": "^8.1.0",
     "multer": "^2.3.0",
-    "openai": "^6.32.0",
+    "openai": "^7.15.0",
     "pdfkit": "^0.18.0",
     "pino": "^9",
     "pino-http": "^10",
