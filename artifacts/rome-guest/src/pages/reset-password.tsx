@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, Link } from "wouter";
 import { motion } from "framer-motion";
 import { KeyRound, Eye, EyeOff, ArrowLeft, Loader2, AlertCircle, CheckCircle2, ShieldAlert } from "lucide-react";
-import { apiUrl } from "@/lib/apiUrl";
+import { getResetPasswordToken, useResetPassword } from "@workspace/api-client-react";
 
 export default function ResetPassword() {
   const params = useParams<{ token: string }>();
@@ -15,9 +15,9 @@ export default function ResetPassword() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPwd, setShowPwd] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+  const { mutate: resetPassword, isPending: isLoading } = useResetPassword();
 
   useEffect(() => {
     if (!token) {
@@ -27,28 +27,32 @@ export default function ResetPassword() {
     }
     (async () => {
       try {
-        const res = await fetch(apiUrl(`/api/auth/reset-password/${encodeURIComponent(token)}`));
-        const data = await res.json();
-        if (res.ok && data.valid) {
+        const data = await getResetPasswordToken(token);
+        if (data.valid) {
           setTokenValid(true);
           setPropertyName(data.propertyName ?? "");
         } else {
           setTokenValid(false);
-          setTokenError(
-            data.error ??
-              (res.status === 410
-                ? "Token scaduto. Richiedi un nuovo reset."
-                : "Token non valido o già utilizzato."),
-          );
+          setTokenError(data.error ?? "Token non valido o già utilizzato.");
         }
-      } catch {
+      } catch (err) {
+        const apiErr = err && typeof err === "object" && "status" in err
+          ? (err as { status: number; data?: { error?: string } })
+          : undefined;
         setTokenValid(false);
-        setTokenError("Errore di connessione durante la verifica del token.");
+        setTokenError(
+          apiErr?.data?.error ??
+            (apiErr?.status === 410
+              ? "Token scaduto. Richiedi un nuovo reset."
+              : apiErr
+                ? "Token non valido o già utilizzato."
+                : "Errore di connessione durante la verifica del token."),
+        );
       }
     })();
   }, [token]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
@@ -61,24 +65,16 @@ export default function ResetPassword() {
       return;
     }
 
-    setIsLoading(true);
-    try {
-      const res = await fetch(apiUrl(`/api/auth/reset-password/${encodeURIComponent(token)}`), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ newPassword: newPassword.trim() }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error ?? "Errore durante il salvataggio.");
-        return;
-      }
-      setSuccess(true);
-    } catch {
-      setError("Errore di connessione. Riprova tra qualche secondo.");
-    } finally {
-      setIsLoading(false);
-    }
+    resetPassword(
+      { token, data: { newPassword: newPassword.trim() } },
+      {
+        onSuccess: () => setSuccess(true),
+        onError: (err) => {
+          const data = err && typeof err === "object" ? (err as { data?: { error?: string } }).data : undefined;
+          setError(data?.error ?? "Errore durante il salvataggio.");
+        },
+      },
+    );
   };
 
   return (

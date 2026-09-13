@@ -47,6 +47,8 @@ export interface CreatePropertyRequest {
   content: string;
   /** Host WhatsApp number shown to guests */
   whatsappNumber?: string;
+  /** Owner email to associate with the property, used to link it to a host account */
+  ownerEmail?: string;
 }
 
 export interface UpdatePropertyRequest {

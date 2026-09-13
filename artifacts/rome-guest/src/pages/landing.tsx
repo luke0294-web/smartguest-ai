@@ -13,7 +13,7 @@ import {
   Loader2,
   ChevronDown,
 } from "lucide-react";
-import { apiUrl, extractErrorMessage } from "@/lib/apiUrl";
+import { useCreateLead } from "@workspace/api-client-react";
 
 const fadeUp: Variants = {
   hidden: { opacity: 0, y: 28 },
@@ -82,32 +82,24 @@ function RegistrationModal({ onClose }: { onClose: () => void }) {
   const [hostName, setHostName] = useState("");
   const [email, setEmail] = useState("");
   const [propertyName, setPropertyName] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
+  const { mutate: createLead, isPending: isSubmitting } = useCreateLead();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    setIsSubmitting(true);
 
-    try {
-      const res = await fetch(apiUrl("/api/leads"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ hostName, email, propertyName }),
-      });
-
-      if (!res.ok) {
-        throw new Error(await extractErrorMessage(res, "Errore durante l'invio"));
-      }
-
-      setSuccess(true);
-    } catch (err: any) {
-      setError(err.message ?? "Qualcosa è andato storto. Riprova.");
-    } finally {
-      setIsSubmitting(false);
-    }
+    createLead(
+      { data: { hostName, email, propertyName } },
+      {
+        onSuccess: () => setSuccess(true),
+        onError: (err) => {
+          const data = err && typeof err === "object" ? (err as { data?: { error?: string } }).data : undefined;
+          setError(data?.error ?? "Errore durante l'invio");
+        },
+      },
+    );
   };
 
   return (

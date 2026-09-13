@@ -21,8 +21,16 @@ import {
   ArrowLeft,
   BookOpen,
 } from "lucide-react";
-import { apiUrl, getAiSecurityHeaders } from "@/lib/apiUrl";
+import { getAiSecurityHeaders } from "@/lib/apiUrl";
 import { getHostSession, type HostSession } from "@/lib/hostSession";
+import {
+  getHostProperty,
+  hostUpdateProperty,
+  resetPendingQuestions,
+  aiTranscribe,
+  aiVision,
+  type HostPropertyResponse,
+} from "@workspace/api-client-react";
 
 const DEFAULT_MANUAL_TEMPLATE = `🏠 MANUALE DI BENVENUTO - [NOME APPARTAMENTO]
 Benvenuti! Ecco tutte le informazioni essenziali per il vostro soggiorno.
@@ -81,15 +89,7 @@ function getErrorMessage(err: unknown, fallback: string): string {
   return err instanceof Error && !(err instanceof SyntaxError) ? err.message : fallback;
 }
 
-interface PropertyData {
-  id: number;
-  slug: string;
-  name: string;
-  content: string;
-  whatsappNumber: string | null;
-  pendingQuestionsCount: number;
-  referralLinks?: string | null;
-}
+type PropertyData = HostPropertyResponse;
 
 type AiState =
   | { type: "idle" }
@@ -157,18 +157,7 @@ export default function HostDashboard() {
     setIsLoading(true);
     setLoadError("");
     try {
-      const res = await fetch(apiUrl(`/api/host/${slug}`), {
-        headers: { Authorization: `Bearer ${s.sessionToken}` },
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        if (res.status === 401 || res.status === 403) {
-          setLoadError(json.error ?? "Accesso non autorizzato.");
-        } else {
-          setLoadError(json.error ?? "Struttura non trovata.");
-        }
-        return;
-      }
+      const json = await getHostProperty(slug, { headers: { Authorization: `Bearer ${s.sessionToken}` } });
       setProperty(json);
       setPendingCount(Number(json.pendingQuestionsCount ?? 0));
 
@@ -183,8 +172,19 @@ export default function HostDashboard() {
         whatsappNumber: json.whatsappNumber ?? "",
         referralLinks: json.referralLinks ?? "",
       });
-    } catch {
-      setLoadError("Errore di connessione. Riprova.");
+    } catch (err) {
+      const apiErr = err && typeof err === "object" && "status" in err
+        ? (err as { status: number; data?: { error?: string } })
+        : undefined;
+      if (apiErr) {
+        setLoadError(
+          apiErr.data?.error ?? (apiErr.status === 401 || apiErr.status === 403
+            ? "Accesso non autorizzato."
+            : "Struttura non trovata."),
+        );
+      } else {
+        setLoadError("Errore di connessione. Riprova.");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -196,17 +196,12 @@ export default function HostDashboard() {
 
     const refreshPendingCount = async () => {
       try {
-        const res = await fetch(apiUrl(`/api/host/${slug}`), {
-          headers: { Authorization: `Bearer ${session.sessionToken}` },
-        });
-        if (res.status === 401 || res.status === 403) return;
-        if (!res.ok) return;
-        const json = await res.json();
+        const json = await getHostProperty(slug, { headers: { Authorization: `Bearer ${session.sessionToken}` } });
         const n = Number(json.pendingQuestionsCount ?? 0);
         setPendingCount(n);
         setProperty((prev) => (prev ? { ...prev, pendingQuestionsCount: n } : prev));
       } catch {
-        /* network errors — keep last known count */
+        /* network errors or auth failures — keep last known count */
       }
     };
 
@@ -237,10 +232,7 @@ export default function HostDashboard() {
       return;
     }
     try {
-      await fetch(apiUrl(`/api/host/${slug}/reset-pending-questions`), {
-        method: "POST",
-        headers: { Authorization: `Bearer ${session.sessionToken}` },
-      });
+      await resetPendingQuestions(slug, { headers: { Authorization: `Bearer ${session.sessionToken}` } });
       setPendingCount(0);
     } catch {
       // If reset fails, still let host open Diario.
@@ -261,17 +253,10 @@ export default function HostDashboard() {
 
     setIsSaving(true);
     try {
-      const res = await fetch(apiUrl(`/api/host/${slug}`), {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.sessionToken}`,
-        },
-        body: JSON.stringify(data),
+      await hostUpdateProperty(slug, data, {
+        headers: { Authorization: `Bearer ${session.sessionToken}` },
         signal: controller.signal,
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Errore nel salvataggio.");
 
       // Only clear the dirty state if the form still matches what we just saved —
       // if the host kept typing while this request was in flight, resetting here
@@ -286,7 +271,8 @@ export default function HostDashboard() {
       savedTimerRef.current = setTimeout(() => setIsSaved(false), 3000);
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === "AbortError") return;
-      alert(getErrorMessage(err, "Errore nel salvataggio."));
+      const data = err && typeof err === "object" ? (err as { data?: { error?: string } }).data : undefined;
+      alert(data?.error ?? getErrorMessage(err, "Errore nel salvataggio."));
     } finally {
       if (saveAbortControllerRef.current === controller) {
         setIsSaving(false);
@@ -365,27 +351,20 @@ export default function HostDashboard() {
   const sendAudioForTranscription = async (blob: Blob, mimeType: string) => {
     setAiState({ type: "transcribing" });
     try {
-      const formData = new FormData();
-      const ext = mimeType.includes("ogg")
-        ? "ogg"
-        : mimeType.includes("mp4")
-          ? "mp4"
-          : "webm";
-      formData.append("audio", blob, `recording.${ext}`);
-      const res = await fetch(apiUrl("/api/ai/transcribe"), {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${session?.sessionToken ?? ""}`,
-          ...getAiSecurityHeaders(),
+      const json = await aiTranscribe(
+        { audio: blob },
+        {
+          headers: {
+            Authorization: `Bearer ${session?.sessionToken ?? ""}`,
+            ...getAiSecurityHeaders(),
+          },
         },
-        body: formData,
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Errore nella trascrizione.");
+      );
       appendToContent(json.text);
       setAiState({ type: "success", message: "Testo vocale aggiunto!" });
     } catch (err: unknown) {
-      setAiState({ type: "error", message: getErrorMessage(err, "Errore nella trascrizione.") });
+      const data = err && typeof err === "object" ? (err as { data?: { error?: string } }).data : undefined;
+      setAiState({ type: "error", message: data?.error ?? getErrorMessage(err, "Errore nella trascrizione.") });
     } finally {
       setTimeout(() => setAiState({ type: "idle" }), 3500);
     }
@@ -399,28 +378,25 @@ export default function HostDashboard() {
     e.target.value = "";
     setAiState({ type: "scanning" });
     try {
-      const formData = new FormData();
-      formData.append("image", file);
-      const res = await fetch(apiUrl("/api/ai/vision"), {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${session?.sessionToken ?? ""}`,
-          ...getAiSecurityHeaders(),
+      const json = await aiVision(
+        { image: file },
+        {
+          headers: {
+            Authorization: `Bearer ${session?.sessionToken ?? ""}`,
+            ...getAiSecurityHeaders(),
+          },
         },
-        body: formData,
-      });
-      const json = await res.json();
-      if (!res.ok)
-        throw new Error(json.error ?? "Errore nell'analisi dell'immagine.");
+      );
       appendToContent(json.text);
       setAiState({
         type: "success",
         message: "Informazioni estratte e aggiunte!",
       });
     } catch (err: unknown) {
+      const data = err && typeof err === "object" ? (err as { data?: { error?: string } }).data : undefined;
       setAiState({
         type: "error",
-        message: getErrorMessage(err, "Errore nell'analisi dell'immagine."),
+        message: data?.error ?? getErrorMessage(err, "Errore nell'analisi dell'immagine."),
       });
     } finally {
       setTimeout(() => setAiState({ type: "idle" }), 3500);

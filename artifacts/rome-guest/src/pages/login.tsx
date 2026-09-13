@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useLocation, Link } from "wouter";
 import { motion } from "framer-motion";
 import { KeyRound, Mail, Loader2, AlertCircle, HelpCircle } from "lucide-react";
-import { apiUrl } from "@/lib/apiUrl";
+import { useHostLogin } from "@workspace/api-client-react";
 import { persistHostSession } from "@/lib/hostSession";
 
 export default function HostLogin() {
@@ -10,10 +10,10 @@ export default function HostLogin() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const { mutate: hostLogin, isPending: isLoading } = useHostLogin();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
@@ -25,32 +25,19 @@ export default function HostLogin() {
       return;
     }
 
-    setIsLoading(true);
-    try {
-      const res = await fetch(apiUrl("/api/auth/host-login"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: trimmedEmail, password: trimmedPassword }),
-      });
-
-      const json = await res.json();
-
-      if (res.ok) {
-        if (!json.sessionToken || typeof json.sessionToken !== "string") {
-          setError("Risposta dal server non valida. Contatta il supporto.");
-          return;
-        }
-        persistHostSession(json.email, json.sessionToken);
-        navigate("/host/dashboard");
-        return;
-      }
-
-      setError(json.error ?? "Email o password non corretti.");
-    } catch {
-      setError("Errore di connessione. Riprova tra qualche secondo.");
-    } finally {
-      setIsLoading(false);
-    }
+    hostLogin(
+      { data: { email: trimmedEmail, password: trimmedPassword } },
+      {
+        onSuccess: (data) => {
+          persistHostSession(data.email, data.sessionToken);
+          navigate("/host/dashboard");
+        },
+        onError: (err) => {
+          const data = err && typeof err === "object" ? (err as { data?: { error?: string } }).data : undefined;
+          setError(data?.error ?? "Email o password non corretti.");
+        },
+      },
+    );
   };
 
   return (

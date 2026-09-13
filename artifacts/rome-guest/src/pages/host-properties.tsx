@@ -5,20 +5,13 @@ import {
   Building, MessageSquare, Settings, LogOut, Loader2,
   AlertCircle, Home, ArrowRight, BookOpen,
 } from "lucide-react";
-import { apiUrl } from "@/lib/apiUrl";
+import { getHostMe, type HostOwnedPropertySummary } from "@workspace/api-client-react";
 import { clearHostSession, getHostSession, type HostSession } from "@/lib/hostSession";
-
-interface PropertySummary {
-  id: number;
-  slug: string;
-  name: string;
-  whatsappNumber: string | null;
-}
 
 export default function HostProperties() {
   const [, navigate] = useLocation();
   const [session, setSession] = useState<HostSession | null>(null);
-  const [properties, setProperties] = useState<PropertySummary[]>([]);
+  const [properties, setProperties] = useState<HostOwnedPropertySummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -37,17 +30,15 @@ export default function HostProperties() {
     setIsLoading(true);
     setError("");
     try {
-      const res = await fetch(apiUrl("/api/auth/host/me"), {
-        headers: { Authorization: `Bearer ${s.sessionToken}` },
-      });
-      const json = await res.json();
-      if (!res.ok) {
+      const data = await getHostMe({ headers: { Authorization: `Bearer ${s.sessionToken}` } });
+      setProperties(data.properties ?? []);
+    } catch (err) {
+      const isApiError = err && typeof err === "object" && "status" in err;
+      if (isApiError) {
         clearHostSession();
         navigate("/login");
         return;
       }
-      setProperties(json.properties ?? []);
-    } catch {
       setError("Errore di connessione. Riprova.");
     } finally {
       setIsLoading(false);

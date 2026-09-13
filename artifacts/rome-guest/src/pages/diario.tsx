@@ -2,18 +2,14 @@ import { useEffect, useState } from "react";
 import { useParams, Link, useLocation } from "wouter";
 import ReactMarkdown from "react-markdown";
 import { ArrowLeft, BookOpen, Loader2, MessageCircle, Bot, Calendar, AlertTriangle, CheckCircle2, Eraser } from "lucide-react";
-import { apiUrl } from "@/lib/apiUrl";
+import {
+  getSuperDiario,
+  resolveSuperDiarioLog,
+  resolveAllLogs as apiResolveAllLogs,
+  type ChatLog,
+} from "@workspace/api-client-react";
 import { clearHostSession, getHostSession } from "@/lib/hostSession";
 import { toast } from "@/hooks/use-toast";
-
-interface ChatLog {
-  id: number;
-  propertySlug: string;
-  guestMessage: string;
-  marcoReply: string;
-  createdAt: string;
-  resolved: boolean;
-}
 
 function MarcoReplyMarkdown({ marcoReply }: { marcoReply: string }) {
   return (
@@ -48,25 +44,21 @@ export default function DiarioDiBordo() {
       return;
     }
     setIsLoading(true);
-    fetch(apiUrl(`/api/super-diario/${slug}`), {
-      headers: { Authorization: `Bearer ${auth.sessionToken}` },
-    })
-      .then((res) => {
-        if (res.status === 401 || res.status === 403) {
-          clearHostSession();
-          navigate("/login");
-          throw new Error("Sessione scaduta. Accedi di nuovo.");
-        }
-        if (!res.ok) throw new Error(`Errore ${res.status}`);
-        return res.json() as Promise<ChatLog[]>;
-      })
+    getSuperDiario(slug, { headers: { Authorization: `Bearer ${auth.sessionToken}` } })
       .then((data) => {
         setLogs(data.map((log) => ({ ...log, resolved: log.resolved ?? false })));
         setError("");
         setIsLoading(false);
       })
-      .catch((err: Error) => {
-        setError(err.message ?? "Impossibile caricare il diario.");
+      .catch((err: unknown) => {
+        const status = err && typeof err === "object" ? (err as { status?: number }).status : undefined;
+        if (status === 401 || status === 403) {
+          clearHostSession();
+          navigate("/login");
+          setError("Sessione scaduta. Accedi di nuovo.");
+        } else {
+          setError(`Impossibile caricare il diario.`);
+        }
         setIsLoading(false);
       });
   };
@@ -97,18 +89,15 @@ export default function DiarioDiBordo() {
       return;
     }
     try {
-      const res = await fetch(apiUrl(`/api/super-diario/${slug}/resolve/${id}`), {
-        method: "PATCH",
-        headers: { Authorization: `Bearer ${auth.sessionToken}` },
-      });
-      if (res.status === 401 || res.status === 403) {
+      await resolveSuperDiarioLog(slug, id, { headers: { Authorization: `Bearer ${auth.sessionToken}` } });
+      setLogs((prev) => prev.map((log) => (log.id === id ? { ...log, resolved: true } : log)));
+    } catch (err) {
+      const status = err && typeof err === "object" ? (err as { status?: number }).status : undefined;
+      if (status === 401 || status === 403) {
         clearHostSession();
         navigate("/login");
         return;
       }
-      if (!res.ok) throw new Error("Errore nel salvataggio");
-      setLogs((prev) => prev.map((log) => (log.id === id ? { ...log, resolved: true } : log)));
-    } catch {
       toast({
         title: "Errore",
         description: "Non è stato possibile segnare il messaggio come gestito. Riprova.",
@@ -132,18 +121,15 @@ export default function DiarioDiBordo() {
     }
     setIsResolvingAll(true);
     try {
-      const res = await fetch(apiUrl(`/api/host/${slug}/resolve-all-logs`), {
-        method: "POST",
-        headers: { Authorization: `Bearer ${auth.sessionToken}` },
-      });
-      if (res.status === 401 || res.status === 403) {
+      await apiResolveAllLogs(slug, { headers: { Authorization: `Bearer ${auth.sessionToken}` } });
+      setLogs((prev) => prev.map((log) => ({ ...log, resolved: true })));
+    } catch (err) {
+      const status = err && typeof err === "object" ? (err as { status?: number }).status : undefined;
+      if (status === 401 || status === 403) {
         clearHostSession();
         navigate("/login");
         return;
       }
-      if (!res.ok) throw new Error("Errore nel salvataggio");
-      setLogs((prev) => prev.map((log) => ({ ...log, resolved: true })));
-    } catch {
       toast({
         title: "Errore",
         description: "Non è stato possibile segnare tutti i messaggi come gestiti. Riprova.",

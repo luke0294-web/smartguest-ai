@@ -17,11 +17,26 @@ import {
   useListProperties,
   useDeleteProperty,
   getListPropertiesQueryKey,
+  getProperty,
+  updateProperty,
+  createProperty,
+  fullEditProperty,
+  listLeads,
+  deleteLead as apiDeleteLead,
+  updateLeadStatus as apiUpdateLeadStatus,
+  convertLead as apiConvertLead,
+  resendHostWelcome as apiResendHostWelcome,
+  listPasswordResets,
+  cancelPasswordReset,
+  listAdminHosts,
+  upsertAdminHost,
+  deleteAdminHost,
+  ceoLogin,
   type Property,
+  type LeadStatus,
 } from "@workspace/api-client-react";
 import { isReservedPropertySlug } from "@workspace/api-zod";
 import { useQueryClient } from "@tanstack/react-query";
-import { apiUrl } from "@/lib/apiUrl";
 import { toast } from "@/hooks/use-toast";
 import {
   DropdownMenu,
@@ -117,11 +132,10 @@ function QrModal({
       setQrLoading(true);
       setQrError("");
       try {
-        const res = await fetch(apiUrl(`/api/properties/${property.slug}`), {
-          headers: { ...ceoSessionHeaders },
-        });
-        const json = await res.json();
-        if (!res.ok || !json.qrCodeBase64) {
+        const json = (await getProperty(property.slug, { headers: { ...ceoSessionHeaders } })) as Property & {
+          qrCodeBase64?: string;
+        };
+        if (!json.qrCodeBase64) {
           throw new Error("QR non disponibile");
         }
         if (mounted) setQrCodeBase64(json.qrCodeBase64);
@@ -310,18 +324,13 @@ function ContentEditModal({
     setSaved(false);
     setSaving(true);
     try {
-      const res = await fetch(apiUrl(`/api/properties/${property.slug}`), {
-        method: "PUT",
-        headers: { "Content-Type": "application/json", ...ceoSessionHeaders },
-        body: JSON.stringify({ content: text }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Errore nel salvataggio.");
+      await updateProperty(property.slug, { content: text }, { headers: { ...ceoSessionHeaders } });
       setSaved(true);
       onSaved();
       setTimeout(() => setSaved(false), 3000);
     } catch (err: unknown) {
-      setError(getErrorMessage(err));
+      const data = err && typeof err === "object" ? (err as { data?: { error?: string } }).data : undefined;
+      setError(data?.error ?? getErrorMessage(err));
     } finally {
       setSaving(false);
     }
@@ -461,19 +470,19 @@ export default function CeoPanel() {
   };
 
   /**
-   * fetch() wrapper for CEO-only endpoints: merges the session header and
-   * redirects to login on 401 instead of leaving the tab silently stuck
-   * with no data and no way back.
+   * Common catch-block handling for CEO-only API calls: redirects to login
+   * on 401 (returning null — caller should just bail out) and otherwise
+   * extracts the backend's error message, falling back for network errors.
    */
-  const ceoFetch = async (path: string, options: RequestInit = {}): Promise<Response> => {
-    const res = await fetch(apiUrl(path), {
-      ...options,
-      headers: { ...ceoSessionHeaders, ...(options.headers ?? {}) },
-    });
-    if (res.status === 401) {
+  const describeCeoApiError = (err: unknown, fallback: string): string | null => {
+    const apiErr = err && typeof err === "object" && "status" in err
+      ? (err as { status: number; data?: { error?: string } })
+      : undefined;
+    if (apiErr?.status === 401) {
       handleCeoSessionExpired();
+      return null;
     }
-    return res;
+    return apiErr?.data?.error ?? fallback;
   };
 
   const { data: properties, isLoading: isListLoading, error: listError } = useListProperties({
@@ -516,16 +525,11 @@ export default function CeoPanel() {
     if (!ceoToken) return;
     setLeadsLoading(true);
     try {
-      const res = await ceoFetch("/api/leads");
-      if (res.status === 401) return;
-      const data = await res.json();
-      if (res.ok) {
-        setLeads(data);
-      } else {
-        toast({ title: "Errore", description: data.error ?? "Impossibile caricare i lead.", variant: "destructive" });
-      }
-    } catch {
-      toast({ title: "Errore di rete", description: "Impossibile caricare i lead. Riprova.", variant: "destructive" });
+      const data = await listLeads({ headers: { ...ceoSessionHeaders } });
+      setLeads(data);
+    } catch (err) {
+      const message = describeCeoApiError(err, "Impossibile caricare i lead. Riprova.");
+      if (message) toast({ title: "Errore", description: message, variant: "destructive" });
     } finally {
       setLeadsLoading(false);
     }
@@ -541,16 +545,11 @@ export default function CeoPanel() {
     if (!ceoToken) return;
     setResetsLoading(true);
     try {
-      const res = await ceoFetch("/api/auth/resets");
-      if (res.status === 401) return;
-      const data = await res.json();
-      if (res.ok) {
-        setResetRequests(data);
-      } else {
-        toast({ title: "Errore", description: data.error ?? "Impossibile caricare i reset pendenti.", variant: "destructive" });
-      }
-    } catch {
-      toast({ title: "Errore di rete", description: "Impossibile caricare i reset pendenti. Riprova.", variant: "destructive" });
+      const data = await listPasswordResets({ headers: { ...ceoSessionHeaders } });
+      setResetRequests(data);
+    } catch (err) {
+      const message = describeCeoApiError(err, "Impossibile caricare i reset pendenti. Riprova.");
+      if (message) toast({ title: "Errore", description: message, variant: "destructive" });
     } finally {
       setResetsLoading(false);
     }
@@ -559,15 +558,11 @@ export default function CeoPanel() {
   const cancelReset = async (slug: string) => {
     setCancellingReset(slug);
     try {
-      const res = await ceoFetch(`/api/auth/resets/${slug}`, { method: "DELETE" });
-      if (res.status === 401) return;
-      if (res.ok) {
-        setResetRequests((prev) => prev.filter((r) => r.slug !== slug));
-      } else {
-        toast({ title: "Errore", description: "Impossibile annullare il reset. Riprova.", variant: "destructive" });
-      }
-    } catch {
-      toast({ title: "Errore di rete", description: "Impossibile annullare il reset. Riprova.", variant: "destructive" });
+      await cancelPasswordReset(slug, { headers: { ...ceoSessionHeaders } });
+      setResetRequests((prev) => prev.filter((r) => r.slug !== slug));
+    } catch (err) {
+      const message = describeCeoApiError(err, "Impossibile annullare il reset. Riprova.");
+      if (message) toast({ title: "Errore", description: message, variant: "destructive" });
     } finally {
       setCancellingReset(null);
     }
@@ -583,13 +578,10 @@ export default function CeoPanel() {
     if (!window.confirm("Sei sicuro? Il lead sarà eliminato definitivamente dal database.")) return;
     setLeadDeleting((prev) => ({ ...prev, [id]: true }));
     try {
-      const res = await fetch(apiUrl(`/api/leads/${id}`), {
-        method: "DELETE",
-        headers: { ...ceoSessionHeaders },
-      });
-      if (res.ok) {
-        setLeads((prev) => prev.filter((l) => l.id !== id));
-      }
+      await apiDeleteLead(id, { headers: { ...ceoSessionHeaders } });
+      setLeads((prev) => prev.filter((l) => l.id !== id));
+    } catch (err) {
+      describeCeoApiError(err, "");
     } finally {
       setLeadDeleting((prev) => { const n = { ...prev }; delete n[id]; return n; });
     }
@@ -598,14 +590,10 @@ export default function CeoPanel() {
   const updateLeadStatus = async (id: number, status: string) => {
     setLeadStatusSaving((prev) => ({ ...prev, [id]: true }));
     try {
-      const res = await fetch(apiUrl(`/api/leads/${id}/status`), {
-        method: "PUT",
-        headers: { "Content-Type": "application/json", ...ceoSessionHeaders },
-        body: JSON.stringify({ status }),
-      });
-      if (res.ok) {
-        setLeads((prev) => prev.map((l) => l.id === id ? { ...l, status } : l));
-      }
+      await apiUpdateLeadStatus(id, { status: status as LeadStatus }, { headers: { ...ceoSessionHeaders } });
+      setLeads((prev) => prev.map((l) => l.id === id ? { ...l, status: status as LeadStatus } : l));
+    } catch (err) {
+      describeCeoApiError(err, "");
     } finally {
       setLeadStatusSaving((prev) => { const n = { ...prev }; delete n[id]; return n; });
     }
@@ -615,20 +603,7 @@ export default function CeoPanel() {
     if (!window.confirm(`Converti "${lead.hostName}" in host?\n\nVerrà creata la proprietà "${lead.propertyName}".`)) return;
     setConvertingLead((prev) => ({ ...prev, [lead.id]: true }));
     try {
-      const res = await fetch(apiUrl(`/api/leads/${lead.id}/convert`), {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...ceoSessionHeaders },
-        body: JSON.stringify({}),
-      });
-      const data = (await res.json()) as { success?: boolean; slug?: string; emailSent?: boolean; error?: string };
-      if (!res.ok) {
-        toast({
-          title: "Invio non riuscito",
-          description: "Non è stato possibile inviare l'email tramite il servizio email (Resend). Riprova più tardi.",
-          variant: "destructive",
-        });
-        return;
-      }
+      const data = await apiConvertLead(lead.id, { headers: { ...ceoSessionHeaders } });
       if (data.emailSent) {
         toast({
           title: "Host creato",
@@ -645,8 +620,21 @@ export default function CeoPanel() {
       await queryClient.invalidateQueries({ queryKey: getListPropertiesQueryKey() });
       await fetchLeads();
       await fetchHosts();
-    } catch {
-      toast({ title: "Errore di rete", description: "Riprova.", variant: "destructive" });
+    } catch (err) {
+      const status = err && typeof err === "object" && "status" in err ? (err as { status: number }).status : undefined;
+      if (status === 401) {
+        handleCeoSessionExpired();
+        return;
+      }
+      if (status !== undefined) {
+        toast({
+          title: "Invio non riuscito",
+          description: "Non è stato possibile inviare l'email tramite il servizio email (Resend). Riprova più tardi.",
+          variant: "destructive",
+        });
+      } else {
+        toast({ title: "Errore di rete", description: "Riprova.", variant: "destructive" });
+      }
     } finally {
       setConvertingLead((prev) => { const n = { ...prev }; delete n[lead.id]; return n; });
     }
@@ -656,16 +644,11 @@ export default function CeoPanel() {
     if (!ceoToken) return;
     setHostsLoading(true);
     try {
-      const res = await ceoFetch("/api/admin/hosts");
-      if (res.status === 401) return;
-      const data = await res.json();
-      if (res.ok) {
-        setHosts(data);
-      } else {
-        toast({ title: "Errore", description: data.error ?? "Impossibile caricare gli host.", variant: "destructive" });
-      }
-    } catch {
-      toast({ title: "Errore di rete", description: "Impossibile caricare gli host. Riprova.", variant: "destructive" });
+      const data = await listAdminHosts({ headers: { ...ceoSessionHeaders } });
+      setHosts(data);
+    } catch (err) {
+      const message = describeCeoApiError(err, "Impossibile caricare gli host. Riprova.");
+      if (message) toast({ title: "Errore", description: message, variant: "destructive" });
     } finally {
       setHostsLoading(false);
     }
@@ -682,25 +665,26 @@ export default function CeoPanel() {
     }
     setResendWelcomeLoading((prev) => ({ ...prev, [slug]: true }));
     try {
-      const res = await fetch(apiUrl(`/api/properties/${encodeURIComponent(slug)}/resend-host-welcome`), {
-        method: "POST",
-        headers: { ...ceoSessionHeaders },
+      await apiResendHostWelcome(slug, { headers: { ...ceoSessionHeaders } });
+      toast({
+        title: "Email inviata con successo",
+        description: "L'email di benvenuto con PDF allegato è stata inviata correttamente tramite Resend.",
       });
-      const data = (await res.json()) as { success?: boolean; error?: string };
-      if (!res.ok) {
+    } catch (err) {
+      const status = err && typeof err === "object" && "status" in err ? (err as { status: number }).status : undefined;
+      if (status === 401) {
+        handleCeoSessionExpired();
+        return;
+      }
+      if (status !== undefined) {
         toast({
           title: "Invio non riuscito",
           description: "Non è stato possibile inviare l'email tramite il servizio email (Resend). Riprova più tardi.",
           variant: "destructive",
         });
-        return;
+      } else {
+        toast({ title: "Errore di rete", description: "Riprova.", variant: "destructive" });
       }
-      toast({
-        title: "Email inviata con successo",
-        description: "L'email di benvenuto con PDF allegato è stata inviata correttamente tramite Resend.",
-      });
-    } catch {
-      toast({ title: "Errore di rete", description: "Riprova.", variant: "destructive" });
     } finally {
       setResendWelcomeLoading((prev) => { const n = { ...prev }; delete n[slug]; return n; });
     }
@@ -723,17 +707,17 @@ export default function CeoPanel() {
     setHostFormSaving(true);
     setHostFormMsg(null);
     try {
-      const res = await fetch(apiUrl("/api/admin/hosts"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...ceoSessionHeaders },
-        body: JSON.stringify({ email: newHostEmail.trim(), hostPassword: newHostPassword.trim() }),
-      });
-      const data = await res.json();
-      if (!res.ok) { setHostFormMsg({ type: "err", text: data.error ?? "Errore." }); return; }
+      const data = await upsertAdminHost(
+        { email: newHostEmail.trim(), hostPassword: newHostPassword.trim() },
+        { headers: { ...ceoSessionHeaders } },
+      );
       setHostFormMsg({ type: "ok", text: data.action === "created" ? `Host ${data.email} creato!` : `Password di ${data.email} aggiornata!` });
       setNewHostEmail(""); setNewHostPassword("");
       fetchHosts();
-    } catch { setHostFormMsg({ type: "err", text: "Errore di rete." }); }
+    } catch (err) {
+      const message = describeCeoApiError(err, "Errore di rete.");
+      if (message) setHostFormMsg({ type: "err", text: message });
+    }
     finally { setHostFormSaving(false); }
   };
 
@@ -741,16 +725,11 @@ export default function CeoPanel() {
     if (!window.confirm(`Sei sicuro di voler eliminare l'host ${email}?`)) return;
     setHostDeleting((prev) => ({ ...prev, [email]: true }));
     try {
-      const res = await ceoFetch(`/api/admin/hosts/${encodeURIComponent(email)}`, { method: "DELETE" });
-      if (res.status === 401) return;
-      if (res.ok) {
-        setHosts((prev) => prev.filter((h) => h.email !== email));
-      } else {
-        const data = await res.json().catch(() => ({}));
-        toast({ title: "Errore", description: data.error ?? "Impossibile eliminare l'host.", variant: "destructive" });
-      }
-    } catch {
-      toast({ title: "Errore di rete", description: "Impossibile eliminare l'host. Riprova.", variant: "destructive" });
+      await deleteAdminHost(email, { headers: { ...ceoSessionHeaders } });
+      setHosts((prev) => prev.filter((h) => h.email !== email));
+    } catch (err) {
+      const message = describeCeoApiError(err, "Impossibile eliminare l'host. Riprova.");
+      if (message) toast({ title: "Errore", description: message, variant: "destructive" });
     } finally {
       setHostDeleting((prev) => { const n = { ...prev }; delete n[email]; return n; });
     }
@@ -763,24 +742,18 @@ export default function CeoPanel() {
     if (!pwd?.trim()) return;
     setLoginLoading(true);
     try {
-      const res = await fetch(apiUrl("/api/auth/ceo-login"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: pwd }),
-      });
-      const data = (await res.json()) as { token?: string; error?: string };
-      if (!res.ok) {
-        alert(data.error ?? "Accesso negato.");
-        return;
-      }
+      const data = await ceoLogin({ password: pwd });
       if (!data.token) {
         alert("Risposta dal server non valida.");
         return;
       }
       sessionStorage.setItem(CEO_SESSION_KEY, data.token);
       setCeoToken(data.token);
-    } catch {
-      alert("Errore di connessione. Riprova.");
+    } catch (err) {
+      const apiErr = err && typeof err === "object" && "status" in err
+        ? (err as { data?: { error?: string } })
+        : undefined;
+      alert(apiErr ? (apiErr.data?.error ?? "Accesso negato.") : "Errore di connessione. Riprova.");
     } finally {
       setLoginLoading(false);
     }
@@ -790,20 +763,17 @@ export default function CeoPanel() {
     setIsCreating(true);
     try {
       const { ownerEmail, ...rest } = data;
-      const res = await fetch(apiUrl("/api/properties"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...ceoSessionHeaders },
-        body: JSON.stringify({ ...rest, ownerEmail: ownerEmail || undefined }),
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        alert(`Errore: ${json.error || "Impossibile creare la proprietà"}`);
-        return;
-      }
+      await createProperty(
+        { ...rest, content: rest.content ?? "", ownerEmail: ownerEmail || undefined },
+        { headers: { ...ceoSessionHeaders } },
+      );
       form.reset();
       queryClient.invalidateQueries({ queryKey: getListPropertiesQueryKey() });
-    } catch {
-      alert("Errore di rete. Riprova.");
+    } catch (err) {
+      const apiErr = err && typeof err === "object" && "status" in err
+        ? (err as { data?: { error?: string } })
+        : undefined;
+      alert(apiErr ? `Errore: ${apiErr.data?.error || "Impossibile creare la proprietà"}` : "Errore di rete. Riprova.");
     } finally {
       setIsCreating(false);
     }
@@ -855,21 +825,16 @@ export default function CeoPanel() {
     }
     setInlineEdit((prev) => ({ ...prev, saving: true, error: "", saved: false }));
     try {
-      const res = await fetch(apiUrl(`/api/properties/${originalSlug}/full-edit`), {
-        method: "PUT",
-        headers: { "Content-Type": "application/json", ...ceoSessionHeaders },
-        body: JSON.stringify({
+      await fullEditProperty(
+        originalSlug,
+        {
           name: inlineEdit.name,
           newSlug: inlineEdit.slug,
           hostPassword: inlineEdit.hostPassword.trim(),
           email: inlineEdit.email,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setInlineEdit((prev) => ({ ...prev, saving: false, error: data.error ?? "Errore sconosciuto." }));
-        return;
-      }
+        },
+        { headers: { ...ceoSessionHeaders } },
+      );
       setInlineEdit((prev) => ({ ...prev, saving: false, saved: true, error: "" }));
       queryClient.invalidateQueries({ queryKey: getListPropertiesQueryKey() });
       if (inlineEditTimerRef.current) clearTimeout(inlineEditTimerRef.current);
@@ -877,8 +842,15 @@ export default function CeoPanel() {
         setEditingSlug(null);
         setInlineEdit({ name: "", slug: "", hostPassword: "", email: "", saving: false, saved: false, error: "" });
       }, 1800);
-    } catch {
-      setInlineEdit((prev) => ({ ...prev, saving: false, error: "Errore di rete. Riprova." }));
+    } catch (err) {
+      const apiErr = err && typeof err === "object" && "status" in err
+        ? (err as { data?: { error?: string } })
+        : undefined;
+      setInlineEdit((prev) => ({
+        ...prev,
+        saving: false,
+        error: apiErr ? (apiErr.data?.error ?? "Errore sconosciuto.") : "Errore di rete. Riprova.",
+      }));
     }
   };
 
