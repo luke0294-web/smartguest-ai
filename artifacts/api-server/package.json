@@ -23,8 +23,8 @@
     "multer": "^2.3.0",
     "openai": "^6.32.0",
     "pdfkit": "^0.18.0",
-    "pino": "^9",
-    "pino-http": "^10",
+    "pino": "^10",
+    "pino-http": "^11",
     "qrcode": "^1.5.4",
     "resend": "^6.10.0"
   },
