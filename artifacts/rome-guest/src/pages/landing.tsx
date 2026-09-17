@@ -469,7 +469,7 @@ export default function Landing() {
               </Link>
             </div>
             <p className="text-xs sm:text-sm text-muted-foreground text-center max-w-md px-2">
-              Prezzo lancio a 6,90€/mese
+              Prezzo lancio a 4,90€/mese
             </p>
           </motion.div>
 
@@ -653,7 +653,7 @@ export default function Landing() {
             </div>
 
             <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-              <span className="text-5xl font-semibold tracking-tight text-slate-900">6,90€</span>
+              <span className="text-5xl font-semibold tracking-tight text-slate-900">4,90€</span>
               <span className="text-slate-500">/mese</span>
             </div>
 
