@@ -5,10 +5,12 @@ import { logger } from "../lib/logger";
 import {
   aiTranscribeRateLimiter,
   aiVisionRateLimiter,
+  aiDocumentRateLimiter,
 } from "../lib/rateLimiter";
 import { logOpenAi429IfNeeded } from "../lib/openaiErrors";
 import { requireHostSession } from "../lib/host-auth";
-import { looksLikeAudio, looksLikeImage } from "../lib/fileTypeSniff";
+import { looksLikeAudio, looksLikeImage, looksLikePdf, looksLikeDocx } from "../lib/fileTypeSniff";
+import { extractPdfText, extractDocxText, DocumentExtractionError } from "../lib/documentExtract";
 
 const router: IRouter = Router();
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -17,6 +19,11 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 25 * 1024 * 1024 }, // 25 MB max (Whisper limit)
+});
+
+const uploadDocument = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 15 * 1024 * 1024 }, // 15 MB — plenty for a house manual PDF/Word doc
 });
 
 const rateLimitAiTranscribe: RequestHandler = (req, res, next) => {
@@ -38,6 +45,20 @@ const rateLimitAiVision: RequestHandler = (req, res, next) => {
   if (!aiVisionRateLimiter.check(clientIp)) {
     const retryAfter = aiVisionRateLimiter.retryAfterSeconds(clientIp);
     logger.warn({ ip: clientIp, retryAfter }, "AI vision rate limit exceeded");
+    res.status(429).json({
+      error: "Troppe richieste. Riprova più tardi.",
+      retryAfter,
+    });
+    return;
+  }
+  next();
+};
+
+const rateLimitAiDocument: RequestHandler = (req, res, next) => {
+  const clientIp = req.ip ?? "unknown";
+  if (!aiDocumentRateLimiter.check(clientIp)) {
+    const retryAfter = aiDocumentRateLimiter.retryAfterSeconds(clientIp);
+    logger.warn({ ip: clientIp, retryAfter }, "AI document rate limit exceeded");
     res.status(429).json({
       error: "Troppe richieste. Riprova più tardi.",
       retryAfter,
@@ -155,6 +176,52 @@ router.post(
       console.error("[ERRORE CRITICO] /ai/vision:", err);
       logger.error({ err }, "Vision extraction failed");
       res.status(500).json({ error: "Errore nell'analisi immagine. Riprova tra poco." });
+    }
+  }
+);
+
+// POST /ai/extract-document — extract text from an uploaded PDF or Word (.docx) document, no OpenAI call
+router.post(
+  "/ai/extract-document",
+  rateLimitAiDocument,
+  requireHostSessionForAi,
+  uploadDocument.single("document"),
+  async (req, res): Promise<void> => {
+    if (!req.file) {
+      res.status(400).json({ error: "Nessun documento ricevuto." });
+      return;
+    }
+
+    const buf = req.file.buffer;
+    const name = (req.file.originalname || "").toLowerCase();
+
+    try {
+      let text: string;
+      if (looksLikePdf(buf)) {
+        text = await extractPdfText(buf);
+      } else if (looksLikeDocx(buf)) {
+        text = await extractDocxText(buf);
+      } else if (name.endsWith(".pdf")) {
+        res.status(400).json({ error: "Il file non sembra un PDF valido." });
+        return;
+      } else if (name.endsWith(".docx")) {
+        res.status(400).json({ error: "Il file non sembra un documento Word (.docx) valido." });
+        return;
+      } else {
+        res.status(400).json({ error: "Formato non supportato. Carica un file .pdf o .docx." });
+        return;
+      }
+
+      logger.info({ chars: text.length, name }, "Document text extraction completed");
+      res.json({ text });
+    } catch (err: unknown) {
+      if (err instanceof DocumentExtractionError) {
+        res.status(422).json({ error: err.message });
+        return;
+      }
+      console.error("[ERRORE CRITICO] /ai/extract-document:", err);
+      logger.error({ err }, "Document extraction failed");
+      res.status(500).json({ error: "Errore nell'analisi del documento. Riprova tra poco." });
     }
   }
 );

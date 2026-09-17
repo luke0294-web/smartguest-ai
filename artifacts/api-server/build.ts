@@ -18,6 +18,13 @@ const __dirname = path.dirname(__filename);
 // working fine locally under tsx (unbundled). Keeping it external lets Node
 // resolve it normally from node_modules, where the data files are actually
 // shipped.
+//
+// pdf-parse is deliberately NOT bundled either: it's built on pdfjs-dist,
+// which expects to run unbundled in Node (dynamic requires for its worker/
+// canvas fallbacks). Bundling it breaks those lookups (missing DOMMatrix/
+// ImageData/Path2D polyfills, broken `require`) and throws at runtime.
+// Verified by reproducing the failure with the same esbuild config in
+// isolation; marking it external fixes it, same as pdfkit above.
 const allowlist = [
   "@supabase/supabase-js",
   "bcryptjs",

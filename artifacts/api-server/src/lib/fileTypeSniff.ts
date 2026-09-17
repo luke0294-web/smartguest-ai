@@ -20,6 +20,15 @@ export function looksLikeImage(buf: Buffer): boolean {
   return false;
 }
 
+export function looksLikePdf(buf: Buffer): boolean {
+  return startsWith(buf, [0x25, 0x50, 0x44, 0x46]); // "%PDF"
+}
+
+/** .docx is a ZIP container (PK\x03\x04) — doesn't distinguish it from other ZIP-based formats, but paired with the upload's declared extension that's enough to catch obviously-wrong files. */
+export function looksLikeDocx(buf: Buffer): boolean {
+  return startsWith(buf, [0x50, 0x4b, 0x03, 0x04]);
+}
+
 export function looksLikeAudio(buf: Buffer): boolean {
   if (startsWith(buf, [0x1a, 0x45, 0xdf, 0xa3])) return true; // WebM/Matroska (EBML header)
   if (startsWith(buf, [0x4f, 0x67, 0x67, 0x53])) return true; // Ogg ("OggS")

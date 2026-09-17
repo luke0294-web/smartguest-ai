@@ -619,6 +619,23 @@ export const AiVisionResponse = zod.object({
 
 
 /**
+ * @summary Extract text from an uploaded PDF or Word (.docx) document — no AI call, native parsing only (host only, max 15MB)
+ */
+export const AiExtractDocumentHeader = zod.object({
+  "x-host-session": zod.string().describe('HMAC session token from POST \/auth\/host-login. Also accepted via\n`Authorization: Bearer <token>`.\n')
+})
+
+// See AiTranscribeBody above: `File` isn't available in this package's lib.
+export const AiExtractDocumentBody = zod.object({
+  "document": zod.any()
+})
+
+export const AiExtractDocumentResponse = zod.object({
+  "text": zod.string()
+})
+
+
+/**
  * @summary Submit a new lead from the public landing page (rate limited)
  */
 export const CreateLeadBody = zod.object({
