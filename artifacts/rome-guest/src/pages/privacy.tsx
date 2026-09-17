@@ -2,10 +2,10 @@ import { Link } from "wouter";
 
 export default function PrivacyPolicy() {
   return (
-    <div className="min-h-screen bg-gray-50 py-16 px-4">
+    <main className="min-h-screen bg-gray-50 py-16 px-4">
       <div className="max-w-2xl mx-auto bg-white rounded-2xl shadow-sm border border-gray-100 p-10">
         <div className="mb-8">
-          <Link href="/" className="text-sm text-gray-400 hover:text-gray-600 transition-colors">
+          <Link href="/" className="text-sm text-gray-600 hover:text-gray-800 transition-colors">
             ← Torna alla Home
           </Link>
         </div>
@@ -13,7 +13,7 @@ export default function PrivacyPolicy() {
         <h1 className="text-2xl font-semibold text-gray-800 mb-2">
           Informativa sulla Privacy
         </h1>
-        <p className="text-xs font-medium text-amber-600 uppercase tracking-wide mb-8">
+        <p className="text-xs font-medium text-amber-700 uppercase tracking-wide mb-8">
           Beta Testing
         </p>
 
@@ -87,10 +87,10 @@ export default function PrivacyPolicy() {
           </section>
         </div>
 
-        <div className="mt-10 pt-6 border-t border-gray-100 text-xs text-gray-400">
+        <div className="mt-10 pt-6 border-t border-gray-100 text-xs text-gray-600">
           © {new Date().getFullYear()} HeyCico — Tutti i diritti riservati.
         </div>
       </div>
-    </div>
+    </main>
   );
 }
