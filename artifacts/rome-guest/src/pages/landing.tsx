@@ -646,6 +646,7 @@ export default function Landing() {
             </div>
 
             <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+              <span className="text-lg text-slate-400 line-through">6,90€</span>
               <span className="text-5xl font-semibold tracking-tight text-slate-900">4,90€</span>
               <span className="text-slate-500">/mese</span>
             </div>
