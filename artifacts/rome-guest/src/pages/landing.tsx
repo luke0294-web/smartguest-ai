@@ -13,7 +13,7 @@ import {
   Loader2,
   ChevronDown,
 } from "lucide-react";
-import { apiUrl, extractErrorMessage } from "@/lib/apiUrl";
+import { useCreateLead } from "@workspace/api-client-react";
 
 const fadeUp: Variants = {
   hidden: { opacity: 0, y: 28 },
@@ -82,32 +82,24 @@ function RegistrationModal({ onClose }: { onClose: () => void }) {
   const [hostName, setHostName] = useState("");
   const [email, setEmail] = useState("");
   const [propertyName, setPropertyName] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
+  const { mutate: createLead, isPending: isSubmitting } = useCreateLead();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    setIsSubmitting(true);
 
-    try {
-      const res = await fetch(apiUrl("/api/leads"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ hostName, email, propertyName }),
-      });
-
-      if (!res.ok) {
-        throw new Error(await extractErrorMessage(res, "Errore durante l'invio"));
-      }
-
-      setSuccess(true);
-    } catch (err: any) {
-      setError(err.message ?? "Qualcosa è andato storto. Riprova.");
-    } finally {
-      setIsSubmitting(false);
-    }
+    createLead(
+      { data: { hostName, email, propertyName } },
+      {
+        onSuccess: () => setSuccess(true),
+        onError: (err) => {
+          const data = err && typeof err === "object" ? (err as { data?: { error?: string } }).data : undefined;
+          setError(data?.error ?? "Errore durante l'invio");
+        },
+      },
+    );
   };
 
   return (
@@ -255,7 +247,7 @@ function RegistrationModal({ onClose }: { onClose: () => void }) {
                 )}
               </button>
 
-              <p className="text-center text-xs text-gray-400">
+              <p className="text-center text-xs text-gray-600">
                 Nessuna carta di credito richiesta. Cancella quando vuoi.
               </p>
             </form>
@@ -297,7 +289,7 @@ function FaqSection() {
           <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900 mb-3">
             Domande Frequenti
           </h2>
-          <p className="text-gray-400 text-base sm:text-lg">
+          <p className="text-gray-600 text-base sm:text-lg">
             Hai dubbi? Ecco le risposte più comuni.
           </p>
         </motion.div>
@@ -406,6 +398,7 @@ export default function Landing() {
         </div>
       </nav>
 
+      <main>
       {/* ── Hero ── */}
       <section className="relative overflow-hidden bg-gradient-to-b from-blue-50/60 to-white pt-8 pb-24 px-5">
         <div className="pointer-events-none absolute -top-32 -right-32 w-[480px] h-[480px] rounded-full bg-blue-100/60 blur-3xl" />
@@ -469,7 +462,7 @@ export default function Landing() {
               </Link>
             </div>
             <p className="text-xs sm:text-sm text-muted-foreground text-center max-w-md px-2">
-              Prezzo lancio a 7,90€/mese
+              Prezzo lancio a 4,90€/mese
             </p>
           </motion.div>
 
@@ -501,7 +494,7 @@ export default function Landing() {
               </div>
               <div>
                 <p className="text-white font-semibold text-[13px]">Appartamento Centrale</p>
-                <p className="text-white/70 text-[11px] flex items-center gap-1">
+                <p className="text-white/95 text-[11px] flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                   Cico è online
                 </p>
@@ -542,7 +535,7 @@ export default function Landing() {
             <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900 mb-3">
               Tutto quello che ti serve
             </h2>
-            <p className="text-gray-400 text-base sm:text-lg">
+            <p className="text-gray-600 text-base sm:text-lg">
               Configurato in 5 minuti, operativo per&nbsp;sempre.
             </p>
           </motion.div>
@@ -584,7 +577,7 @@ export default function Landing() {
             <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900 mb-3">
               Host soddisfatti
             </h2>
-            <p className="text-gray-400 text-lg">Cosa dicono i nostri utenti.</p>
+            <p className="text-gray-600 text-lg">Cosa dicono i nostri utenti.</p>
           </motion.div>
           <div className="grid sm:grid-cols-3 gap-5">
             {REVIEWS.map((r, i) => (
@@ -609,7 +602,7 @@ export default function Landing() {
                   </div>
                   <div>
                     <p className="text-[13px] font-semibold text-gray-800">{r.name}</p>
-                    <p className="text-[11px] text-gray-400">{r.city}</p>
+                    <p className="text-[11px] text-gray-600">{r.city}</p>
                   </div>
                 </div>
               </motion.div>
@@ -635,7 +628,7 @@ export default function Landing() {
             <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900 mb-3">
               Prezzi chiari
             </h2>
-            <p className="text-gray-400 text-base sm:text-lg">
+            <p className="text-gray-600 text-base sm:text-lg">
               Nessuna sorpresa. Zero vincoli nascosti.
             </p>
           </motion.div>
@@ -653,8 +646,7 @@ export default function Landing() {
             </div>
 
             <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-              <span className="text-lg text-slate-400 line-through">9,90€</span>
-              <span className="text-5xl font-semibold tracking-tight text-slate-900">7,90€</span>
+              <span className="text-5xl font-semibold tracking-tight text-slate-900">4,90€</span>
               <span className="text-slate-500">/mese</span>
             </div>
 
@@ -694,6 +686,7 @@ export default function Landing() {
           </motion.div>
         </div>
       </section>
+      </main>
 
       {/* ── Footer ── */}
       <footer className="bg-gray-50 border-t border-gray-100 py-10 px-5">
@@ -707,7 +700,7 @@ export default function Landing() {
             <span className="text-[13px] font-semibold text-gray-700">HeyCico</span>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-5 text-[13px] text-gray-400">
+          <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-5 text-[13px] text-gray-600">
             <Link href="/privacy" className="hover:text-gray-700 transition-colors">Privacy Policy</Link>
             <a href="mailto:hello.heycico@gmail.com" className="hover:text-gray-700 transition-colors">
               hello.heycico@gmail.com
@@ -717,7 +710,7 @@ export default function Landing() {
             </Link>
           </div>
 
-          <p className="text-[12px] text-gray-300">
+          <p className="text-[12px] text-gray-600">
             © {new Date().getFullYear()} HeyCico. Tutti i diritti riservati.
           </p>
         </div>

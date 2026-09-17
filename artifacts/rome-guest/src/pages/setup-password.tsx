@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, Link } from "wouter";
 import { motion } from "framer-motion";
 import { KeyRound, Eye, EyeOff, ArrowLeft, Loader2, AlertCircle, CheckCircle2, ShieldAlert } from "lucide-react";
-import { apiUrl } from "@/lib/apiUrl";
+import { getSetupPasswordToken, useSetupPassword } from "@workspace/api-client-react";
 
 /**
  * Primo accesso host dopo conversione lead: stesso flusso di reset-password,
@@ -19,10 +19,10 @@ export default function SetupPassword() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPwd, setShowPwd] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const [successSlug, setSuccessSlug] = useState("");
+  const { mutate: setupPassword, isPending: isLoading } = useSetupPassword();
 
   useEffect(() => {
     if (!token) {
@@ -32,23 +32,27 @@ export default function SetupPassword() {
     }
     (async () => {
       try {
-        const res = await fetch(apiUrl(`/api/auth/setup-password/${encodeURIComponent(token)}`));
-        const data = await res.json();
-        if (res.ok && data.valid) {
+        const data = await getSetupPasswordToken(token);
+        if (data.valid) {
           setTokenValid(true);
           setPropertyName(data.propertyName ?? "");
         } else {
           setTokenValid(false);
           setTokenError(data.error ?? "Token non valido o già utilizzato.");
         }
-      } catch {
+      } catch (err) {
+        const apiErr = err && typeof err === "object" && "status" in err
+          ? (err as { data?: { error?: string } })
+          : undefined;
         setTokenValid(false);
-        setTokenError("Errore di connessione durante la verifica del token.");
+        setTokenError(
+          apiErr?.data?.error ?? (apiErr ? "Token non valido o già utilizzato." : "Errore di connessione durante la verifica del token."),
+        );
       }
     })();
   }, [token]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
@@ -61,29 +65,23 @@ export default function SetupPassword() {
       return;
     }
 
-    setIsLoading(true);
-    try {
-      const res = await fetch(apiUrl(`/api/auth/setup-password/${encodeURIComponent(token)}`), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ newPassword: newPassword.trim() }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error ?? "Errore durante il salvataggio.");
-        return;
-      }
-      setSuccess(true);
-      setSuccessSlug(data.slug ?? "");
-    } catch {
-      setError("Errore di connessione. Riprova tra qualche secondo.");
-    } finally {
-      setIsLoading(false);
-    }
+    setupPassword(
+      { token, data: { newPassword: newPassword.trim() } },
+      {
+        onSuccess: (data) => {
+          setSuccess(true);
+          setSuccessSlug(data.slug ?? "");
+        },
+        onError: (err) => {
+          const data = err && typeof err === "object" ? (err as { data?: { error?: string } }).data : undefined;
+          setError(data?.error ?? "Errore durante il salvataggio.");
+        },
+      },
+    );
   };
 
   return (
-    <div className="min-h-[100dvh] bg-gradient-to-br from-slate-50 to-blue-50 flex flex-col items-center justify-center p-4">
+    <main className="min-h-[100dvh] bg-gradient-to-br from-slate-50 to-blue-50 flex flex-col items-center justify-center p-4">
 
       <Link href="/" className="flex items-center gap-2 mb-8 group">
         <img
@@ -108,7 +106,7 @@ export default function SetupPassword() {
           {tokenValid === null && (
             <div className="text-center py-8">
               <Loader2 className="w-8 h-8 text-blue-400 animate-spin mx-auto mb-3" />
-              <p className="text-gray-400 text-sm">Verifica del link in corso…</p>
+              <h1 className="text-gray-600 text-sm font-normal">Verifica del link in corso…</h1>
             </div>
           )}
 
@@ -117,7 +115,7 @@ export default function SetupPassword() {
               <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-5">
                 <ShieldAlert className="w-10 h-10 text-red-400" />
               </div>
-              <h2 className="text-xl font-extrabold text-gray-900 mb-2">Link Non Valido</h2>
+              <h1 className="text-xl font-extrabold text-gray-900 mb-2">Link Non Valido</h1>
               <p className="text-gray-500 text-sm leading-relaxed mb-4">{tokenError}</p>
               <Link
                 href="/login"
@@ -138,7 +136,7 @@ export default function SetupPassword() {
                 {propertyName && (
                   <p className="text-violet-600 text-sm font-semibold mb-1">{propertyName}</p>
                 )}
-                <p className="text-gray-400 text-sm">
+                <p className="text-gray-600 text-sm">
                   Scegli una password per accedere al pannello host.
                 </p>
               </div>
@@ -217,7 +215,7 @@ export default function SetupPassword() {
               <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-5">
                 <CheckCircle2 className="w-10 h-10 text-emerald-500" />
               </div>
-              <h2 className="text-xl font-extrabold text-gray-900 mb-2">Password creata!</h2>
+              <h1 className="text-xl font-extrabold text-gray-900 mb-2">Password creata!</h1>
               <p className="text-gray-500 text-sm leading-relaxed mb-6">
                 Il tuo account host è pronto. Accedi con email e password.
               </p>
@@ -228,7 +226,7 @@ export default function SetupPassword() {
                 Vai al Login
               </Link>
               {successSlug && (
-                <p className="text-xs text-gray-400 mt-4">
+                <p className="text-xs text-gray-600 mt-4">
                   Dopo il login troverai la struttura <span className="font-mono">{successSlug}</span> in elenco.
                 </p>
               )}
@@ -240,7 +238,7 @@ export default function SetupPassword() {
           <div className="border-t border-gray-100 px-8 py-4 text-center">
             <Link
               href="/login"
-              className="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-blue-600 transition-colors font-medium"
+              className="inline-flex items-center gap-1.5 text-xs text-gray-600 hover:text-blue-600 transition-colors font-medium"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               Torna al Login
@@ -249,9 +247,9 @@ export default function SetupPassword() {
         )}
       </motion.div>
 
-      <p className="text-center text-[11px] text-gray-300 mt-6">
+      <p className="text-center text-[11px] text-gray-600 mt-6">
         Powered by HeyCico · Invito sicuro
       </p>
-    </div>
+    </main>
   );
 }

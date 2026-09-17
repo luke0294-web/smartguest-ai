@@ -54,7 +54,8 @@ export const CreatePropertyBody = zod.object({
   "slug": zod.string().describe('Unique URL-friendly identifier (e.g. \'fleming-1\')'),
   "name": zod.string().describe('Human-readable property name'),
   "content": zod.string().max(createPropertyBodyContentMax, "Il manuale casa non può superare 20.000 caratteri").describe('House rules, WiFi info, tips, etc.'),
-  "whatsappNumber": zod.string().optional().describe('Host WhatsApp number shown to guests')
+  "whatsappNumber": zod.string().optional().describe('Host WhatsApp number shown to guests'),
+  "ownerEmail": zod.string().email().optional().describe('Owner email to associate with the property, used to link it to a host account')
 })
 
 export const CreatePropertyResponse = zod.object({
@@ -588,6 +589,9 @@ export const AiTranscribeHeader = zod.object({
   "x-host-session": zod.string().describe('HMAC session token from POST \/auth\/host-login. Also accepted via\n`Authorization: Bearer <token>`.\n')
 })
 
+// `zod.instanceof(File)` doesn't typecheck here — this package has no DOM
+// lib (it's also imported by the Node.js backend), so `File` isn't a known
+// type. Nothing actually validates against this schema at runtime.
 export const AiTranscribeBody = zod.object({
   "audio": zod.any()
 })
@@ -604,6 +608,7 @@ export const AiVisionHeader = zod.object({
   "x-host-session": zod.string().describe('HMAC session token from POST \/auth\/host-login. Also accepted via\n`Authorization: Bearer <token>`.\n')
 })
 
+// See AiTranscribeBody above: `File` isn't available in this package's lib.
 export const AiVisionBody = zod.object({
   "image": zod.any()
 })

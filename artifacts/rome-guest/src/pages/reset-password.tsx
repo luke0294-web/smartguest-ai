@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, Link } from "wouter";
 import { motion } from "framer-motion";
 import { KeyRound, Eye, EyeOff, ArrowLeft, Loader2, AlertCircle, CheckCircle2, ShieldAlert } from "lucide-react";
-import { apiUrl } from "@/lib/apiUrl";
+import { getResetPasswordToken, useResetPassword } from "@workspace/api-client-react";
 
 export default function ResetPassword() {
   const params = useParams<{ token: string }>();
@@ -15,9 +15,9 @@ export default function ResetPassword() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPwd, setShowPwd] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+  const { mutate: resetPassword, isPending: isLoading } = useResetPassword();
 
   useEffect(() => {
     if (!token) {
@@ -27,28 +27,32 @@ export default function ResetPassword() {
     }
     (async () => {
       try {
-        const res = await fetch(apiUrl(`/api/auth/reset-password/${encodeURIComponent(token)}`));
-        const data = await res.json();
-        if (res.ok && data.valid) {
+        const data = await getResetPasswordToken(token);
+        if (data.valid) {
           setTokenValid(true);
           setPropertyName(data.propertyName ?? "");
         } else {
           setTokenValid(false);
-          setTokenError(
-            data.error ??
-              (res.status === 410
-                ? "Token scaduto. Richiedi un nuovo reset."
-                : "Token non valido o già utilizzato."),
-          );
+          setTokenError(data.error ?? "Token non valido o già utilizzato.");
         }
-      } catch {
+      } catch (err) {
+        const apiErr = err && typeof err === "object" && "status" in err
+          ? (err as { status: number; data?: { error?: string } })
+          : undefined;
         setTokenValid(false);
-        setTokenError("Errore di connessione durante la verifica del token.");
+        setTokenError(
+          apiErr?.data?.error ??
+            (apiErr?.status === 410
+              ? "Token scaduto. Richiedi un nuovo reset."
+              : apiErr
+                ? "Token non valido o già utilizzato."
+                : "Errore di connessione durante la verifica del token."),
+        );
       }
     })();
   }, [token]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
@@ -61,28 +65,20 @@ export default function ResetPassword() {
       return;
     }
 
-    setIsLoading(true);
-    try {
-      const res = await fetch(apiUrl(`/api/auth/reset-password/${encodeURIComponent(token)}`), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ newPassword: newPassword.trim() }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error ?? "Errore durante il salvataggio.");
-        return;
-      }
-      setSuccess(true);
-    } catch {
-      setError("Errore di connessione. Riprova tra qualche secondo.");
-    } finally {
-      setIsLoading(false);
-    }
+    resetPassword(
+      { token, data: { newPassword: newPassword.trim() } },
+      {
+        onSuccess: () => setSuccess(true),
+        onError: (err) => {
+          const data = err && typeof err === "object" ? (err as { data?: { error?: string } }).data : undefined;
+          setError(data?.error ?? "Errore durante il salvataggio.");
+        },
+      },
+    );
   };
 
   return (
-    <div className="min-h-[100dvh] bg-gradient-to-br from-slate-50 to-blue-50 flex flex-col items-center justify-center p-4">
+    <main className="min-h-[100dvh] bg-gradient-to-br from-slate-50 to-blue-50 flex flex-col items-center justify-center p-4">
 
       <Link href="/" className="flex items-center gap-2 mb-8 group">
         <img
@@ -108,7 +104,7 @@ export default function ResetPassword() {
           {tokenValid === null && (
             <div className="text-center py-8">
               <Loader2 className="w-8 h-8 text-blue-400 animate-spin mx-auto mb-3" />
-              <p className="text-gray-400 text-sm">Verifica del link in corso…</p>
+              <h1 className="text-gray-600 text-sm font-normal">Verifica del link in corso…</h1>
             </div>
           )}
 
@@ -118,7 +114,7 @@ export default function ResetPassword() {
               <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-5">
                 <ShieldAlert className="w-10 h-10 text-red-400" />
               </div>
-              <h2 className="text-xl font-extrabold text-gray-900 mb-2">Link Non Valido</h2>
+              <h1 className="text-xl font-extrabold text-gray-900 mb-2">Link Non Valido</h1>
               <p className="text-gray-500 text-sm leading-relaxed mb-4">{tokenError}</p>
               <Link
                 href="/forgot-password"
@@ -140,7 +136,7 @@ export default function ResetPassword() {
                 {propertyName && (
                   <p className="text-blue-600 text-sm font-semibold mb-1">{propertyName}</p>
                 )}
-                <p className="text-gray-400 text-sm">
+                <p className="text-gray-600 text-sm">
                   Scegli una nuova password sicura per il tuo account.
                 </p>
               </div>
@@ -220,7 +216,7 @@ export default function ResetPassword() {
               <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-5">
                 <CheckCircle2 className="w-10 h-10 text-emerald-500" />
               </div>
-              <h2 className="text-xl font-extrabold text-gray-900 mb-2">Password Aggiornata!</h2>
+              <h1 className="text-xl font-extrabold text-gray-900 mb-2">Password Aggiornata!</h1>
               <p className="text-gray-500 text-sm leading-relaxed mb-6">
                 La tua nuova password è attiva. Accedi con le tue nuove credenziali.
               </p>
@@ -238,7 +234,7 @@ export default function ResetPassword() {
           <div className="border-t border-gray-100 px-8 py-4 text-center">
             <Link
               href="/login"
-              className="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-blue-600 transition-colors font-medium"
+              className="inline-flex items-center gap-1.5 text-xs text-gray-600 hover:text-blue-600 transition-colors font-medium"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               Torna al Login
@@ -247,9 +243,9 @@ export default function ResetPassword() {
         )}
       </motion.div>
 
-      <p className="text-center text-[11px] text-gray-300 mt-6">
+      <p className="text-center text-[11px] text-gray-600 mt-6">
         Powered by HeyCico · Link monouso sicuro
       </p>
-    </div>
+    </main>
   );
 }
