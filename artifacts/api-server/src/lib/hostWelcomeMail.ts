@@ -82,8 +82,11 @@ export async function buildHostWelcomePdfBuffer(
       align: "center",
     });
 
+    // Must clear the bottom margin by more than one line's height, or PDFKit
+    // treats the text as overflowing and silently appends a second, blank
+    // page just to fit it.
     doc.font("Helvetica-Oblique").fontSize(8).fillColor("#9ca3af");
-    doc.text("Powered by HeyCico", m, doc.page.height - 52, {
+    doc.text("Powered by HeyCico", m, doc.page.height - doc.page.margins.bottom - 14, {
       width: pageW - 2 * m,
       align: "center",
     });
