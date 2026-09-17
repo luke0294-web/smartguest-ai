@@ -14,7 +14,7 @@
   },
   "private": true,
   "devDependencies": {
-    "concurrently": "^9.2.1",
+    "concurrently": "^10.0.5",
     "drizzle-kit": "^0.31.9",
     "pg": "^8.20.0",
     "prettier": "^3.8.1",

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useLocation, Link } from "wouter";
 import { motion } from "framer-motion";
 import { KeyRound, Mail, Loader2, AlertCircle, HelpCircle } from "lucide-react";
-import { apiUrl } from "@/lib/apiUrl";
+import { useHostLogin } from "@workspace/api-client-react";
 import { persistHostSession } from "@/lib/hostSession";
 
 export default function HostLogin() {
@@ -10,10 +10,10 @@ export default function HostLogin() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const { mutate: hostLogin, isPending: isLoading } = useHostLogin();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
@@ -25,36 +25,23 @@ export default function HostLogin() {
       return;
     }
 
-    setIsLoading(true);
-    try {
-      const res = await fetch(apiUrl("/api/auth/host-login"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: trimmedEmail, password: trimmedPassword }),
-      });
-
-      const json = await res.json();
-
-      if (res.ok) {
-        if (!json.sessionToken || typeof json.sessionToken !== "string") {
-          setError("Risposta dal server non valida. Contatta il supporto.");
-          return;
-        }
-        persistHostSession(json.email, json.sessionToken);
-        navigate("/host/dashboard");
-        return;
-      }
-
-      setError(json.error ?? "Email o password non corretti.");
-    } catch {
-      setError("Errore di connessione. Riprova tra qualche secondo.");
-    } finally {
-      setIsLoading(false);
-    }
+    hostLogin(
+      { data: { email: trimmedEmail, password: trimmedPassword } },
+      {
+        onSuccess: (data) => {
+          persistHostSession(data.email, data.sessionToken);
+          navigate("/host/dashboard");
+        },
+        onError: (err) => {
+          const data = err && typeof err === "object" ? (err as { data?: { error?: string } }).data : undefined;
+          setError(data?.error ?? "Email o password non corretti.");
+        },
+      },
+    );
   };
 
   return (
-    <div className="min-h-[100dvh] bg-gradient-to-br from-slate-50 to-blue-50 flex flex-col items-center justify-center p-4">
+    <main className="min-h-[100dvh] bg-gradient-to-br from-slate-50 to-blue-50 flex flex-col items-center justify-center p-4">
 
       {/* Logo */}
       <Link href="/" className="flex items-center gap-2 mb-8 group">
@@ -84,7 +71,7 @@ export default function HostLogin() {
               <KeyRound className="w-8 h-8 text-blue-600" />
             </div>
             <h1 className="text-2xl font-extrabold text-gray-900 mb-1">Accesso Host</h1>
-            <p className="text-gray-400 text-sm">
+            <p className="text-gray-600 text-sm">
               Accedi per gestire tutte le tue strutture
             </p>
           </div>
@@ -160,7 +147,7 @@ export default function HostLogin() {
             <div className="text-center pt-1">
               <Link
                 href="/forgot-password"
-                className="inline-flex items-center gap-1.5 text-[13px] text-gray-400 hover:text-blue-600 transition-colors font-medium"
+                className="inline-flex items-center gap-1.5 text-[13px] text-gray-600 hover:text-blue-600 transition-colors font-medium"
               >
                 <HelpCircle className="w-3.5 h-3.5" />
                 Hai dimenticato la password?
@@ -171,7 +158,7 @@ export default function HostLogin() {
 
         {/* Footer */}
         <div className="border-t border-gray-100 px-8 py-4 text-center">
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-gray-600">
             Non hai ancora le credenziali?{" "}
             <Link href="/" className="text-blue-600 hover:text-blue-700 font-medium transition-colors">
               Contattaci
@@ -180,9 +167,9 @@ export default function HostLogin() {
         </div>
       </motion.div>
 
-      <p className="text-center text-[11px] text-gray-300 mt-6">
+      <p className="text-center text-[11px] text-gray-600 mt-6">
         Powered by HeyCico · Accesso sicuro
       </p>
-    </div>
+    </main>
   );
 }

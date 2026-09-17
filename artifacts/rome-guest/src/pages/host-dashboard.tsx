@@ -21,8 +21,16 @@ import {
   ArrowLeft,
   BookOpen,
 } from "lucide-react";
-import { apiUrl, getAiSecurityHeaders } from "@/lib/apiUrl";
+import { getAiSecurityHeaders } from "@/lib/apiUrl";
 import { getHostSession, type HostSession } from "@/lib/hostSession";
+import {
+  getHostProperty,
+  hostUpdateProperty,
+  resetPendingQuestions,
+  aiTranscribe,
+  aiVision,
+  type HostPropertyResponse,
+} from "@workspace/api-client-react";
 
 const DEFAULT_MANUAL_TEMPLATE = `🏠 MANUALE DI BENVENUTO - [NOME APPARTAMENTO]
 Benvenuti! Ecco tutte le informazioni essenziali per il vostro soggiorno.
@@ -81,15 +89,7 @@ function getErrorMessage(err: unknown, fallback: string): string {
   return err instanceof Error && !(err instanceof SyntaxError) ? err.message : fallback;
 }
 
-interface PropertyData {
-  id: number;
-  slug: string;
-  name: string;
-  content: string;
-  whatsappNumber: string | null;
-  pendingQuestionsCount: number;
-  referralLinks?: string | null;
-}
+type PropertyData = HostPropertyResponse;
 
 type AiState =
   | { type: "idle" }
@@ -157,18 +157,7 @@ export default function HostDashboard() {
     setIsLoading(true);
     setLoadError("");
     try {
-      const res = await fetch(apiUrl(`/api/host/${slug}`), {
-        headers: { Authorization: `Bearer ${s.sessionToken}` },
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        if (res.status === 401 || res.status === 403) {
-          setLoadError(json.error ?? "Accesso non autorizzato.");
-        } else {
-          setLoadError(json.error ?? "Struttura non trovata.");
-        }
-        return;
-      }
+      const json = await getHostProperty(slug, { headers: { Authorization: `Bearer ${s.sessionToken}` } });
       setProperty(json);
       setPendingCount(Number(json.pendingQuestionsCount ?? 0));
 
@@ -183,8 +172,19 @@ export default function HostDashboard() {
         whatsappNumber: json.whatsappNumber ?? "",
         referralLinks: json.referralLinks ?? "",
       });
-    } catch {
-      setLoadError("Errore di connessione. Riprova.");
+    } catch (err) {
+      const apiErr = err && typeof err === "object" && "status" in err
+        ? (err as { status: number; data?: { error?: string } })
+        : undefined;
+      if (apiErr) {
+        setLoadError(
+          apiErr.data?.error ?? (apiErr.status === 401 || apiErr.status === 403
+            ? "Accesso non autorizzato."
+            : "Struttura non trovata."),
+        );
+      } else {
+        setLoadError("Errore di connessione. Riprova.");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -196,17 +196,12 @@ export default function HostDashboard() {
 
     const refreshPendingCount = async () => {
       try {
-        const res = await fetch(apiUrl(`/api/host/${slug}`), {
-          headers: { Authorization: `Bearer ${session.sessionToken}` },
-        });
-        if (res.status === 401 || res.status === 403) return;
-        if (!res.ok) return;
-        const json = await res.json();
+        const json = await getHostProperty(slug, { headers: { Authorization: `Bearer ${session.sessionToken}` } });
         const n = Number(json.pendingQuestionsCount ?? 0);
         setPendingCount(n);
         setProperty((prev) => (prev ? { ...prev, pendingQuestionsCount: n } : prev));
       } catch {
-        /* network errors — keep last known count */
+        /* network errors or auth failures — keep last known count */
       }
     };
 
@@ -237,10 +232,7 @@ export default function HostDashboard() {
       return;
     }
     try {
-      await fetch(apiUrl(`/api/host/${slug}/reset-pending-questions`), {
-        method: "POST",
-        headers: { Authorization: `Bearer ${session.sessionToken}` },
-      });
+      await resetPendingQuestions(slug, { headers: { Authorization: `Bearer ${session.sessionToken}` } });
       setPendingCount(0);
     } catch {
       // If reset fails, still let host open Diario.
@@ -261,17 +253,10 @@ export default function HostDashboard() {
 
     setIsSaving(true);
     try {
-      const res = await fetch(apiUrl(`/api/host/${slug}`), {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.sessionToken}`,
-        },
-        body: JSON.stringify(data),
+      await hostUpdateProperty(slug, data, {
+        headers: { Authorization: `Bearer ${session.sessionToken}` },
         signal: controller.signal,
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Errore nel salvataggio.");
 
       // Only clear the dirty state if the form still matches what we just saved —
       // if the host kept typing while this request was in flight, resetting here
@@ -286,7 +271,8 @@ export default function HostDashboard() {
       savedTimerRef.current = setTimeout(() => setIsSaved(false), 3000);
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === "AbortError") return;
-      alert(getErrorMessage(err, "Errore nel salvataggio."));
+      const data = err && typeof err === "object" ? (err as { data?: { error?: string } }).data : undefined;
+      alert(data?.error ?? getErrorMessage(err, "Errore nel salvataggio."));
     } finally {
       if (saveAbortControllerRef.current === controller) {
         setIsSaving(false);
@@ -365,27 +351,20 @@ export default function HostDashboard() {
   const sendAudioForTranscription = async (blob: Blob, mimeType: string) => {
     setAiState({ type: "transcribing" });
     try {
-      const formData = new FormData();
-      const ext = mimeType.includes("ogg")
-        ? "ogg"
-        : mimeType.includes("mp4")
-          ? "mp4"
-          : "webm";
-      formData.append("audio", blob, `recording.${ext}`);
-      const res = await fetch(apiUrl("/api/ai/transcribe"), {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${session?.sessionToken ?? ""}`,
-          ...getAiSecurityHeaders(),
+      const json = await aiTranscribe(
+        { audio: blob },
+        {
+          headers: {
+            Authorization: `Bearer ${session?.sessionToken ?? ""}`,
+            ...getAiSecurityHeaders(),
+          },
         },
-        body: formData,
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Errore nella trascrizione.");
+      );
       appendToContent(json.text);
       setAiState({ type: "success", message: "Testo vocale aggiunto!" });
     } catch (err: unknown) {
-      setAiState({ type: "error", message: getErrorMessage(err, "Errore nella trascrizione.") });
+      const data = err && typeof err === "object" ? (err as { data?: { error?: string } }).data : undefined;
+      setAiState({ type: "error", message: data?.error ?? getErrorMessage(err, "Errore nella trascrizione.") });
     } finally {
       setTimeout(() => setAiState({ type: "idle" }), 3500);
     }
@@ -399,28 +378,25 @@ export default function HostDashboard() {
     e.target.value = "";
     setAiState({ type: "scanning" });
     try {
-      const formData = new FormData();
-      formData.append("image", file);
-      const res = await fetch(apiUrl("/api/ai/vision"), {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${session?.sessionToken ?? ""}`,
-          ...getAiSecurityHeaders(),
+      const json = await aiVision(
+        { image: file },
+        {
+          headers: {
+            Authorization: `Bearer ${session?.sessionToken ?? ""}`,
+            ...getAiSecurityHeaders(),
+          },
         },
-        body: formData,
-      });
-      const json = await res.json();
-      if (!res.ok)
-        throw new Error(json.error ?? "Errore nell'analisi dell'immagine.");
+      );
       appendToContent(json.text);
       setAiState({
         type: "success",
         message: "Informazioni estratte e aggiunte!",
       });
     } catch (err: unknown) {
+      const data = err && typeof err === "object" ? (err as { data?: { error?: string } }).data : undefined;
       setAiState({
         type: "error",
-        message: getErrorMessage(err, "Errore nell'analisi dell'immagine."),
+        message: data?.error ?? getErrorMessage(err, "Errore nell'analisi dell'immagine."),
       });
     } finally {
       setTimeout(() => setAiState({ type: "idle" }), 3500);
@@ -430,19 +406,19 @@ export default function HostDashboard() {
   // ── LOADING SCREEN ──
   if (isLoading) {
     return (
-      <div className="min-h-[100dvh] bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
+      <main className="min-h-[100dvh] bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
         <div className="flex flex-col items-center gap-3 text-blue-600">
           <Loader2 className="w-8 h-8 animate-spin" />
           <p className="font-medium text-gray-500">Caricamento struttura...</p>
         </div>
-      </div>
+      </main>
     );
   }
 
   // ── ERROR SCREEN ──
   if (loadError || !property) {
     return (
-      <div className="min-h-[100dvh] bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
+      <main className="min-h-[100dvh] bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -454,7 +430,7 @@ export default function HostDashboard() {
           <h2 className="font-bold text-gray-900 text-xl mb-2">
             Accesso negato
           </h2>
-          <p className="text-gray-400 text-sm mb-6">
+          <p className="text-gray-600 text-sm mb-6">
             {loadError || "Struttura non trovata."}
           </p>
           <div className="flex gap-3 justify-center">
@@ -472,7 +448,7 @@ export default function HostDashboard() {
             </Link>
           </div>
         </motion.div>
-      </div>
+      </main>
     );
   }
 
@@ -483,7 +459,7 @@ export default function HostDashboard() {
     aiState.type === "scanning";
 
   return (
-    <div className="min-h-[100dvh] bg-gradient-to-br from-slate-50 to-blue-50 py-8 px-4 overflow-x-hidden">
+    <main className="min-h-[100dvh] bg-gradient-to-br from-slate-50 to-blue-50 py-8 px-4 overflow-x-hidden">
       <div className="max-w-2xl mx-auto flex flex-col gap-6 w-full">
         {/* Header */}
         <motion.div
@@ -592,7 +568,7 @@ export default function HostDashboard() {
                 placeholder="es. 393901234567"
                 className="border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
               />
-              <p className="text-[11px] text-gray-400">
+              <p className="text-[11px] text-gray-600">
                 Solo numeri, senza spazi o + (es: 393901234567)
               </p>
             </div>
@@ -604,7 +580,7 @@ export default function HostDashboard() {
                   <Wifi className="w-3.5 h-3.5 text-blue-500" />
                   Regolamento e Informazioni
                 </span>
-                <span className="text-[10px] font-normal text-gray-400 uppercase tracking-wider">
+                <span className="text-[10px] font-normal text-gray-600 uppercase tracking-wider">
                   Visibile a Cico
                 </span>
               </label>
@@ -628,7 +604,7 @@ export default function HostDashboard() {
                   Inserisci i tuoi link affiliati (es. noleggio auto, tour, ristoranti convenzionati). Cico li
                   consiglierà quando gli ospiti chiedono suggerimenti. Formato consigliato:
                   <br />
-                  <span className="font-mono text-[10px] text-gray-400">
+                  <span className="font-mono text-[10px] text-gray-600">
                     - Auto: https://...
                     <br />- Tour Colosseo: https://...
                   </span>
@@ -742,7 +718,7 @@ export default function HostDashboard() {
                   />
                 </div>
 
-                <div className="flex gap-2 text-[10px] text-gray-400">
+                <div className="flex gap-2 text-[10px] text-gray-600">
                   <span className="flex-1 text-center">
                     Parla per dettare il regolamento — il testo apparirà nella
                     textarea.
@@ -753,7 +729,7 @@ export default function HostDashboard() {
                   </span>
                 </div>
 
-                <div className="flex items-center justify-center gap-1 text-[10px] text-gray-300 pt-0.5">
+                <div className="flex items-center justify-center gap-1 text-[10px] text-gray-600 pt-0.5">
                   <Sparkles className="w-2.5 h-2.5" />
                   Powered by HeyCico
                 </div>
@@ -762,10 +738,10 @@ export default function HostDashboard() {
           </form>
         </motion.div>
 
-        <p className="text-center text-[11px] text-gray-300 uppercase tracking-widest">
+        <p className="text-center text-[11px] text-gray-600 uppercase tracking-widest">
           Powered by HeyCico
         </p>
       </div>
-    </div>
+    </main>
   );
 }

@@ -1780,6 +1780,10 @@ components:
         whatsappNumber:
           type: string
           description: Host WhatsApp number shown to guests
+        ownerEmail:
+          type: string
+          format: email
+          description: Owner email to associate with the property, used to link it to a host account
       required:
         - slug
         - name
