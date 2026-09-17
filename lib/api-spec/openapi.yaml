@@ -1244,6 +1244,63 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /ai/extract-document:
+    post:
+      operationId: aiExtractDocument
+      tags: [ai]
+      summary: Extract text from an uploaded PDF or Word (.docx) document — no AI call, native parsing only (host only, max 15MB)
+      parameters:
+        - $ref: "#/components/parameters/HostSessionHeader"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                document:
+                  type: string
+                  format: binary
+              required:
+                - document
+      responses:
+        "200":
+          description: Extracted text
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiTextResponse"
+        "400":
+          description: Missing file or unrecognized format
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: File recognized but no usable text could be extracted (e.g. a scanned PDF with no text layer)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RateLimitedErrorResponse"
+        "500":
+          description: Document extraction failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /leads:
     post:
       operationId: createLead

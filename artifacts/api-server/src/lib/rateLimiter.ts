@@ -100,6 +100,12 @@ export const aiVisionRateLimiter = new RateLimiter({
   windowMs: 60 * 60 * 1000,
 });
 
+/** Document text extraction doesn't call OpenAI, but still parses arbitrary uploaded files server-side — capped to limit CPU abuse. */
+export const aiDocumentRateLimiter = new RateLimiter({
+  maxRequests: 20,
+  windowMs: 60 * 60 * 1000,
+});
+
 /** Strict limit for auth and public lead intake endpoints (per IP). */
 export const authRateLimiter = new RateLimiter({
   maxRequests: 10,

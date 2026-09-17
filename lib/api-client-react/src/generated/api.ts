@@ -22,6 +22,7 @@ import type {
 import type {
   AdminHost,
   AdminPropertySummary,
+  AiExtractDocumentBody,
   AiTextResponse,
   AiTranscribeBody,
   AiVisionBody,
@@ -2435,6 +2436,82 @@ export const useAiVision = <TError = ErrorType<ErrorResponse | RateLimitedErrorR
         TContext
       > => {
       return useMutation(getAiVisionMutationOptions(options));
+    }
+
+export const getAiExtractDocumentUrl = () => {
+
+
+
+
+  return `/api/ai/extract-document`
+}
+
+/**
+ * @summary Extract text from an uploaded PDF or Word (.docx) document — no AI call, native parsing only (host only, max 15MB)
+ */
+export const aiExtractDocument = async (aiExtractDocumentBody: AiExtractDocumentBody, options?: Parameters<typeof customFetch>[1]): Promise<AiTextResponse> => {
+    const formData = new FormData();
+formData.append(`document`, aiExtractDocumentBody.document);
+
+  return customFetch<AiTextResponse>(getAiExtractDocumentUrl(),
+  {
+    ...options,
+    method: 'POST'
+    ,
+    body: formData
+  }
+);}
+
+
+
+
+
+export const getAiExtractDocumentMutationKey = () => ['aiExtractDocument'] as const;
+
+export const getAiExtractDocumentMutationOptions = <TError = ErrorType<ErrorResponse | RateLimitedErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof aiExtractDocument>>, TError,AiExtractDocumentMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof aiExtractDocument>>, TError,AiExtractDocumentMutationVariables, TContext> => {
+
+const mutationKey = getAiExtractDocumentMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof aiExtractDocument>>, AiExtractDocumentMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  aiExtractDocument(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AiExtractDocumentMutationResult = NonNullable<Awaited<ReturnType<typeof aiExtractDocument>>>
+    export type AiExtractDocumentMutationBody = BodyType<AiExtractDocumentBody>
+    export type AiExtractDocumentMutationError = ErrorType<ErrorResponse | RateLimitedErrorResponse>
+    export type AiExtractDocumentMutationVariables = {data: BodyType<AiExtractDocumentBody>}
+
+    /**
+ * @summary Extract text from an uploaded PDF or Word (.docx) document — no AI call, native parsing only (host only, max 15MB)
+ */
+export const useAiExtractDocument = <TError = ErrorType<ErrorResponse | RateLimitedErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof aiExtractDocument>>, TError,AiExtractDocumentMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof aiExtractDocument>>,
+        TError,
+        AiExtractDocumentMutationVariables,
+        TContext
+      > => {
+      return useMutation(getAiExtractDocumentMutationOptions(options));
     }
 
 export const getCreateLeadUrl = () => {

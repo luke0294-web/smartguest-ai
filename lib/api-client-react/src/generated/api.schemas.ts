@@ -385,6 +385,10 @@ export type AiVisionBody = {
   image: Blob;
 };
 
+export type AiExtractDocumentBody = {
+  document: Blob;
+};
+
 export type DeleteLead200 = {
   success: boolean;
   id: number;

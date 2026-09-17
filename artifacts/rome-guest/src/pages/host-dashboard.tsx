@@ -14,8 +14,7 @@ import {
   MessageSquare,
   Phone,
   FileText,
-  Mic,
-  MicOff,
+  Upload,
   Camera,
   Sparkles,
   ArrowLeft,
@@ -27,7 +26,7 @@ import {
   getHostProperty,
   hostUpdateProperty,
   resetPendingQuestions,
-  aiTranscribe,
+  aiExtractDocument,
   aiVision,
   type HostPropertyResponse,
 } from "@workspace/api-client-react";
@@ -93,9 +92,8 @@ type PropertyData = HostPropertyResponse;
 
 type AiState =
   | { type: "idle" }
-  | { type: "recording" }
-  | { type: "transcribing" }
   | { type: "scanning" }
+  | { type: "extracting" }
   | { type: "success"; message: string }
   | { type: "error"; message: string };
 
@@ -115,10 +113,8 @@ export default function HostDashboard() {
   const [aiState, setAiState] = useState<AiState>({ type: "idle" });
   const [pendingCount, setPendingCount] = useState(0);
 
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const mediaStreamRef = useRef<MediaStream | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const documentInputRef = useRef<HTMLInputElement | null>(null);
 
   const updateForm = useForm<UpdateValues>({
     resolver: zodResolver(updateSchema),
@@ -290,69 +286,16 @@ export default function HostDashboard() {
     });
   };
 
-  const startRecording = async () => {
-    setAiState({ type: "recording" });
-    audioChunksRef.current = [];
+  const handleDocumentSelected = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    setAiState({ type: "extracting" });
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaStreamRef.current = stream;
-      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-        ? "audio/webm;codecs=opus"
-        : MediaRecorder.isTypeSupported("audio/webm")
-          ? "audio/webm"
-          : "audio/ogg";
-      const recorder = new MediaRecorder(stream, { mimeType });
-      mediaRecorderRef.current = recorder;
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) audioChunksRef.current.push(e.data);
-      };
-      recorder.onstop = async () => {
-        stream.getTracks().forEach((t) => t.stop());
-        mediaStreamRef.current = null;
-        await sendAudioForTranscription(
-          new Blob(audioChunksRef.current, { type: mimeType }),
-          mimeType,
-        );
-      };
-      recorder.start(250);
-    } catch {
-      setAiState({
-        type: "error",
-        message: "Microfono non disponibile. Controlla i permessi del browser.",
-      });
-      setTimeout(() => setAiState({ type: "idle" }), 4000);
-    }
-  };
-
-  const stopRecording = () => {
-    if (
-      mediaRecorderRef.current &&
-      mediaRecorderRef.current.state !== "inactive"
-    ) {
-      mediaRecorderRef.current.stop();
-      setAiState({ type: "transcribing" });
-    }
-  };
-
-  /**
-   * Release the microphone if the host navigates away mid-recording instead of
-   * clicking "Stop" — otherwise the stream keeps capturing (and the browser's
-   * mic indicator stays on) with no way to stop it short of a page reload.
-   * Stops the raw tracks directly rather than going through stopRecording()/
-   * recorder.onstop, which would call setAiState after this component unmounted.
-   */
-  useEffect(() => {
-    return () => {
-      mediaStreamRef.current?.getTracks().forEach((t) => t.stop());
-      mediaStreamRef.current = null;
-    };
-  }, []);
-
-  const sendAudioForTranscription = async (blob: Blob, mimeType: string) => {
-    setAiState({ type: "transcribing" });
-    try {
-      const json = await aiTranscribe(
-        { audio: blob },
+      const json = await aiExtractDocument(
+        { document: file },
         {
           headers: {
             Authorization: `Bearer ${session?.sessionToken ?? ""}`,
@@ -361,12 +304,18 @@ export default function HostDashboard() {
         },
       );
       appendToContent(json.text);
-      setAiState({ type: "success", message: "Testo vocale aggiunto!" });
+      setAiState({
+        type: "success",
+        message: "Testo del documento aggiunto!",
+      });
     } catch (err: unknown) {
       const data = err && typeof err === "object" ? (err as { data?: { error?: string } }).data : undefined;
-      setAiState({ type: "error", message: data?.error ?? getErrorMessage(err, "Errore nella trascrizione.") });
+      setAiState({
+        type: "error",
+        message: data?.error ?? getErrorMessage(err, "Errore nella lettura del documento."),
+      });
     } finally {
-      setTimeout(() => setAiState({ type: "idle" }), 3500);
+      setTimeout(() => setAiState({ type: "idle" }), 4500);
     }
   };
 
@@ -453,10 +402,7 @@ export default function HostDashboard() {
   }
 
   // ── DASHBOARD ──
-  const isAiBusy =
-    aiState.type === "recording" ||
-    aiState.type === "transcribing" ||
-    aiState.type === "scanning";
+  const isAiBusy = aiState.type === "scanning" || aiState.type === "extracting";
 
   return (
     <main className="min-h-[100dvh] bg-gradient-to-br from-slate-50 to-blue-50 py-8 px-4 overflow-x-hidden">
@@ -632,27 +578,19 @@ export default function HostDashboard() {
                 {aiState.type !== "idle" && (
                   <div
                     className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium border ${
-                      aiState.type === "recording"
-                        ? "bg-red-50 border-red-200 text-red-700"
-                        : aiState.type === "transcribing"
-                          ? "bg-blue-50 border-blue-200 text-blue-700"
-                          : aiState.type === "scanning"
-                            ? "bg-violet-50 border-violet-200 text-violet-700"
-                            : aiState.type === "success"
-                              ? "bg-emerald-50 border-emerald-200 text-emerald-700"
-                              : "bg-red-50 border-red-200 text-red-700"
+                      aiState.type === "extracting"
+                        ? "bg-blue-50 border-blue-200 text-blue-700"
+                        : aiState.type === "scanning"
+                          ? "bg-violet-50 border-violet-200 text-violet-700"
+                          : aiState.type === "success"
+                            ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                            : "bg-red-50 border-red-200 text-red-700"
                     }`}
                   >
-                    {aiState.type === "recording" && (
-                      <>
-                        <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
-                        Registrazione in corso... Premi stop quando finisci.
-                      </>
-                    )}
-                    {aiState.type === "transcribing" && (
+                    {aiState.type === "extracting" && (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
-                        L'IA sta trascrivendo l'audio...
+                        Sto leggendo il documento...
                       </>
                     )}
                     {aiState.type === "scanning" && (
@@ -677,29 +615,26 @@ export default function HostDashboard() {
                 )}
 
                 <div className="flex gap-2">
-                  {aiState.type === "recording" ? (
-                    <button
-                      type="button"
-                      onClick={stopRecording}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-red-500 hover:bg-red-600 text-white transition-all shadow-sm shadow-red-200 animate-pulse"
-                    >
-                      <MicOff className="w-4 h-4" />⏹ Stop Registrazione
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={startRecording}
-                      disabled={isAiBusy}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white transition-all shadow-sm shadow-rose-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {aiState.type === "transcribing" ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Mic className="w-4 h-4" />
-                      )}
-                      🎤 Registra Vocale
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => documentInputRef.current?.click()}
+                    disabled={isAiBusy}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white transition-all shadow-sm shadow-rose-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {aiState.type === "extracting" ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Upload className="w-4 h-4" />
+                    )}
+                    📁 Carica Documento
+                  </button>
+                  <input
+                    ref={documentInputRef}
+                    type="file"
+                    accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    className="hidden"
+                    onChange={handleDocumentSelected}
+                  />
                   <button
                     type="button"
                     onClick={() => imageInputRef.current?.click()}
@@ -717,6 +652,7 @@ export default function HostDashboard() {
                     ref={imageInputRef}
                     type="file"
                     accept="image/*"
+                    capture="environment"
                     className="hidden"
                     onChange={handleImageSelected}
                   />
@@ -724,12 +660,11 @@ export default function HostDashboard() {
 
                 <div className="flex gap-2 text-[10px] text-gray-600">
                   <span className="flex-1 text-center">
-                    Parla per dettare il regolamento — il testo apparirà nella
-                    textarea.
+                    Carica un PDF o Word (.docx) con il tuo regolamento — il testo verrà aggiunto qui sotto.
                   </span>
                   <span className="flex-1 text-center">
-                    Scatta o carica la foto di un cartello WiFi o manuale — l'IA
-                    lo legge.
+                    Scatta una foto di un cartello WiFi o manuale stampato — l'IA
+                    la legge.
                   </span>
                 </div>
 

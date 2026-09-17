@@ -103,9 +103,9 @@ smartguest-ai/
 
 **`guest.tsx`** — La chat degli ospiti. Rileva la lingua dal browser, mostra chip di risposta rapida (WiFi, ristoranti, check-out), un messaggio di benvenuto localizzato al primo accesso, e un link WhatsApp come fallback umano sempre visibile.
 
-**`host-dashboard.tsx`** — Editor del regolamento con due strumenti AI:
-- *Registra vocale*: trascrizione audio via Whisper, appesa direttamente al regolamento
-- *Scansiona foto*: estrazione testo da un'immagine (es. foto del citofono) via GPT-4o Vision
+**`host-dashboard.tsx`** — Editor del regolamento con due strumenti di estrazione testo:
+- *Carica Documento*: estrae il testo da un PDF o Word (.docx) caricato — parsing nativo lato server, nessuna chiamata AI
+- *Scansiona Foto*: estrazione testo da una foto scattata sul momento (es. cartello WiFi, citofono) via GPT-4o Vision
 
 Mostra anche un badge con il conteggio delle domande in sospeso, aggiornato ogni 15 secondi.
 
@@ -162,8 +162,9 @@ Tutte le rotte sono prefissate `/api`. Validazione tramite Zod, boot-check delle
 **AI (strumenti host)**
 | Metodo | Path | Auth |
 |---|---|---|
-| POST | `/ai/transcribe` | Host — Whisper, max 25MB |
+| POST | `/ai/transcribe` | Host — Whisper, max 25MB (attualmente non usata dal frontend) |
 | POST | `/ai/vision` | Host — GPT-4o Vision |
+| POST | `/ai/extract-document` | Host — parsing nativo PDF/.docx, max 15MB, nessuna chiamata AI |
 
 **Lead**
 | Metodo | Path | Auth |
