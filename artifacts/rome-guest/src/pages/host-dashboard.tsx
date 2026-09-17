@@ -584,6 +584,10 @@ export default function HostDashboard() {
                   Visibile a Cico
                 </span>
               </label>
+              <p className="text-[11px] text-gray-500 leading-relaxed">
+                💡 Suggerimento: copia e incolla qui le informazioni principali dal tuo annuncio Airbnb o
+                Booking, poi modificale come preferisci e prova la chat.
+              </p>
               <textarea
                 {...updateForm.register("content")}
                 rows={12}
