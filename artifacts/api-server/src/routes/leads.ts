@@ -5,6 +5,7 @@ import { requireCeoSession } from "../lib/ceo-session";
 import { authRateLimiter } from "../lib/rateLimiter";
 import { supabaseAdmin } from "../lib/supabase";
 import { isHostWelcomeEmailConfigured, sendHostWelcomeEmail } from "../lib/hostWelcomeMail";
+import { sendNewLeadNotificationEmail } from "../lib/leadNotificationMail";
 import { isReservedPropertySlug } from "../lib/demoProperty";
 import { hashToken } from "../lib/tokens";
 
@@ -70,6 +71,19 @@ router.post("/leads", async (req, res): Promise<void> => {
     }
 
     logger.info({ email, propertyName }, "New lead registered");
+
+    try {
+      await sendNewLeadNotificationEmail({
+        hostName: row.host_name,
+        email: row.email,
+        propertyName: row.property_name,
+      });
+    } catch (mailErr: unknown) {
+      // Il lead è già salvato sopra: un errore di invio qui è solo una notifica
+      // persa, non un fallimento della creazione — non deve rispondere 500.
+      logger.error({ mailErr, leadId: row.id }, "POST /leads — notifica CEO al nuovo lead fallita");
+    }
+
     res.status(201).json({ success: true });
   } catch (error) {
     logger.error({ err: error }, "POST /leads — eccezione non gestita");
