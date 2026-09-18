@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { randomBytes } from "crypto";
+import { ForgotPasswordBody, ResetPasswordBody, SetupPasswordBody } from "@workspace/api-zod";
 import { logger } from "../lib/logger";
 import { requireCeoSession, getCeoPassword, issueCeoToken, verifyCeoPassword } from "../lib/ceo-session";
 import { requireHostSession } from "../lib/host-auth";
@@ -104,7 +105,12 @@ router.post("/auth/forgot-password", async (req, res): Promise<void> => {
       return;
     }
 
-    const { email } = req.body ?? {};
+    const parsedBody = ForgotPasswordBody.safeParse(req.body);
+    if (!parsedBody.success) {
+      res.status(400).json({ error: "Inserisci un'email valida." });
+      return;
+    }
+    const { email } = parsedBody.data;
 
     if (!email?.trim()) {
       res.status(400).json({ error: "Inserisci un'email valida." });
@@ -230,12 +236,18 @@ router.get("/auth/reset-password/:token", async (req, res): Promise<void> => {
 router.post("/auth/reset-password/:token", async (req, res): Promise<void> => {
   try {
     const { token } = req.params;
-    const { newPassword } = req.body ?? {};
 
     if (!token) {
       res.status(400).json({ error: "Token mancante." });
       return;
     }
+
+    const parsedBody = ResetPasswordBody.safeParse(req.body);
+    if (!parsedBody.success) {
+      res.status(400).json({ error: `${HOST_PASSWORD_MIN_LENGTH_MESSAGE_IT}.` });
+      return;
+    }
+    const { newPassword } = parsedBody.data;
 
     if (!newPassword?.trim() || String(newPassword).trim().length < MIN_HOST_PASSWORD_LENGTH) {
       res.status(400).json({ error: `${HOST_PASSWORD_MIN_LENGTH_MESSAGE_IT}.` });
@@ -352,12 +364,18 @@ router.get("/auth/setup-password/:token", async (req, res): Promise<void> => {
 router.post("/auth/setup-password/:token", async (req, res): Promise<void> => {
   try {
     const { token } = req.params;
-    const { newPassword } = req.body ?? {};
 
     if (!token) {
       res.status(400).json({ error: "Token mancante." });
       return;
     }
+
+    const parsedBody = SetupPasswordBody.safeParse(req.body);
+    if (!parsedBody.success) {
+      res.status(400).json({ error: `${HOST_PASSWORD_MIN_LENGTH_MESSAGE_IT}.` });
+      return;
+    }
+    const { newPassword } = parsedBody.data;
 
     if (!newPassword?.trim() || String(newPassword).trim().length < MIN_HOST_PASSWORD_LENGTH) {
       res.status(400).json({ error: `${HOST_PASSWORD_MIN_LENGTH_MESSAGE_IT}.` });

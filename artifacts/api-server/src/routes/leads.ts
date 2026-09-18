@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { randomBytes } from "node:crypto";
+import { CreateLeadBody } from "@workspace/api-zod";
 import { logger } from "../lib/logger";
 import { requireCeoSession } from "../lib/ceo-session";
 import { authRateLimiter } from "../lib/rateLimiter";
@@ -41,7 +42,12 @@ router.post("/leads", async (req, res): Promise<void> => {
       return;
     }
 
-    const { hostName, email, propertyName } = req.body ?? {};
+    const parsedBody = CreateLeadBody.safeParse(req.body);
+    if (!parsedBody.success) {
+      res.status(400).json({ error: "Dati non validi. Controlla nome, email e struttura." });
+      return;
+    }
+    const { hostName, email, propertyName } = parsedBody.data;
 
     if (!hostName?.trim() || !email?.trim() || !propertyName?.trim()) {
       res.status(400).json({ error: "Dati non validi. Controlla nome, email e struttura." });
