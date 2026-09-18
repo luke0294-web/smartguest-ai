@@ -459,16 +459,12 @@ router.put("/properties/:slug/host-password", async (req, res): Promise<void> =>
 
       logger.info({ slug, email: ownerEmail }, "Host password updated by CEO via hosts table");
     } else {
-      const { error: pErr } = await supabaseAdmin
-        .from("properties")
-        .update({ host_password: hashed })
-        .eq("slug", slug);
-      if (pErr) {
-        logger.error({ pErr }, "host-password — property-only password");
-        res.status(500).json({ error: "Aggiornamento proprietà fallito." });
-        return;
-      }
-      logger.info({ slug }, "Host password updated by CEO on property (no owner email set)");
+      // Login (requireHostSession) only checks the `hosts` table, keyed by
+      // email — a password written straight onto `properties.host_password`
+      // with no owner email is unreachable at login. Refuse rather than
+      // returning 200 for a password the host can never actually use.
+      res.status(400).json({ error: "Aggiungi prima un'email owner a questa proprietà." });
+      return;
     }
 
     res.json({ success: true, slug, hostPasswordSet: true });

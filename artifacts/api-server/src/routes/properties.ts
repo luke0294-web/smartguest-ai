@@ -511,7 +511,12 @@ router.put("/properties/:slug/full-edit", async (req, res): Promise<void> => {
         }
         propPatch.host_password = null;
       } else {
-        propPatch.host_password = await hashHostPassword(trimmedPw);
+        // Login (requireHostSession) only checks the `hosts` table, keyed by
+        // email — a password written straight onto `properties.host_password`
+        // with no owner email is unreachable at login. Refuse rather than
+        // returning 200 for a password the host can never actually use.
+        res.status(400).json({ error: "Aggiungi prima un'email owner a questa proprietà." });
+        return;
       }
     }
 
