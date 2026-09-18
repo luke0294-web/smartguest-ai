@@ -591,7 +591,7 @@ router.post("/super-diario/:slug/refresh-all", async (req, res): Promise<void> =
   try {
     const { data: logs, error: selErr } = await supabaseAdmin
       .from("chat_logs")
-      .select("id, marco_reply")
+      .select("id, guest_message, marco_reply")
       .eq("property_slug", req.params.slug);
 
     if (selErr) {
@@ -603,8 +603,17 @@ router.post("/super-diario/:slug/refresh-all", async (req, res): Promise<void> =
     const resolvedIds: number[] = [];
     const unresolvedIds: number[] = [];
     for (const log of logs ?? []) {
+      // Stessa identica logica dell'inserimento live (POST /properties/:slug/chat),
+      // incluso il caso "tourism" — altrimenti la stessa riga può finire risolta
+      // all'inserimento e non-risolta dopo un refresh, senza che nulla sia cambiato.
+      const category = categorizeMessage(log.guest_message);
       const isHostFallback = shouldIncrementPendingQuestions(log.marco_reply);
-      const resolved = isHostFallback ? false : !detectNeedsAttention(log.marco_reply);
+      const resolved =
+        category === "tourism"
+          ? true
+          : isHostFallback
+            ? false
+            : !detectNeedsAttention(log.marco_reply);
       (resolved ? resolvedIds : unresolvedIds).push(log.id);
     }
 
