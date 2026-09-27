@@ -270,6 +270,35 @@ export interface Lead {
   createdAt: string;
 }
 
+export interface CreateDemoProspectRequest {
+  /** Real name of the prospect's property, shown in the demo chat header */
+  propertyName: string;
+  /**
+     * Real facts about the prospect's actual property (zone, a
+     * distinctive detail, a nearby tip, etc.) that Cico will use to
+     * answer — written so the "curiosity question" suggested to the
+     * prospect gets a specific, real answer instead of a generic one
+     */
+  manualContent: string;
+  /**
+     * The curiosity question to suggest to the prospect in the outreach
+     * message (WhatsApp/email); not shown inside the demo chat itself
+     */
+  suggestedQuestion?: string;
+}
+
+export interface DemoProspect {
+  slug: string;
+  /** Full shareable link to the personalized demo (/demo/{slug}) */
+  url: string;
+  propertyName: string;
+  manualContent: string;
+  suggestedQuestion?: string | null;
+  /** Set the first time the prospect actually sends a chat message */
+  firstMessageAt?: string | null;
+  createdAt: string;
+}
+
 export interface UpdateLeadStatusRequest {
   status: LeadStatus;
 }
@@ -392,6 +421,11 @@ export type AiExtractDocumentBody = {
 export type DeleteLead200 = {
   success: boolean;
   id: number;
+};
+
+export type DeleteDemoProspect200 = {
+  success: boolean;
+  slug: string;
 };
 
 export type GetAdminPropertiesByEmailParams = {

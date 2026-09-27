@@ -730,6 +730,70 @@ export const ConvertLeadResponse = zod.object({
 
 
 /**
+ * @summary Create a personalized demo link for an outreach prospect: a
+/demo/{slug} page pre-loaded with real facts about their property,
+used to hook them with a specific question in the outreach message
+(CEO only)
+
+ */
+export const CreateDemoProspectHeader = zod.object({
+  "X-CEO-Session": zod.string().describe('HMAC session token from POST \/auth\/ceo-login')
+})
+
+export const CreateDemoProspectBody = zod.object({
+  "propertyName": zod.string().describe('Real name of the prospect\'s property, shown in the demo chat header'),
+  "manualContent": zod.string().describe('Real facts about the prospect\'s actual property (zone, a\ndistinctive detail, a nearby tip, etc.) that Cico will use to\nanswer — written so the \"curiosity question\" suggested to the\nprospect gets a specific, real answer instead of a generic one\n'),
+  "suggestedQuestion": zod.string().optional().describe('The curiosity question to suggest to the prospect in the outreach\nmessage (WhatsApp\/email); not shown inside the demo chat itself\n')
+})
+
+export const CreateDemoProspectResponse = zod.object({
+  "slug": zod.string(),
+  "url": zod.string().describe('Full shareable link to the personalized demo (\/demo\/{slug})'),
+  "propertyName": zod.string(),
+  "manualContent": zod.string(),
+  "suggestedQuestion": zod.string().nullish(),
+  "firstMessageAt": zod.date().nullish().describe('Set the first time the prospect actually sends a chat message'),
+  "createdAt": zod.date()
+})
+
+
+/**
+ * @summary List all personalized demos, newest first (CEO only)
+ */
+export const ListDemoProspectsHeader = zod.object({
+  "X-CEO-Session": zod.string().describe('HMAC session token from POST \/auth\/ceo-login')
+})
+
+export const ListDemoProspectsResponseItem = zod.object({
+  "slug": zod.string(),
+  "url": zod.string().describe('Full shareable link to the personalized demo (\/demo\/{slug})'),
+  "propertyName": zod.string(),
+  "manualContent": zod.string(),
+  "suggestedQuestion": zod.string().nullish(),
+  "firstMessageAt": zod.date().nullish().describe('Set the first time the prospect actually sends a chat message'),
+  "createdAt": zod.date()
+})
+export const ListDemoProspectsResponse = zod.array(ListDemoProspectsResponseItem)
+
+
+/**
+ * @summary Delete a personalized demo (CEO only)
+ */
+export const DeleteDemoProspectParams = zod.object({
+  "slug": zod.coerce.string()
+})
+
+export const DeleteDemoProspectHeader = zod.object({
+  "X-CEO-Session": zod.string().describe('HMAC session token from POST \/auth\/ceo-login')
+})
+
+export const DeleteDemoProspectResponse = zod.object({
+  "success": zod.boolean(),
+  "slug": zod.string()
+})
+
+
+/**
  * @summary List all host accounts (CEO only)
  */
 export const ListAdminHostsHeader = zod.object({

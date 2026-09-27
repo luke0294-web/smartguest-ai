@@ -51,6 +51,7 @@ function Router() {
           <Redirect to="/ceo" />
         </Route>
         <Route path="/demo" component={DemoPage} />
+        <Route path="/demo/:slug" component={DemoPage} />
         <Route path="/guest/:slug" component={GuestChat} />
         <Route path="/signup" component={SignupRedirect} />
         <Route path="/host/dashboard" component={HostProperties} />
