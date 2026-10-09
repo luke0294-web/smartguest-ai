@@ -119,3 +119,11 @@ overrides:
   rollup>@rollup/rollup-win32-ia32-msvc: '-'
   rollup>@rollup/rollup-win32-x64-gnu: '-'
   rollup>@rollup/rollup-win32-x64-msvc: '-'
+
+auditConfig:
+  ignoreGhsas:
+    # braces 3.0.3: nessuna versione corretta pubblicata (ottobre 2026).
+    # Arriva solo da artifacts/mockup-sandbox (fast-glob, devDependency, non va in produzione)
+    # e lì riceve solo pattern scritti nel codice, mai input degli utenti.
+    # Togliere quando esce una versione corretta o quando mockup-sandbox viene eliminato.
+    - GHSA-vfj7-8cjw-p6xm
