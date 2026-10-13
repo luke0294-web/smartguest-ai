@@ -9,6 +9,7 @@ import { isHostWelcomeEmailConfigured, sendHostWelcomeEmail } from "../lib/hostW
 import { sendNewLeadNotificationEmail } from "../lib/leadNotificationMail";
 import { isReservedPropertySlug } from "../lib/demoProperty";
 import { hashToken } from "../lib/tokens";
+import { leadSlugBase, leadSlugCandidate, MAX_LEAD_SLUG_ATTEMPTS } from "../lib/leadSlug";
 
 const router: IRouter = Router();
 const VALID_STATUSES = ["Nuovo", "Contattato", "In Trattativa", "Chiuso", "Non Interessato"] as const;
@@ -226,23 +227,33 @@ router.post("/leads/:id/convert", async (req, res): Promise<void> => {
     const inviteToken = randomBytes(32).toString("hex");
     const inviteTokenExpiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
 
-    const baseSlug = leadRow.property_name
-      .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, "")
-      .replace(/\s+/g, "-")
-      .replace(/-+/g, "-")
-      .replace(/^-|-$/g, "") || "proprieta";
-
-    let slug = baseSlug;
-    let counter = 1;
-    while (true) {
-      if (isReservedPropertySlug(slug)) {
-        slug = `${baseSlug}-${counter++}`;
-        continue;
+    // Bounded loop with an await on every iteration: a reserved name ("Demo…")
+    // used to spin a synchronous `while (true)` forever and freeze the server.
+    const baseSlug = leadSlugBase(leadRow.property_name);
+    let slug: string | null = null;
+    for (let attempt = 0; attempt < MAX_LEAD_SLUG_ATTEMPTS; attempt++) {
+      const candidate = leadSlugCandidate(baseSlug);
+      if (isReservedPropertySlug(candidate)) continue;
+      const { data: clash, error: clashErr } = await supabaseAdmin
+        .from("properties")
+        .select("slug")
+        .eq("slug", candidate)
+        .maybeSingle();
+      if (clashErr) {
+        logger.error({ clashErr, candidate }, "Lead convert — verifica slug fallita");
+        res.status(500).json({ error: "Errore durante la verifica dello slug." });
+        return;
       }
-      const { data: clash } = await supabaseAdmin.from("properties").select("slug").eq("slug", slug).maybeSingle();
-      if (!clash) break;
-      slug = `${baseSlug}-${counter++}`;
+      if (!clash) {
+        slug = candidate;
+        break;
+      }
+    }
+
+    if (!slug) {
+      logger.error({ baseSlug }, "Lead convert — impossibile generare uno slug libero");
+      res.status(500).json({ error: "Impossibile generare un indirizzo per la struttura. Riprova." });
+      return;
     }
 
     const { error: propInsErr } = await supabaseAdmin.from("properties").insert({

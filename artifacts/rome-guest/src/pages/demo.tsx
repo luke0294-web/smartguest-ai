@@ -38,7 +38,12 @@ type DemoPageProps = {
  * hook them with a curiosity question in the outreach message.
  */
 export default function DemoPage({ params }: DemoPageProps) {
-  const personalizedSlug = params?.slug?.trim() || undefined;
+  const rawSlug = params?.slug?.trim() || undefined;
+  // Only personalized demos ("demo-…") belong here: any other slug would load a
+  // real host's property inside the demo shell (real WhatsApp number, messages
+  // landing in that host's Diario) — show the "not available" view instead.
+  const isValidPersonalizedSlug = Boolean(rawSlug?.startsWith("demo-"));
+  const personalizedSlug = isValidPersonalizedSlug ? rawSlug : undefined;
 
   const {
     data: personalizedProperty,
@@ -102,7 +107,7 @@ export default function DemoPage({ params }: DemoPageProps) {
     );
   }
 
-  if (personalizedSlug && (isPersonalizedError || !embedded)) {
+  if ((rawSlug && !isValidPersonalizedSlug) || (personalizedSlug && (isPersonalizedError || !embedded))) {
     return (
       <div className="flex h-[100dvh] flex-col items-center justify-center gap-4 bg-background px-6 text-center">
         <p className="text-lg font-semibold">Questa demo non è più disponibile.</p>
