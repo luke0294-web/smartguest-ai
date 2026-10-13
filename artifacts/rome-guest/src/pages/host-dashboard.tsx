@@ -21,7 +21,7 @@ import {
   BookOpen,
 } from "lucide-react";
 import { getAiSecurityHeaders } from "@/lib/apiUrl";
-import { getHostSession, type HostSession } from "@/lib/hostSession";
+import { clearHostSession, getHostSession, type HostSession } from "@/lib/hostSession";
 import {
   getHostProperty,
   hostUpdateProperty,
@@ -71,7 +71,12 @@ Vi preghiamo di lasciare le stoviglie pulite (o lavastoviglie avviata) e svuotar
 
 const updateSchema = z.object({
   name: z.string().min(1, "Il nome è obbligatorio"),
-  content: z.string().min(1, "Il regolamento è obbligatorio"),
+  // Same limit as the API: without it, an imported PDF over 20,000 chars was
+  // only rejected server-side, inside the autosave loop.
+  content: z
+    .string()
+    .min(1, "Il regolamento è obbligatorio")
+    .max(20000, "Il manuale non può superare 20.000 caratteri: accorcialo prima che venga salvato."),
   whatsappNumber: z.string().optional(),
   referralLinks: z.string().max(2000, "Massimo 2000 caratteri").optional(),
 });
@@ -109,6 +114,10 @@ export default function HostDashboard() {
   const [isSaving, setIsSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [saveError, setSaveError] = useState("");
+  /** Snapshot of the form content whose save just failed — never retried automatically. */
+  const failedSnapshotRef = useRef<string | null>(null);
+  const aiIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveAbortControllerRef = useRef<AbortController | null>(null);
   const [aiState, setAiState] = useState<AiState>({ type: "idle" });
   const [pendingCount, setPendingCount] = useState(0);
@@ -120,13 +129,18 @@ export default function HostDashboard() {
     resolver: zodResolver(updateSchema),
     defaultValues: { name: "", content: "", whatsappNumber: "", referralLinks: "" },
   });
-  // Osserva tutti i campi del form e controlla se l'utente ha fatto modifiche (isDirty)
-  const formValues = updateForm.watch();
+  // Osserva tutti i campi del form e controlla se l'utente ha fatto modifiche (isDirty).
+  // watch() returns a NEW object on every render, so the debounce must depend
+  // on a stable string: depending on the object re-armed the timer on every
+  // re-render — after a failed save that meant an alert every 1.5 s, forever.
+  const formSnapshot = JSON.stringify(updateForm.watch());
   const isDirty = updateForm.formState.isDirty;
 
   useEffect(() => {
     // Se non ci sono modifiche, non fare nulla
     if (!isDirty) return;
+    // Contenuto identico a quello appena fallito: aspetta una nuova modifica.
+    if (failedSnapshotRef.current === formSnapshot) return;
 
     // Se ci sono modifiche, aspetta 1.5 secondi da quando l'host smette di scrivere
     const timer = setTimeout(() => {
@@ -135,7 +149,24 @@ export default function HostDashboard() {
 
     // Se l'host digita un'altra lettera prima di 1.5s, azzera il timer
     return () => clearTimeout(timer);
-  }, [formValues, isDirty]);
+  }, [formSnapshot, isDirty]);
+
+  // Warn before closing/reloading the tab with unsaved or still-saving edits.
+  useEffect(() => {
+    if (!isDirty && !isSaving) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [isDirty, isSaving]);
+
+  useEffect(() => {
+    return () => {
+      if (aiIdleTimerRef.current) clearTimeout(aiIdleTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (!slug) return;
@@ -222,11 +253,29 @@ export default function HostDashboard() {
     };
   }, [slug, session]);
 
+  /**
+   * Save pending edits before leaving the page. Returns false if they could
+   * not be saved (the error is shown and the host stays on the page) —
+   * leaving used to cancel the debounce timer and silently drop the edits.
+   */
+  const flushPendingSave = async (): Promise<boolean> => {
+    if (!updateForm.formState.isDirty) return true;
+    await updateForm.handleSubmit(handleUpdate)();
+    return !updateForm.formState.isDirty;
+  };
+
+  const navigateAfterSave = async (e: React.MouseEvent, href: string) => {
+    if (!updateForm.formState.isDirty) return; // nothing pending: normal link navigation
+    e.preventDefault();
+    if (await flushPendingSave()) navigate(href);
+  };
+
   const handleOpenDiario = async () => {
     if (!session) {
       navigate("/login");
       return;
     }
+    if (!(await flushPendingSave())) return;
     try {
       await resetPendingQuestions(slug, { headers: { Authorization: `Bearer ${session.sessionToken}` } });
       setPendingCount(0);
@@ -262,13 +311,31 @@ export default function HostDashboard() {
         updateForm.reset(data);
       }
 
+      failedSnapshotRef.current = null;
+      setSaveError("");
       if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
       setIsSaved(true);
       savedTimerRef.current = setTimeout(() => setIsSaved(false), 3000);
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === "AbortError") return;
-      const data = err && typeof err === "object" ? (err as { data?: { error?: string } }).data : undefined;
-      alert(data?.error ?? getErrorMessage(err, "Errore nel salvataggio."));
+      const apiErr = err && typeof err === "object" ? (err as { status?: number; data?: { error?: string } }) : undefined;
+      if (apiErr?.status === 401 || apiErr?.status === 403) {
+        // Expired 8h session (or lost access): retrying can't succeed.
+        clearHostSession();
+        navigate("/login");
+        return;
+      }
+      // Shown inline, and this exact content is not retried until edited again.
+      // Block retries only if the form still holds exactly what failed; if the
+      // host kept typing meanwhile, let the newer content try again.
+      const current = JSON.stringify(updateForm.getValues());
+      failedSnapshotRef.current = current === JSON.stringify(data) ? current : null;
+      const raw = apiErr?.data?.error;
+      setSaveError(
+        raw && !raw.trim().startsWith("[")
+          ? raw
+          : getErrorMessage(err, "Salvataggio non riuscito. Modifica il testo o riprova tra poco."),
+      );
     } finally {
       if (saveAbortControllerRef.current === controller) {
         setIsSaving(false);
@@ -292,6 +359,7 @@ export default function HostDashboard() {
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = "";
+    if (aiIdleTimerRef.current) clearTimeout(aiIdleTimerRef.current);
     setAiState({ type: "extracting" });
     try {
       const json = await aiExtractDocument(
@@ -315,7 +383,9 @@ export default function HostDashboard() {
         message: data?.error ?? getErrorMessage(err, "Errore nella lettura del documento."),
       });
     } finally {
-      setTimeout(() => setAiState({ type: "idle" }), 4500);
+      // One shared timer: a finished upload must not reset a second one still running.
+      if (aiIdleTimerRef.current) clearTimeout(aiIdleTimerRef.current);
+      aiIdleTimerRef.current = setTimeout(() => setAiState({ type: "idle" }), 4500);
     }
   };
 
@@ -325,6 +395,7 @@ export default function HostDashboard() {
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = "";
+    if (aiIdleTimerRef.current) clearTimeout(aiIdleTimerRef.current);
     setAiState({ type: "scanning" });
     try {
       const json = await aiVision(
@@ -348,7 +419,8 @@ export default function HostDashboard() {
         message: data?.error ?? getErrorMessage(err, "Errore nell'analisi dell'immagine."),
       });
     } finally {
-      setTimeout(() => setAiState({ type: "idle" }), 3500);
+      if (aiIdleTimerRef.current) clearTimeout(aiIdleTimerRef.current);
+      aiIdleTimerRef.current = setTimeout(() => setAiState({ type: "idle" }), 3500);
     }
   };
 
@@ -447,12 +519,14 @@ export default function HostDashboard() {
             </button>
             <Link
               href={`/guest/${slug}`}
+              onClick={(e) => void navigateAfterSave(e, `/guest/${slug}`)}
               className="text-xs sm:text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-colors shadow-sm shadow-blue-200"
             >
               Chat
             </Link>
             <Link
               href="/host/dashboard"
+              onClick={(e) => void navigateAfterSave(e, "/host/dashboard")}
               className="text-xs sm:text-sm font-medium text-gray-600 hover:text-gray-800 transition-colors"
             >
               ← Dashboard
@@ -479,6 +553,11 @@ export default function HostDashboard() {
             <div className="text-[13px] font-medium min-w-[100px] text-right">
               {isSaving && <span className="text-blue-500 animate-pulse">Salvataggio...</span>}
               {isSaved && !isSaving && <span className="text-emerald-500">Salvato ✅</span>}
+              {saveError && !isSaving && (
+                <span className="text-red-600" role="alert">
+                  {saveError}
+                </span>
+              )}
             </div>
           </div>
 

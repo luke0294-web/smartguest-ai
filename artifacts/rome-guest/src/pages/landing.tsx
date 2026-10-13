@@ -198,6 +198,7 @@ function RegistrationModal({ onClose }: { onClose: () => void }) {
                 <input
                   type="text"
                   value={hostName}
+                  maxLength={120}
                   onChange={(e) => setHostName(e.target.value)}
                   placeholder="es. Luca Rossi"
                   required
@@ -209,6 +210,7 @@ function RegistrationModal({ onClose }: { onClose: () => void }) {
                 <label className="text-sm font-semibold text-gray-700">Email</label>
                 <input
                   type="email"
+                  maxLength={254}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="marco@esempio.it"
@@ -222,6 +224,7 @@ function RegistrationModal({ onClose }: { onClose: () => void }) {
                 <input
                   type="text"
                   value={propertyName}
+                  maxLength={200}
                   onChange={(e) => setPropertyName(e.target.value)}
                   placeholder="es. Appartamento Centrale Roma"
                   required

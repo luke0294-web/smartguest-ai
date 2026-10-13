@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -318,6 +318,31 @@ function ContentEditModal({
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
+  // The list cache can be an hour old (no refetch on focus) while the host
+  // kept editing: start from the CURRENT manual, or saving would silently
+  // overwrite the host's newer text with the stale copy.
+  const [loadingFresh, setLoadingFresh] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    getProperty(property.slug, { headers: { ...ceoSessionHeaders } })
+      .then((fresh) => {
+        if (!cancelled) setText(fresh.content ?? "");
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setError("Non sono riuscito a caricare la versione aggiornata: stai vedendo quella in cache, che potrebbe essere vecchia.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingFresh(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // Load once per opened property.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [property.slug]);
 
   const handleSave = async () => {
     setError("");
@@ -370,6 +395,7 @@ function ContentEditModal({
           </label>
           <textarea
             value={text}
+            disabled={loadingFresh}
             onChange={(e) => { setText(e.target.value); setSaved(false); }}
             placeholder="Inserisci qui il regolamento completo, info WiFi, istruzioni check-in/check-out, consigli locali..."
             className="w-full h-72 resize-none border border-gray-200 rounded-2xl px-4 py-3 text-sm leading-relaxed text-gray-800 focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all font-sans"
@@ -403,7 +429,7 @@ function ContentEditModal({
             </button>
             <button
               onClick={handleSave}
-              disabled={saving || !text.trim()}
+              disabled={saving || loadingFresh || !text.trim()}
               className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-2xl shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm"
             >
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
@@ -461,7 +487,9 @@ export default function CeoPanel() {
   const [hostDeleting, setHostDeleting] = useState<Record<string, boolean>>({});
   const queryClient = useQueryClient();
 
-  const ceoSessionHeaders = { "X-CEO-Session": ceoToken };
+  // Memoized: a new object every render made QrModal's effect refetch the QR
+  // (spinner flash) on any panel re-render while the modal was open.
+  const ceoSessionHeaders = useMemo(() => ({ "X-CEO-Session": ceoToken }), [ceoToken]);
 
   const handleCeoSessionExpired = () => {
     sessionStorage.removeItem(CEO_SESSION_KEY);
@@ -581,7 +609,8 @@ export default function CeoPanel() {
       await apiDeleteLead(id, { headers: { ...ceoSessionHeaders } });
       setLeads((prev) => prev.filter((l) => l.id !== id));
     } catch (err) {
-      describeCeoApiError(err, "");
+      const message = describeCeoApiError(err, "Impossibile eliminare il lead. Riprova.");
+      if (message) toast({ title: "Errore", description: message, variant: "destructive" });
     } finally {
       setLeadDeleting((prev) => { const n = { ...prev }; delete n[id]; return n; });
     }
@@ -593,7 +622,8 @@ export default function CeoPanel() {
       await apiUpdateLeadStatus(id, { status: status as LeadStatus }, { headers: { ...ceoSessionHeaders } });
       setLeads((prev) => prev.map((l) => l.id === id ? { ...l, status: status as LeadStatus } : l));
     } catch (err) {
-      describeCeoApiError(err, "");
+      const message = describeCeoApiError(err, "Impossibile aggiornare lo stato del lead. Riprova.");
+      if (message) toast({ title: "Errore", description: message, variant: "destructive" });
     } finally {
       setLeadStatusSaving((prev) => { const n = { ...prev }; delete n[id]; return n; });
     }
@@ -621,20 +651,11 @@ export default function CeoPanel() {
       await fetchLeads();
       await fetchHosts();
     } catch (err) {
-      const status = err && typeof err === "object" && "status" in err ? (err as { status: number }).status : undefined;
-      if (status === 401) {
-        handleCeoSessionExpired();
-        return;
-      }
-      if (status !== undefined) {
-        toast({
-          title: "Invio non riuscito",
-          description: "Non è stato possibile inviare l'email tramite il servizio email (Resend). Riprova più tardi.",
-          variant: "destructive",
-        });
-      } else {
-        toast({ title: "Errore di rete", description: "Riprova.", variant: "destructive" });
-      }
+      // Show the server's actual reason: every non-401 error used to be
+      // reported as an email failure, even "Lead non trovato" or a failed
+      // property creation — misleading about whether the host now exists.
+      const message = describeCeoApiError(err, "Errore di rete. Riprova.");
+      if (message) toast({ title: "Conversione non riuscita", description: message, variant: "destructive" });
     } finally {
       setConvertingLead((prev) => { const n = { ...prev }; delete n[lead.id]; return n; });
     }
@@ -671,20 +692,8 @@ export default function CeoPanel() {
         description: "L'email di benvenuto con PDF allegato è stata inviata correttamente tramite Resend.",
       });
     } catch (err) {
-      const status = err && typeof err === "object" && "status" in err ? (err as { status: number }).status : undefined;
-      if (status === 401) {
-        handleCeoSessionExpired();
-        return;
-      }
-      if (status !== undefined) {
-        toast({
-          title: "Invio non riuscito",
-          description: "Non è stato possibile inviare l'email tramite il servizio email (Resend). Riprova più tardi.",
-          variant: "destructive",
-        });
-      } else {
-        toast({ title: "Errore di rete", description: "Riprova.", variant: "destructive" });
-      }
+      const message = describeCeoApiError(err, "Errore di rete. Riprova.");
+      if (message) toast({ title: "Invio non riuscito", description: message, variant: "destructive" });
     } finally {
       setResendWelcomeLoading((prev) => { const n = { ...prev }; delete n[slug]; return n; });
     }
@@ -830,7 +839,8 @@ export default function CeoPanel() {
         {
           name: inlineEdit.name,
           newSlug: inlineEdit.slug,
-          hostPassword: inlineEdit.hostPassword.trim(),
+          // Omitted when empty: "leave the password as it is".
+          hostPassword: trimmedPw || undefined,
           email: inlineEdit.email,
         },
         { headers: { ...ceoSessionHeaders } },
@@ -1086,7 +1096,7 @@ export default function CeoPanel() {
                                     value={inlineEdit.hostPassword}
                                     onChange={(e) => setInlineEdit((prev) => ({ ...prev, hostPassword: e.target.value }))}
                                     className="w-full bg-white border border-border px-3 py-2 pr-10 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50 transition-all"
-                                    placeholder="Minimo 8 caratteri (vuoto = rimuovi)"
+                                    placeholder="Nuova password host (min. 8) — vuoto = non cambiare"
                                     minLength={8}
                                     autoComplete="new-password"
                                   />
