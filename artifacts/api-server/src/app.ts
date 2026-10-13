@@ -1,10 +1,12 @@
 import express, { type Express } from "express";
 import cors from "cors";
+import multer from "multer";
 import helmet from "helmet";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
 import { isProductionSecurityEnabled } from "./lib/validateEnv";
+import { redactUrlForLogs } from "./lib/logRedact";
 
 const app: Express = express();
 app.set("trust proxy", 1);
@@ -48,7 +50,7 @@ app.use(
         return {
           id: req.id,
           method: req.method,
-          url: req.url?.split("?")[0],
+          url: redactUrlForLogs(req.url),
         };
       },
       res(res) {
@@ -60,6 +62,22 @@ app.use(
   }),
 );
 app.use(helmet());
+
+/**
+ * One-off diagnostic for `trust proxy`: every rate limiter keys on `req.ip`,
+ * which is only the real client IP if exactly one proxy sits in front of the
+ * app. Set LOG_PROXY_DEBUG=true on Render, load the site once, compare the
+ * two values in the logs, then remove the variable.
+ */
+if (process.env.LOG_PROXY_DEBUG?.trim().toLowerCase() === "true") {
+  app.use((req, _res, next) => {
+    logger.info(
+      { ip: req.ip, xForwardedFor: req.headers["x-forwarded-for"] ?? null },
+      "[PROXY DEBUG] IP visto dal server",
+    );
+    next();
+  });
+}
 app.use(
   cors({
     origin: (origin, callback) => {
@@ -77,7 +95,9 @@ app.use(
         return callback(null, true);
       }
 
-      return callback(new Error("Not allowed by CORS"));
+      // `false` = no CORS headers (the browser blocks the response) instead of
+      // throwing into the error handler, which logged a "critical" 500.
+      return callback(null, false);
     },
     credentials: true,
   }),
@@ -91,10 +111,23 @@ app.use("/api", router);
 // Ultimo resort: errori non gestiti (sync throw o, con Express 5, reject delle promesse nei route handler).
 app.use(
   (err: unknown, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    if (err instanceof multer.MulterError) {
+      if (!res.headersSent) {
+        res
+          .status(err.code === "LIMIT_FILE_SIZE" ? 413 : 400)
+          .json({
+            error:
+              err.code === "LIMIT_FILE_SIZE"
+                ? "Il file è troppo grande."
+                : "Caricamento del file non valido.",
+          });
+      }
+      return;
+    }
     console.error(
       "[ERRORE CRITICO] Express non gestito:",
       req.method,
-      req.path,
+      redactUrlForLogs(req.path),
       err instanceof Error ? err.stack ?? err.message : err,
     );
     if (res.headersSent) {

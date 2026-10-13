@@ -3,6 +3,19 @@ import { DEMO_SLUG } from "./demoProperty";
 import { isProductionSecurityEnabled } from "./validateEnv";
 
 const AI_MAX_MESSAGES_PER_SESSION = 12;
+/**
+ * Session ids are chosen by the client, so a fresh id per request would reset
+ * the per-session cap: every demo message also counts against the IP.
+ * 3× the session cap leaves room for a few tabs/devices behind one network.
+ */
+const AI_MAX_DEMO_MESSAGES_PER_IP = AI_MAX_MESSAGES_PER_SESSION * 3;
+
+/**
+ * Same shape the frontend generates (crypto.randomUUID() or "demo-<base36>-<base36>").
+ * Anything else is ignored: an unvalidated id became a Map key held for an hour,
+ * so multi-MB ids let anyone exhaust server memory with a few hundred requests.
+ */
+const SESSION_ID_PATTERN = /^[A-Za-z0-9-]{8,64}$/;
 const AI_COUNTER_TTL_MS = 60 * 60 * 1000;
 
 /** Non-demo: max 60 chat POSTs per rolling minute per x-session-id. */
@@ -44,14 +57,14 @@ function readSessionIdFromBody(req: Request): string | undefined {
   const candidate = (bodyUnknown as Record<string, unknown>)["sessionId"];
   if (typeof candidate !== "string") return undefined;
   const normalized = candidate.trim();
-  return normalized || undefined;
+  return SESSION_ID_PATTERN.test(normalized) ? normalized : undefined;
 }
 
 function readSessionIdFromHeaders(req: Request): string | undefined {
   const raw = req.headers["x-session-id"];
   if (typeof raw !== "string") return undefined;
   const normalized = raw.trim();
-  return normalized || undefined;
+  return SESSION_ID_PATTERN.test(normalized) ? normalized : undefined;
 }
 
 /** Production chat limit: x-session-id header (falls back to per-IP keying when absent). */
@@ -105,6 +118,18 @@ export function enforceAiMessageLimit(req: Request, res: Response): boolean {
   if (slug === DEMO_SLUG) {
     const key = getAiCounterKey(req);
     const used = aiMessageCountByKey.get(key) ?? 0;
+
+    const ipKey = `demo-ip:${req.ip ?? "unknown"}`;
+    const ipNext = (aiMessageCountByKey.get(ipKey) ?? 0) + 1;
+    if (ipNext > AI_MAX_DEMO_MESSAGES_PER_IP) {
+      // Checked before recording the session key, so an over-limit IP can't
+      // keep adding new keys to the map.
+      res.status(429).json({ error: "Demo limit reached" });
+      return false;
+    }
+    aiMessageCountByKey.set(ipKey, ipNext);
+    scheduleAiCounterCleanup(ipKey);
+
     const next = used + 1;
     aiMessageCountByKey.set(key, next);
     scheduleAiCounterCleanup(key);

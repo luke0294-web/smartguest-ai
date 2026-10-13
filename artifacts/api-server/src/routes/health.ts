@@ -13,7 +13,7 @@ router.get("/healthz", (_req, res) => {
 /** Diagnostica: query minima su Supabase (service role). */
 router.get("/healthz/db", async (_req, res): Promise<void> => {
   try {
-    const { data, error } = await supabaseAdmin.from("properties").select("id").limit(1);
+    const { error } = await supabaseAdmin.from("properties").select("id").limit(1);
     if (error) {
       console.error("[ERRORE CRITICO] healthz/db:", error);
       if (isProductionSecurityEnabled()) {
@@ -27,7 +27,8 @@ router.get("/healthz/db", async (_req, res): Promise<void> => {
       }
       return;
     }
-    res.json({ status: "ok", db: true, sample: data?.[0] ?? null });
+    // No row data in a public, unauthenticated response.
+    res.json({ status: "ok", db: true });
   } catch (err) {
     console.error("[ERRORE CRITICO]", err);
     if (isProductionSecurityEnabled()) {

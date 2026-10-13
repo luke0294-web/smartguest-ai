@@ -31,11 +31,13 @@ type SupabasePropertyRow = {
 };
 
 function sanitizeReferralLinksForPrompt(raw: string | null | undefined): string {
+  // Cap BEFORE the regexes: they are quadratic on many unclosed "<script"
+  // tokens, so running them on a multi-MB string froze the event loop.
   return String(raw ?? "")
+    .slice(0, 2000)
     .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
     .replace(/<\/?script[^>]*>/gi, "")
-    .trim()
-    .slice(0, 2000);
+    .trim();
 }
 
 function writeChatSseEvent(res: Response, event: string, data: unknown): void {
@@ -158,13 +160,35 @@ const GUEST_CANNED: Record<
   },
 };
 
+/** Supported UI language code, or "en" for anything else (unknown, oversized, non-string). */
+function resolveLanguageCode(raw: unknown): string {
+  if (typeof raw !== "string") return "en";
+  const code = raw.trim().toLowerCase();
+  return Object.prototype.hasOwnProperty.call(GUEST_CANNED, code) ? code : "en";
+}
+
 // ─────────────────────────────────────────────
 // POST /properties/:slug/chat
 // ─────────────────────────────────────────────
 router.post("/properties/:slug/chat", async (req, res): Promise<void> => {
-  if (!enforceAiMessageLimit(req, res)) return;
-
   const clientIp = req.ip ?? "unknown";
+
+  // Per-IP cap first, for every property (including demo), before anything
+  // else stores per-request state — so neither session-id rotation nor
+  // invalid bodies can be used to bypass OpenAI cost limits or grow memory.
+  if (!chatRateLimiter.check(clientIp)) {
+    const retryAfter = chatRateLimiter.retryAfterSeconds(clientIp);
+    logger.warn({ ip: clientIp, retryAfter }, "Chat rate limit exceeded");
+    const rawLanguage = (req.body as { language?: unknown } | undefined)?.language;
+    res.status(429).json({
+      reply: GUEST_CANNED[resolveLanguageCode(rawLanguage)].rateLimit,
+      propertyName: "",
+      rateLimited: true,
+    });
+    return;
+  }
+
+  if (!enforceAiMessageLimit(req, res)) return;
 
   const params = SendPropertyChatParams.safeParse(req.params);
   if (!params.success) {
@@ -183,21 +207,12 @@ router.post("/properties/:slug/chat", async (req, res): Promise<void> => {
   const isDemo = slug === DEMO_SLUG;
   const userMessage = parsed.data.message || "";
   // Always trust what the guest writes, not the UI selector
-  const languageCode = parsed.data.language || "en";
+  // Whitelisted: this value is interpolated into a system message, so any
+  // free text here would be prompt injection with system authority (and
+  // could inflate the prompt to hundreds of KB per request).
+  const languageCode = resolveLanguageCode(parsed.data.language);
   const dateLocale = DATE_LOCALE[languageCode] ?? "en-US";
   const guestCanned = GUEST_CANNED[languageCode] ?? GUEST_CANNED.en;
-
-  // Per-IP cap for all properties (including demo) so session-id rotation cannot bypass OpenAI cost limits.
-  if (!chatRateLimiter.check(clientIp)) {
-    const retryAfter = chatRateLimiter.retryAfterSeconds(clientIp);
-    logger.warn({ ip: clientIp, retryAfter }, "Chat rate limit exceeded");
-    res.status(429).json({
-      reply: guestCanned.rateLimit,
-      propertyName: "",
-      rateLimited: true,
-    });
-    return;
-  }
 
   let property: {
     slug: string;
@@ -335,10 +350,16 @@ CRITICAL: Reply in [Guest language: ${languageCode}]. Manual first. Bold 3-4 key
 
     beginChatSse(res);
 
+    // `res` (not `req`) "close": `req` has already emitted "close" once
+    // express.json() consumed the body, so a listener on it never fires on a
+    // real disconnect. On disconnect we stop writing to the dead socket but
+    // keep reading the (max 300-token) completion, so the guest's question
+    // and the full answer still reach the host's Diario below.
     let clientClosed = false;
-    req.on("close", () => {
+    res.on("close", () => {
+      if (res.writableFinished) return;
       clientClosed = true;
-      logger.info({ slug }, "Client disconnected, aborting stream");
+      logger.info({ slug }, "Client disconnected mid-reply — finishing generation for the Diario only");
     });
 
     let rawReply = "";
@@ -346,11 +367,10 @@ CRITICAL: Reply in [Guest language: ${languageCode}]. Manual first. Bold 3-4 key
     try {
       for await (const chunk of stream) {
         lastChunk = chunk;
-        if (clientClosed) break;
         const delta = chunk.choices[0]?.delta?.content ?? "";
         if (delta) {
           rawReply += delta;
-          writeChatSseEvent(res, "delta", { text: delta });
+          if (!clientClosed) writeChatSseEvent(res, "delta", { text: delta });
         }
       }
       if (lastChunk?.usage) {
@@ -364,12 +384,9 @@ CRITICAL: Reply in [Guest language: ${languageCode}]. Manual first. Bold 3-4 key
           "OpenAI token usage",
         );
       }
-      if (clientClosed) {
-        return;
-      }
       if (!rawReply.trim()) {
         rawReply = guestCanned.openAiError;
-        writeChatSseEvent(res, "delta", { text: rawReply });
+        if (!clientClosed) writeChatSseEvent(res, "delta", { text: rawReply });
       }
     } catch (streamError) {
       logOpenAi429IfNeeded(streamError, "POST /properties/:slug/chat stream read");
@@ -457,7 +474,7 @@ CRITICAL: Reply in [Guest language: ${languageCode}]. Manual first. Bold 3-4 key
       reply: replyForClient,
       propertyName: property.name,
     });
-    writeChatSseEvent(res, "done", donePayload);
+    if (!clientClosed) writeChatSseEvent(res, "done", donePayload);
     res.end();
   } catch (error) {
     console.error("[ERRORE CRITICO]", error);
@@ -591,7 +608,7 @@ router.post("/super-diario/:slug/refresh-all", async (req, res): Promise<void> =
   try {
     const { data: logs, error: selErr } = await supabaseAdmin
       .from("chat_logs")
-      .select("id, guest_message, marco_reply")
+      .select("id, guest_message, marco_reply, resolved")
       .eq("property_slug", req.params.slug);
 
     if (selErr) {
@@ -600,12 +617,12 @@ router.post("/super-diario/:slug/refresh-all", async (req, res): Promise<void> =
       return;
     }
 
+    // Only ever flips unresolved → resolved: re-running the heuristic must
+    // not reopen conversations the host already closed by hand.
     const resolvedIds: number[] = [];
-    const unresolvedIds: number[] = [];
     for (const log of logs ?? []) {
       // Stessa identica logica dell'inserimento live (POST /properties/:slug/chat),
-      // incluso il caso "tourism" — altrimenti la stessa riga può finire risolta
-      // all'inserimento e non-risolta dopo un refresh, senza che nulla sia cambiato.
+      // incluso il caso "tourism".
       const category = categorizeMessage(log.guest_message);
       const isHostFallback = shouldIncrementPendingQuestions(log.marco_reply);
       const resolved =
@@ -614,27 +631,15 @@ router.post("/super-diario/:slug/refresh-all", async (req, res): Promise<void> =
           : isHostFallback
             ? false
             : !detectNeedsAttention(log.marco_reply);
-      (resolved ? resolvedIds : unresolvedIds).push(log.id);
+      if (resolved && !log.resolved) resolvedIds.push(log.id);
     }
 
-    if (resolvedIds.length > 0) {
+    // Chunked so a large diario never builds an over-long `id=in.(...)` URL.
+    for (let i = 0; i < resolvedIds.length; i += 200) {
       const { error: updErr } = await supabaseAdmin
         .from("chat_logs")
         .update({ resolved: true })
-        .in("id", resolvedIds);
-
-      if (updErr) {
-        console.error("[ERRORE CRITICO] refresh-all update:", updErr);
-        res.status(500).json({ error: "Impossibile fare il refresh." });
-        return;
-      }
-    }
-
-    if (unresolvedIds.length > 0) {
-      const { error: updErr } = await supabaseAdmin
-        .from("chat_logs")
-        .update({ resolved: false })
-        .in("id", unresolvedIds);
+        .in("id", resolvedIds.slice(i, i + 200));
 
       if (updErr) {
         console.error("[ERRORE CRITICO] refresh-all update:", updErr);

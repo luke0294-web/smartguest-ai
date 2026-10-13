@@ -1,5 +1,4 @@
 import { Router, type IRouter } from "express";
-import { randomBytes } from "node:crypto";
 import {
   GetHostPropertyResponse,
   SetHostPasswordParams,
@@ -17,7 +16,8 @@ import { requireHostSession, requireHostOwnsPropertySlug } from "../lib/host-aut
 import { hashHostPassword, verifyHostPassword } from "../lib/passwords";
 import { authRateLimiter } from "../lib/rateLimiter";
 import { generateGuestQrDataUrl } from "../lib/generateQr";
-import { supabase, supabaseAdmin } from "../lib/supabase";
+import { supabaseAdmin } from "../lib/supabase";
+import { maskEmail } from "../lib/logRedact";
 import { propertyRowToCamel, type PropertyRowSnake } from "../lib/supabaseMaps";
 import { upsertHostPassword } from "../lib/hostPasswordUpsert";
 
@@ -25,11 +25,13 @@ const router: IRouter = Router();
 
 /** Plain text only: strip script tags, cap length (stored in DB + chat context). */
 function sanitizeReferralLinksInput(raw: unknown): string {
+  // Cap BEFORE the regexes: they are quadratic on many unclosed "<script"
+  // tokens, so running them on a multi-MB string froze the event loop.
   return String(raw ?? "")
+    .slice(0, 2000)
     .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
     .replace(/<\/?script[^>]*>/gi, "")
-    .trim()
-    .slice(0, 2000);
+    .trim();
 }
 
 function toValidDate(value: unknown, fallbackMs: number): Date {
@@ -79,32 +81,6 @@ async function authenticateHost(
   return host;
 }
 
-async function ensureLocalHostShell(email: string): Promise<HostRow> {
-  const { data: existing, error: selErr } = await supabaseAdmin
-    .from("hosts")
-    .select("id, email, host_password")
-    .eq("email", email)
-    .maybeSingle<HostRow>();
-
-  if (selErr) {
-    throw selErr;
-  }
-  if (existing) return existing;
-
-  const placeholderSecret = randomBytes(24).toString("base64url");
-  const placeholderHash = await hashHostPassword(placeholderSecret);
-  const { data: created, error: insErr } = await supabaseAdmin
-    .from("hosts")
-    .insert({ email, host_password: placeholderHash })
-    .select("id, email, host_password")
-    .single<HostRow>();
-
-  if (insErr || !created) {
-    throw insErr ?? new Error("ensureLocalHostShell: insert failed");
-  }
-  return created;
-}
-
 // POST /api/auth/host-login — email+password → list of owned properties + session token
 router.post("/auth/host-login", async (req, res): Promise<void> => {
   try {
@@ -127,18 +103,16 @@ router.post("/auth/host-login", async (req, res): Promise<void> => {
     const normalizedEmail = String(email ?? "").trim().toLowerCase();
     const normalizedPassword = String(password ?? "");
 
-    let host = await authenticateHost(normalizedEmail, normalizedPassword);
+    // Only the `hosts` table authenticates. A former fallback to Supabase
+    // Auth (signInWithPassword) was a second, unmanaged credential: it
+    // survived host deletion and password resets, and could have let anyone
+    // able to register a Supabase Auth user under a host's email take over
+    // that host's account.
+    const host = await authenticateHost(normalizedEmail, normalizedPassword);
     if (!host) {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: normalizedEmail,
-        password: normalizedPassword,
-      });
-      if (error || !data.user) {
-        logger.error({ err: error }, "auth/host-login — credenziali o Supabase auth non valide");
-        res.status(401).json({ error: "Email o password non corretti." });
-        return;
-      }
-      host = await ensureLocalHostShell(normalizedEmail);
+      logger.info({ email: maskEmail(normalizedEmail) }, "auth/host-login — credenziali non valide");
+      res.status(401).json({ error: "Email o password non corretti." });
+      return;
     }
 
     const { data: propRows, error: propErr } = await supabaseAdmin
@@ -162,7 +136,7 @@ router.post("/auth/host-login", async (req, res): Promise<void> => {
 
     const sessionToken = issueHostSessionToken({ id: host.id, email: host.email, passwordHash: host.host_password });
 
-    logger.info({ email: host.email, count: properties.length }, "Host login successful");
+    logger.info({ email: maskEmail(host.email), count: properties.length }, "Host login successful");
     res.json({ email: host.email, properties, sessionToken });
   } catch (error) {
     logger.error({ err: error }, "auth/host-login");
@@ -457,7 +431,7 @@ router.put("/properties/:slug/host-password", async (req, res): Promise<void> =>
         return;
       }
 
-      logger.info({ slug, email: ownerEmail }, "Host password updated by CEO via hosts table");
+      logger.info({ slug, email: maskEmail(ownerEmail) }, "Host password updated by CEO via hosts table");
     } else {
       // Login (requireHostSession) only checks the `hosts` table, keyed by
       // email — a password written straight onto `properties.host_password`

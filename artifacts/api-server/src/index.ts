@@ -18,7 +18,6 @@ console.error("[BOOT] Ambiente caricato — voci critiche:", {
   NODE_ENV: process.env.NODE_ENV ?? "(non impostato)",
   PORT: process.env.PORT ?? "(non impostato)",
   haSUPABASE_URL: Boolean(process.env.SUPABASE_URL?.trim()),
-  haSUPABASE_ANON_KEY: Boolean(process.env.SUPABASE_ANON_KEY?.trim()),
   haSUPABASE_SERVICE_ROLE: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()),
   FRONTEND_URL: process.env.FRONTEND_URL?.trim() || "(MANCANTE: generazione QR / link ospite possono fallire)",
 });

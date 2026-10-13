@@ -1871,7 +1871,10 @@ components:
             $ref: "#/components/schemas/ConversationMessage"
         language:
           type: string
-          description: UI language code (e.g. en, it) for reply language
+          maxLength: 10
+          description: |
+            UI language code (e.g. en, it) for reply language. Unsupported
+            codes fall back to "en" server-side.
         city:
           type: string
           maxLength: 50
@@ -2105,6 +2108,7 @@ components:
           type: string
         referralLinks:
           type: string
+          maxLength: 2000
       required: []
 
     PendingQuestionsResetResponse:
@@ -2226,10 +2230,13 @@ components:
       properties:
         hostName:
           type: string
+          maxLength: 120
         email:
           type: string
+          maxLength: 254
         propertyName:
           type: string
+          maxLength: 200
       required:
         - hostName
         - email

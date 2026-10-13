@@ -1,6 +1,5 @@
 const REQUIRED_VARS = [
   "SUPABASE_URL",
-  "SUPABASE_ANON_KEY",
   "SUPABASE_SERVICE_ROLE_KEY",
   "OPENAI_API_KEY",
   "CEO_PASSWORD",
@@ -50,7 +49,34 @@ export function isProductionSecurityEnabled(): boolean {
  * Se il deploy è in produzione ma NODE_ENV non è impostato correttamente,
  * l'hardening resta silenziosamente disattivato.
  */
+/** Below these lengths a secret is guessable / brute-forceable. */
+const MIN_CEO_PASSWORD_LENGTH = 16;
+const MIN_SESSION_SECRET_LENGTH = 32;
+
+/**
+ * Non-blocking boot warnings for weak secrets. Warn rather than refuse to
+ * start: a stricter check could take production down on the next deploy.
+ */
+export function weakSecretWarnings(env: NodeJS.ProcessEnv = process.env): string[] {
+  const warnings: string[] = [];
+  const ceo = env.CEO_PASSWORD?.trim() ?? "";
+  if (ceo && ceo.length < MIN_CEO_PASSWORD_LENGTH) {
+    warnings.push(`CEO_PASSWORD è corta (${ceo.length} caratteri): usane almeno ${MIN_CEO_PASSWORD_LENGTH}, casuali.`);
+  }
+  const session = env.HOST_SESSION_SECRET?.trim() || env.SESSION_SECRET?.trim() || "";
+  if (session && session.length < MIN_SESSION_SECRET_LENGTH) {
+    warnings.push(
+      `HOST_SESSION_SECRET/SESSION_SECRET è corto (${session.length} caratteri): usane almeno ${MIN_SESSION_SECRET_LENGTH}, casuali.`,
+    );
+  }
+  return warnings;
+}
+
 export function warnIfSecurityHardeningLikelyMisconfigured(): void {
+  for (const warning of weakSecretWarnings()) {
+    console.error(`[BOOT][ATTENZIONE] ${warning}`);
+  }
+
   if (isProductionSecurityEnabled()) return;
 
   console.error(

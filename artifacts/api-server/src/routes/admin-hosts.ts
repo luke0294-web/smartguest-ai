@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { logger } from "../lib/logger";
+import { maskEmail } from "../lib/logRedact";
 import { requireCeoSession } from "../lib/ceo-session";
 import { hashHostPassword, HOST_PASSWORD_MIN_LENGTH_MESSAGE_IT, MIN_HOST_PASSWORD_LENGTH } from "../lib/passwords";
 import { supabaseAdmin } from "../lib/supabase";
@@ -105,12 +106,12 @@ router.post("/admin/hosts", async (req, res): Promise<void> => {
         return;
       }
       if (!updatedRow) {
-        logger.warn({ email: normalizedEmail }, "POST /admin/hosts — update: nessuna riga aggiornata");
+        logger.warn({ email: maskEmail(normalizedEmail) }, "POST /admin/hosts — update: nessuna riga aggiornata");
         res.status(404).json({ error: "Host non trovato." });
         return;
       }
 
-      logger.info({ email: normalizedEmail }, "Host password updated by CEO");
+      logger.info({ email: maskEmail(normalizedEmail) }, "Host password updated by CEO");
       res.json({ success: true, email: normalizedEmail, action: "updated" });
     } else {
       const { data: insertedRow, error: insErr } = await supabaseAdmin
@@ -128,12 +129,12 @@ router.post("/admin/hosts", async (req, res): Promise<void> => {
         return;
       }
       if (!insertedRow) {
-        logger.error({ email: normalizedEmail }, "POST /admin/hosts — insert: nessuna riga restituita");
+        logger.error({ email: maskEmail(normalizedEmail) }, "POST /admin/hosts — insert: nessuna riga restituita");
         res.status(500).json({ error: "Impossibile creare l'host su Supabase." });
         return;
       }
 
-      logger.info({ email: normalizedEmail }, "Host created by CEO");
+      logger.info({ email: maskEmail(normalizedEmail) }, "Host created by CEO");
       res.status(201).json({ success: true, email: normalizedEmail, action: "created" });
     }
   } catch (error) {
@@ -149,7 +150,9 @@ router.delete("/admin/hosts/:email", async (req, res): Promise<void> => {
   if (!requireCeoSession(req, res)) return;
 
   try {
-    const email = decodeURIComponent(req.params.email).toLowerCase();
+    // Express 5 already decodes route params; decoding again turned a "%" in
+    // an address into a URIError (500).
+    const email = String(req.params.email ?? "").trim().toLowerCase();
 
     const { data: deletedRows, error } = await supabaseAdmin
       .from("hosts")
@@ -168,7 +171,7 @@ router.delete("/admin/hosts/:email", async (req, res): Promise<void> => {
       return;
     }
 
-    logger.info({ email }, "Host deleted by CEO");
+    logger.info({ email: maskEmail(email) }, "Host deleted by CEO");
     res.sendStatus(204);
   } catch (error) {
     logger.error({ err: error }, "DELETE /admin/hosts — eccezione non gestita");

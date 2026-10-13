@@ -62,6 +62,18 @@ export class RateLimiter {
     return true; // Allowed
   }
 
+  /**
+   * True if `key` is currently at its limit — WITHOUT recording a request.
+   * Pair with `check()` to count only some events (e.g. failed logins).
+   */
+  isLimited(key: string): boolean {
+    if (!isRateLimitingEnabled()) return false;
+    const cutoff = Date.now() - this.windowMs;
+    const entry = this.store.get(key);
+    if (!entry) return false;
+    return entry.timestamps.filter((t) => t > cutoff).length >= this.maxRequests;
+  }
+
   /** Returns seconds until the oldest request in the window expires */
   retryAfterSeconds(key: string): number {
     const entry = this.store.get(key);
@@ -109,5 +121,32 @@ export const aiDocumentRateLimiter = new RateLimiter({
 /** Strict limit for auth and public lead intake endpoints (per IP). */
 export const authRateLimiter = new RateLimiter({
   maxRequests: 10,
+  windowMs: 60 * 60 * 1000,
+});
+
+/**
+ * Public property read (guest page, GET /properties/:slug). Generous for real
+ * guests and the CEO QR modal, but stops bulk slug guessing — slugs are often
+ * derived from the property name and the response is the full house manual.
+ */
+export const publicPropertyRateLimiter = new RateLimiter({
+  maxRequests: 300,
+  windowMs: 60 * 60 * 1000,
+});
+
+/** CEO login: per IP, stricter than the shared auth limiter. */
+export const ceoLoginRateLimiter = new RateLimiter({
+  maxRequests: 5,
+  windowMs: 60 * 60 * 1000,
+});
+
+/**
+ * CEO login: failed attempts across ALL IPs. There is a single CEO password,
+ * so a distributed guess (many IPs, few tries each) would slip under any
+ * per-IP limit. Above this, CEO login pauses for everyone until the window
+ * moves on — a deliberate trade-off: brief lockout over a guessable panel.
+ */
+export const ceoLoginGlobalFailureLimiter = new RateLimiter({
+  maxRequests: 30,
   windowMs: 60 * 60 * 1000,
 });

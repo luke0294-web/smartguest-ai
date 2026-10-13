@@ -146,6 +146,8 @@ export const sendPropertyChatBodyConversationHistoryItemContentMax = 2000;
 
 export const sendPropertyChatBodyConversationHistoryMax = 20;
 
+export const sendPropertyChatBodyLanguageMax = 10;
+
 export const sendPropertyChatBodyCityMax = 50;
 
 
@@ -156,7 +158,7 @@ export const SendPropertyChatBody = zod.object({
   "role": zod.enum(['user', 'assistant']),
   "content": zod.string().max(sendPropertyChatBodyConversationHistoryItemContentMax)
 })).max(sendPropertyChatBodyConversationHistoryMax).optional(),
-  "language": zod.string().optional().describe('UI language code (e.g. en, it) for reply language'),
+  "language": zod.string().max(sendPropertyChatBodyLanguageMax).optional().describe('UI language code (e.g. en, it) for reply language. Unsupported\ncodes fall back to \"en\" server-side.\n'),
   "city": zod.string().max(sendPropertyChatBodyCityMax).optional().describe('Demo chat only: city id (e.g. roma, milano) for localized AI context.\nAccepted by validation but not currently read by the handler.\n')
 })
 
@@ -374,13 +376,15 @@ export const HostUpdatePropertyHeader = zod.object({
 
 export const hostUpdatePropertyBodyContentMax = 20000;
 
+export const hostUpdatePropertyBodyReferralLinksMax = 2000;
+
 
 
 export const HostUpdatePropertyBody = zod.object({
   "name": zod.string().optional(),
   "content": zod.string().max(hostUpdatePropertyBodyContentMax, "Il manuale casa non può superare 20.000 caratteri").optional(),
   "whatsappNumber": zod.string().optional(),
-  "referralLinks": zod.string().optional()
+  "referralLinks": zod.string().max(hostUpdatePropertyBodyReferralLinksMax).optional()
 })
 
 export const HostUpdatePropertyResponse = zod.object({
@@ -638,10 +642,18 @@ export const AiExtractDocumentResponse = zod.object({
 /**
  * @summary Submit a new lead from the public landing page (rate limited)
  */
+export const createLeadBodyHostNameMax = 120;
+
+export const createLeadBodyEmailMax = 254;
+
+export const createLeadBodyPropertyNameMax = 200;
+
+
+
 export const CreateLeadBody = zod.object({
-  "hostName": zod.string(),
-  "email": zod.string(),
-  "propertyName": zod.string()
+  "hostName": zod.string().max(createLeadBodyHostNameMax),
+  "email": zod.string().max(createLeadBodyEmailMax),
+  "propertyName": zod.string().max(createLeadBodyPropertyNameMax)
 })
 
 export const CreateLeadResponse = zod.object({
