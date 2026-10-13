@@ -13,6 +13,9 @@
     "dev": "concurrently -c \"cyan,magenta\" -n \"API,WEB\" \"pnpm run dev:api\" \"pnpm run dev:web\""
   },
   "private": true,
+  "engines": {
+    "node": "22.x"
+  },
   "devDependencies": {
     "concurrently": "^10.0.5",
     "drizzle-kit": "^0.31.9",
