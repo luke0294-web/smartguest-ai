@@ -49,6 +49,9 @@ export default function DemoPage({ params }: DemoPageProps) {
     data: personalizedProperty,
     isLoading: isPersonalizedLoading,
     isError: isPersonalizedError,
+    error: personalizedError,
+    refetch: refetchPersonalized,
+    isFetching: isPersonalizedFetching,
   } = useGetProperty(personalizedSlug ?? "", {
     query: {
       queryKey: getGetPropertyQueryKey(personalizedSlug ?? ""),
@@ -103,6 +106,30 @@ export default function DemoPage({ params }: DemoPageProps) {
     return (
       <div className="flex h-[100dvh] items-center justify-center bg-background">
         <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+      </div>
+    );
+  }
+
+  // Only a 404 means the demo is really gone: a cold start, a 5xx or a network
+  // hiccup used to show "non più disponibile" for a demo that still exists —
+  // the prospect would close the tab. Offer a retry for those instead.
+  const personalizedErrorStatus =
+    personalizedError && typeof personalizedError === "object"
+      ? (personalizedError as { status?: number }).status
+      : undefined;
+  if (personalizedSlug && isPersonalizedError && personalizedErrorStatus !== 404) {
+    return (
+      <div className="flex h-[100dvh] flex-col items-center justify-center gap-4 bg-background px-6 text-center">
+        <p className="text-lg font-semibold">Non riesco a caricare la demo in questo momento.</p>
+        <p className="text-sm text-muted-foreground">Controlla la connessione e riprova tra qualche secondo.</p>
+        <button
+          type="button"
+          onClick={() => void refetchPersonalized()}
+          disabled={isPersonalizedFetching}
+          className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+        >
+          {isPersonalizedFetching ? "Caricamento…" : "Riprova"}
+        </button>
       </div>
     );
   }
