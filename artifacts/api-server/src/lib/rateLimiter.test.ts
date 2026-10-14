@@ -100,3 +100,26 @@ describe("rateLimiter", () => {
     });
   });
 });
+
+describe("clientIpKey", () => {
+  it("keeps IPv4 (and IPv4-mapped IPv6) as is", async () => {
+    const { clientIpKey } = await import("./rateLimiter");
+    expect(clientIpKey("203.0.113.7")).toBe("203.0.113.7");
+    expect(clientIpKey("::ffff:203.0.113.7")).toBe("203.0.113.7");
+  });
+
+  it("groups IPv6 by /64 so one client can't rotate addresses for fresh buckets", async () => {
+    const { clientIpKey } = await import("./rateLimiter");
+    const a = clientIpKey("2001:db8:abcd:12:1111:2222:3333:4444");
+    const b = clientIpKey("2001:0db8:abcd:0012::9");
+    expect(a).toBe("2001:db8:abcd:12::/64");
+    expect(b).toBe(a);
+    expect(clientIpKey("2001:db8:abcd:13::1")).not.toBe(a);
+    expect(clientIpKey("::1")).toBe("0:0:0:0::/64");
+  });
+
+  it("handles a missing address", async () => {
+    const { clientIpKey } = await import("./rateLimiter");
+    expect(clientIpKey(undefined)).toBe("unknown");
+  });
+});

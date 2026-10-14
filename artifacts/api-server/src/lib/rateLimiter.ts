@@ -4,7 +4,31 @@
  * Designed to be GC-friendly: stale entries are pruned lazily.
  */
 
+import { isIPv6 } from "node:net";
 import { isProductionSecurityEnabled } from "./validateEnv";
+
+/**
+ * Rate-limit key for a client address. IPv4 (incl. IPv4-mapped IPv6) is used
+ * as is; IPv6 is grouped by its /64 prefix — one home/mobile connection owns a
+ * whole /64, so keying on the full /128 let a single client rotate addresses
+ * and get a fresh bucket for every request.
+ */
+export function clientIpKey(ip: string | undefined | null): string {
+  if (!ip) return "unknown";
+  const addr = ip.startsWith("::ffff:") && !ip.slice(7).includes(":") ? ip.slice(7) : ip;
+  if (!isIPv6(addr)) return addr;
+  const [head, tail] = addr.split("::");
+  const headParts = head ? head.split(":") : [];
+  const tailParts = tail === undefined ? [] : tail ? tail.split(":") : [];
+  const groups =
+    tail === undefined
+      ? headParts
+      : [...headParts, ...Array(Math.max(0, 8 - headParts.length - tailParts.length)).fill("0"), ...tailParts];
+  return `${groups
+    .slice(0, 4)
+    .map((g) => (g.toLowerCase().replace(/^0+/, "") || "0"))
+    .join(":")}::/64`;
+}
 
 interface RateLimitEntry {
   timestamps: number[];
@@ -106,8 +130,47 @@ export const aiDocumentRateLimiter = new RateLimiter({
   windowMs: 60 * 60 * 1000,
 });
 
-/** Strict limit for auth and public lead intake endpoints (per IP). */
+/** Host login (per IP). Separate from leads/forgot-password so lead-form traffic behind one NAT can't block logins. */
 export const authRateLimiter = new RateLimiter({
   maxRequests: 10,
   windowMs: 60 * 60 * 1000,
 });
+
+/** Public lead form (per IP). */
+export const leadsRateLimiter = new RateLimiter({
+  maxRequests: 10,
+  windowMs: 60 * 60 * 1000,
+});
+
+/** Forgot-password requests (per IP). */
+export const forgotPasswordRateLimiter = new RateLimiter({
+  maxRequests: 10,
+  windowMs: 60 * 60 * 1000,
+});
+
+/**
+ * Forgot-password per target email: at most one reset email every 15
+ * minutes, so nobody can flood a host's inbox (each request also replaces
+ * the previous link).
+ */
+export const forgotPasswordPerEmailLimiter = new RateLimiter({
+  maxRequests: 1,
+  windowMs: 15 * 60 * 1000,
+});
+
+/**
+ * Public property read (guest page, GET /properties/:slug). Generous for real
+ * guests and the CEO QR modal, but stops bulk slug guessing — slugs are often
+ * derived from the property name and the response is the full house manual.
+ */
+export const publicPropertyRateLimiter = new RateLimiter({
+  maxRequests: 300,
+  windowMs: 60 * 60 * 1000,
+});
+
+/** CEO login: per IP, stricter than the shared auth limiter. */
+export const ceoLoginRateLimiter = new RateLimiter({
+  maxRequests: 5,
+  windowMs: 60 * 60 * 1000,
+});
+

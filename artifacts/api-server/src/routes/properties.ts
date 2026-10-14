@@ -21,6 +21,9 @@ import { supabaseAdmin } from "../lib/supabase";
 import { upsertHostPassword } from "../lib/hostPasswordUpsert";
 import { isHostWelcomeEmailConfigured, sendHostWelcomeEmail } from "../lib/hostWelcomeMail";
 import { hashToken } from "../lib/tokens";
+import { deleteChatLogs, moveChatLogs } from "../lib/chatLogs";
+import { clientIpKey, publicPropertyRateLimiter } from "../lib/rateLimiter";
+import { validationErrorMessage } from "../lib/validationError";
 
 type SupabasePropertyRowPublic = {
   id: number | string;
@@ -155,6 +158,17 @@ router.get("/properties", async (req, res): Promise<void> => {
 
     const list = rows ?? [];
     type ListRow = SupabasePropertyRowPublic & { email?: string | null };
+
+    // Host passwords live in `hosts` (keyed by email): every password-setting
+    // path nulls `properties.host_password`, so reading only that column
+    // showed "no password" for every correctly configured host.
+    const { data: hostRows, error: hostsError } = await supabaseAdmin.from("hosts").select("email");
+    if (hostsError) {
+      logger.error({ hostsError }, "GET /properties — lettura hosts fallita (badge password non affidabile)");
+    }
+    const hostEmails = new Set(
+      (hostRows ?? []).map((h: { email: string | null }) => String(h.email ?? "").trim().toLowerCase()),
+    );
     const payload: ReturnType<typeof ListPropertiesResponseItem.parse>[] = [];
 
     for (const raw of list as ListRow[]) {
@@ -174,7 +188,9 @@ router.get("/properties", async (req, res): Promise<void> => {
         updatedAt: core.updatedAt,
         email: raw.email?.trim() ? raw.email.trim().toLowerCase() : null,
         pendingQuestionsCount: core.pendingQuestionsCount,
-        hasPassword: Boolean(raw.host_password?.trim()),
+        hasPassword:
+          Boolean(raw.host_password?.trim()) ||
+          Boolean(raw.email?.trim() && hostEmails.has(raw.email.trim().toLowerCase())),
       });
 
       payload.push(item);
@@ -195,7 +211,7 @@ router.post("/properties", async (req, res): Promise<void> => {
 
   const parsed = CreatePropertyBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    res.status(400).json({ error: validationErrorMessage(parsed.error) });
     return;
   }
 
@@ -231,6 +247,13 @@ router.post("/properties", async (req, res): Promise<void> => {
     }
 
     const bodyContent = content ?? "";
+
+    // A new property must never inherit guest conversations left under this
+    // slug by a property deleted before chat logs were cleaned up with it.
+    if (!(await deleteChatLogs(finalSlug))) {
+      res.status(500).json({ error: "Errore durante la preparazione del diario della proprietà." });
+      return;
+    }
 
     const { data: row, error: insertError } = await supabaseAdmin
       .from("properties")
@@ -297,9 +320,17 @@ router.post("/properties", async (req, res): Promise<void> => {
 
 // GET /properties/:slug — get one (public)
 router.get("/properties/:slug", async (req, res): Promise<void> => {
+  // Public endpoint (guest page): capped per IP so nobody can enumerate house
+  // manuals by trying property names in bulk.
+  const clientIp = clientIpKey(req.ip);
+  if (!publicPropertyRateLimiter.check(clientIp)) {
+    res.status(429).json({ error: "Troppe richieste. Riprova più tardi." });
+    return;
+  }
+
   const params = GetPropertyParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    res.status(400).json({ error: validationErrorMessage(params.error) });
     return;
   }
 
@@ -366,13 +397,13 @@ router.put("/properties/:slug", async (req, res): Promise<void> => {
 
   const params = UpdatePropertyParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    res.status(400).json({ error: validationErrorMessage(params.error) });
     return;
   }
 
   const body = UpdatePropertyBody.safeParse(req.body);
   if (!body.success) {
-    res.status(400).json({ error: body.error.message });
+    res.status(400).json({ error: validationErrorMessage(body.error) });
     return;
   }
 
@@ -434,13 +465,13 @@ router.put("/properties/:slug/full-edit", async (req, res): Promise<void> => {
 
   const params = FullEditPropertyParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    res.status(400).json({ error: validationErrorMessage(params.error) });
     return;
   }
 
   const body = FullEditPropertyBody.safeParse(req.body);
   if (!body.success) {
-    res.status(400).json({ error: body.error.message });
+    res.status(400).json({ error: validationErrorMessage(body.error) });
     return;
   }
 
@@ -521,7 +552,17 @@ router.put("/properties/:slug/full-edit", async (req, res): Promise<void> => {
     }
 
     if (email !== undefined) {
-      propPatch.email = String(email).trim().toLowerCase() || null;
+      const newEmail = String(email).trim().toLowerCase() || null;
+      propPatch.email = newEmail;
+      // New owner → pending reset/invite links (sent to the OLD owner) must die:
+      // they are honoured against the CURRENT owner email, so the old owner
+      // could otherwise set the new owner's password and take over the account.
+      if (newEmail !== (currentRow.email?.trim().toLowerCase() || null)) {
+        propPatch.reset_token = null;
+        propPatch.reset_requested_at = null;
+        propPatch.invite_token = null;
+        propPatch.invite_token_expires_at = null;
+      }
     }
 
     const targetSlug = (typeof propPatch.slug === "string" ? propPatch.slug : slug) as string;
@@ -531,6 +572,15 @@ router.put("/properties/:slug/full-edit", async (req, res): Promise<void> => {
       if (updErr) {
         logger.error({ updErr, slug }, "full-edit — update property");
         res.status(500).json({ error: "Aggiornamento proprietà fallito." });
+        return;
+      }
+
+      // Clear leftovers under the target slug first, so the move doesn't merge
+      // this host's Diario with another tenant's old conversations.
+      if (targetSlug !== slug && (!(await deleteChatLogs(targetSlug)) || !(await moveChatLogs(slug, targetSlug)))) {
+        res.status(500).json({
+          error: `Slug aggiornato a "${targetSlug}", ma il diario non è stato spostato. Riprova o contatta il supporto.`,
+        });
         return;
       }
     }
@@ -662,7 +712,7 @@ router.delete("/properties/:slug", async (req, res): Promise<void> => {
 
   const params = DeletePropertyParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    res.status(400).json({ error: validationErrorMessage(params.error) });
     return;
   }
 
@@ -683,6 +733,10 @@ router.delete("/properties/:slug", async (req, res): Promise<void> => {
       res.status(404).json({ error: "Proprietà non trovata." });
       return;
     }
+
+    // Logged on failure inside the helper; the property itself is already
+    // gone, and POST /properties clears leftovers before reusing the slug.
+    await deleteChatLogs(params.data.slug);
 
     logger.info({ slug: params.data.slug }, "Property deleted");
     res.sendStatus(204);

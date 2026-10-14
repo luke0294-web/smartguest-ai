@@ -5,7 +5,13 @@ import { logger } from "../lib/logger";
 import { requireCeoSession, getCeoPassword, issueCeoToken, verifyCeoPassword } from "../lib/ceo-session";
 import { requireHostSession } from "../lib/host-auth";
 import { hashHostPassword, HOST_PASSWORD_MIN_LENGTH_MESSAGE_IT, MIN_HOST_PASSWORD_LENGTH } from "../lib/passwords";
-import { authRateLimiter } from "../lib/rateLimiter";
+import {
+  ceoLoginRateLimiter,
+  clientIpKey,
+  forgotPasswordPerEmailLimiter,
+  forgotPasswordRateLimiter,
+} from "../lib/rateLimiter";
+import { maskEmail } from "../lib/logRedact";
 import { supabaseAdmin } from "../lib/supabase";
 import { isHostWelcomeEmailConfigured, sendPasswordResetEmail } from "../lib/hostWelcomeMail";
 import { hashToken } from "../lib/tokens";
@@ -27,17 +33,60 @@ function isInviteTokenExpired(inviteTokenExpiresAt: string | null | undefined): 
   return Date.now() > t;
 }
 
+/** Background half of forgot-password: store the hashed token, then email the link. Never throws. */
+async function issueAndSendPasswordReset(target: {
+  propertyId: number;
+  slug: string;
+  propertyName: string | null;
+  email: string;
+}): Promise<void> {
+  try {
+    const token = randomBytes(32).toString("hex");
+    const { error: updErr } = await supabaseAdmin
+      .from("properties")
+      .update({
+        reset_token: hashToken(token),
+        reset_requested_at: new Date().toISOString(),
+      })
+      .eq("id", target.propertyId);
+
+    if (updErr) {
+      logger.error({ err: updErr, slug: target.slug }, "forgot-password update");
+      return;
+    }
+
+    logger.info({ slug: target.slug, email: maskEmail(target.email) }, "Password reset token generated");
+
+    if (!isHostWelcomeEmailConfigured()) {
+      logger.warn({ slug: target.slug }, "Forgot password — invio email non configurato (Resend), nessuna email inviata");
+      return;
+    }
+
+    await sendPasswordResetEmail({
+      to: target.email,
+      propertyName: target.propertyName?.trim() || "la tua struttura",
+      resetToken: token,
+    });
+  } catch (err) {
+    logger.error({ err, slug: target.slug, email: maskEmail(target.email) }, "Forgot password — invio fallito");
+  }
+}
+
 const router: IRouter = Router();
 
 // POST /auth/ceo-login — validate CEO password, issue session token (no env default for password)
 router.post("/auth/ceo-login", async (req, res): Promise<void> => {
   try {
-    const clientIp = req.ip ?? "unknown";
-    if (!authRateLimiter.check(clientIp)) {
-      const retryAfter = authRateLimiter.retryAfterSeconds(clientIp);
+    const clientIp = clientIpKey(req.ip);
+    if (!ceoLoginRateLimiter.check(clientIp)) {
+      const retryAfter = ceoLoginRateLimiter.retryAfterSeconds(clientIp);
       res.status(429).json({ error: "Troppi tentativi di accesso. Riprova più tardi.", retryAfter });
       return;
     }
+    // No global (all-IP) lockout: with a single shared password it would let
+    // anyone keep the CEO locked out, even with the right password. Against
+    // distributed guessing the defence is a long random CEO_PASSWORD (boot
+    // warns below 16 chars) plus this per-IP limit.
 
     const pwd = getCeoPassword();
     if (!pwd) {
@@ -47,6 +96,7 @@ router.post("/auth/ceo-login", async (req, res): Promise<void> => {
 
     const { password } = req.body ?? {};
     if (typeof password !== "string" || !verifyCeoPassword(password, pwd)) {
+      logger.warn({ ip: clientIp }, "CEO login fallito");
       res.status(401).json({ error: "Password non corretta." });
       return;
     }
@@ -98,9 +148,9 @@ router.get("/auth/host/me", async (req, res): Promise<void> => {
 // POST /auth/forgot-password — host requests reset by email
 router.post("/auth/forgot-password", async (req, res): Promise<void> => {
   try {
-    const clientIp = req.ip ?? "unknown";
-    if (!authRateLimiter.check(clientIp)) {
-      const retryAfter = authRateLimiter.retryAfterSeconds(clientIp);
+    const clientIp = clientIpKey(req.ip);
+    if (!forgotPasswordRateLimiter.check(clientIp)) {
+      const retryAfter = forgotPasswordRateLimiter.retryAfterSeconds(clientIp);
       res.status(429).json({ error: "Troppe richieste. Riprova più tardi.", retryAfter });
       return;
     }
@@ -136,49 +186,32 @@ router.post("/auth/forgot-password", async (req, res): Promise<void> => {
     }
 
     if (!property) {
-      logger.info({ email: normalizedEmail }, "Forgot password: email not found (silent)");
+      logger.info({ email: maskEmail(normalizedEmail) }, "Forgot password: email not found (silent)");
       res.json({ success: true });
       return;
     }
 
-    const token = randomBytes(32).toString("hex");
+    // Answer NOW, with the same body and the same work done so far as the
+    // "email not found" branch: the token write and the email happen after
+    // the response. Previously the extra DB write + awaited Resend call (and
+    // a 500 when sending failed) made a registered address distinguishable
+    // from an unknown one by response time or status.
+    res.json({ success: true });
 
-    const { error: updErr } = await supabaseAdmin
-      .from("properties")
-      .update({
-        reset_token: hashToken(token),
-        reset_requested_at: new Date().toISOString(),
-      })
-      .eq("id", property.id);
-
-    if (updErr) {
-      logger.error({ err: updErr }, "forgot-password update");
-      res.status(500).json({ error: "Errore interno del server" });
+    // At most one reset email per address every 15 minutes (no inbox
+    // flooding, no killing the link the host just received). Same response
+    // either way, so this reveals nothing either.
+    if (!forgotPasswordPerEmailLimiter.check(normalizedEmail)) {
+      logger.info({ email: maskEmail(normalizedEmail) }, "Forgot password: richiesta ripetuta ignorata (max 1 ogni 15 min)");
       return;
     }
 
-    logger.info({ slug: property.slug, email: normalizedEmail }, "Password reset token generated");
-
-    if (isHostWelcomeEmailConfigured()) {
-      try {
-        await sendPasswordResetEmail({
-          to: normalizedEmail,
-          propertyName: property.name?.trim() || "la tua struttura",
-          resetToken: token,
-        });
-      } catch (mailErr) {
-        logger.error(
-          { mailErr, slug: property.slug, email: normalizedEmail },
-          "Forgot password — email send failed",
-        );
-        res.status(500).json({ error: "Impossibile inviare l'email di recupero. Riprova più tardi." });
-        return;
-      }
-    } else {
-      logger.warn({ slug: property.slug }, "Forgot password — invio email non configurato (Resend), nessuna email inviata");
-    }
-
-    res.json({ success: true });
+    void issueAndSendPasswordReset({
+      propertyId: property.id,
+      slug: property.slug,
+      propertyName: property.name,
+      email: normalizedEmail,
+    });
   } catch (error) {
     logger.error({ err: error }, "forgot-password");
     if (!res.headersSent) {
@@ -277,6 +310,26 @@ router.post("/auth/reset-password/:token", async (req, res): Promise<void> => {
       return;
     }
 
+    // Claim the token first with one conditional write: only the request
+    // that actually clears it may go on to set a password, so a token can't
+    // be used twice by concurrent submissions.
+    const { data: claimed, error: claimErr } = await supabaseAdmin
+      .from("properties")
+      .update({ reset_token: null, reset_requested_at: null })
+      .eq("id", property.id)
+      .eq("reset_token", hashToken(token))
+      .select("id");
+
+    if (claimErr) {
+      logger.error({ err: claimErr }, "reset-password claim token");
+      res.status(500).json({ error: "Errore interno del server" });
+      return;
+    }
+    if (!claimed?.length) {
+      res.status(404).json({ error: "Token non valido o già utilizzato." });
+      return;
+    }
+
     const trimmed = String(newPassword).trim();
     const hashed = await hashHostPassword(trimmed);
     const ownerEmail = property.email?.trim().toLowerCase() ?? null;
@@ -285,18 +338,14 @@ router.post("/auth/reset-password/:token", async (req, res): Promise<void> => {
       const upsertResult = await upsertHostPassword(ownerEmail, hashed);
       if (!upsertResult.ok) {
         logger.error({ err: upsertResult.error, op: upsertResult.op }, "reset-password — upsert host");
-        res.status(500).json({ error: "Errore interno del server" });
+        res.status(500).json({ error: "Impossibile salvare la password. Richiedi un nuovo link." });
         return;
       }
     }
 
     const { error: pErr } = await supabaseAdmin
       .from("properties")
-      .update({
-        host_password: ownerEmail ? null : hashed,
-        reset_token: null,
-        reset_requested_at: null,
-      })
+      .update({ host_password: ownerEmail ? null : hashed })
       .eq("id", property.id);
 
     if (pErr) {
@@ -410,6 +459,26 @@ router.post("/auth/setup-password/:token", async (req, res): Promise<void> => {
       return;
     }
 
+    // Claim the token first with one conditional write: only the request
+    // that actually clears it may go on to set a password, so a token can't
+    // be used twice by concurrent submissions.
+    const { data: claimed, error: claimErr } = await supabaseAdmin
+      .from("properties")
+      .update({ invite_token: null, invite_token_expires_at: null })
+      .eq("id", property.id)
+      .eq("invite_token", hashToken(token))
+      .select("id");
+
+    if (claimErr) {
+      logger.error({ err: claimErr }, "setup-password claim token");
+      res.status(500).json({ error: "Errore interno del server" });
+      return;
+    }
+    if (!claimed?.length) {
+      res.status(404).json({ error: "Token non valido o già utilizzato." });
+      return;
+    }
+
     const trimmed = String(newPassword).trim();
     const hashed = await hashHostPassword(trimmed);
     const ownerEmail = property.email?.trim().toLowerCase() ?? null;
@@ -418,18 +487,14 @@ router.post("/auth/setup-password/:token", async (req, res): Promise<void> => {
       const upsertResult = await upsertHostPassword(ownerEmail, hashed);
       if (!upsertResult.ok) {
         logger.error({ err: upsertResult.error, op: upsertResult.op }, "setup-password — upsert host");
-        res.status(500).json({ error: "Errore interno del server" });
+        res.status(500).json({ error: "Impossibile salvare la password. Richiedi un nuovo link." });
         return;
       }
     }
 
     const { error: pErr } = await supabaseAdmin
       .from("properties")
-      .update({
-        host_password: ownerEmail ? null : hashed,
-        invite_token: null,
-        invite_token_expires_at: null,
-      })
+      .update({ host_password: ownerEmail ? null : hashed })
       .eq("id", property.id);
 
     if (pErr) {

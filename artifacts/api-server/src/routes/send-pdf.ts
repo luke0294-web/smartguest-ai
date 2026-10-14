@@ -1,5 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { logger } from "../lib/logger";
+import { maskEmail } from "../lib/logRedact";
 import { getResendFromHeader, isResendEmailConfigured, sendResendEmail } from "../lib/resend";
 import { requireCeoSession } from "../lib/ceo-session";
 import { escapeHtml } from "../lib/hostWelcomeMail";
@@ -84,12 +85,12 @@ router.post("/send-pdf", async (req: Request<{}, {}, SendPdfBody>, res: Response
       ],
     });
   } catch (err: unknown) {
-    logger.error({ email: email.trim(), err }, "Invio email PDF fallito");
+    logger.error({ email: maskEmail(email), err }, "Invio email PDF fallito");
     res.status(500).json({ error: "Errore durante l'invio dell'email. Riprova più tardi." });
     return;
   }
 
-  logger.info({ email: email.trim(), propertyName: safePropertyName }, "Email con PDF inviata (Resend)");
+  logger.info({ email: maskEmail(email), propertyName: safePropertyName }, "Email con PDF inviata (Resend)");
   res.status(200).json({
     success: true,
     message: "Email inviata.",

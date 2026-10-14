@@ -6,6 +6,7 @@ import {
   aiTranscribeRateLimiter,
   aiVisionRateLimiter,
   aiDocumentRateLimiter,
+  clientIpKey,
 } from "../lib/rateLimiter";
 import { logOpenAi429IfNeeded } from "../lib/openaiErrors";
 import { requireHostSession } from "../lib/host-auth";
@@ -27,7 +28,7 @@ const uploadDocument = multer({
 });
 
 const rateLimitAiTranscribe: RequestHandler = (req, res, next) => {
-  const clientIp = req.ip ?? "unknown";
+  const clientIp = clientIpKey(req.ip);
   if (!aiTranscribeRateLimiter.check(clientIp)) {
     const retryAfter = aiTranscribeRateLimiter.retryAfterSeconds(clientIp);
     logger.warn({ ip: clientIp, retryAfter }, "AI transcribe rate limit exceeded");
@@ -41,7 +42,7 @@ const rateLimitAiTranscribe: RequestHandler = (req, res, next) => {
 };
 
 const rateLimitAiVision: RequestHandler = (req, res, next) => {
-  const clientIp = req.ip ?? "unknown";
+  const clientIp = clientIpKey(req.ip);
   if (!aiVisionRateLimiter.check(clientIp)) {
     const retryAfter = aiVisionRateLimiter.retryAfterSeconds(clientIp);
     logger.warn({ ip: clientIp, retryAfter }, "AI vision rate limit exceeded");
@@ -55,7 +56,7 @@ const rateLimitAiVision: RequestHandler = (req, res, next) => {
 };
 
 const rateLimitAiDocument: RequestHandler = (req, res, next) => {
-  const clientIp = req.ip ?? "unknown";
+  const clientIp = clientIpKey(req.ip);
   if (!aiDocumentRateLimiter.check(clientIp)) {
     const retryAfter = aiDocumentRateLimiter.retryAfterSeconds(clientIp);
     logger.warn({ ip: clientIp, retryAfter }, "AI document rate limit exceeded");

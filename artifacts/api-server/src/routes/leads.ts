@@ -2,8 +2,9 @@ import { Router, type IRouter } from "express";
 import { randomBytes } from "node:crypto";
 import { CreateLeadBody } from "@workspace/api-zod";
 import { logger } from "../lib/logger";
+import { maskEmail } from "../lib/logRedact";
 import { requireCeoSession } from "../lib/ceo-session";
-import { authRateLimiter } from "../lib/rateLimiter";
+import { clientIpKey, leadsRateLimiter } from "../lib/rateLimiter";
 import { supabaseAdmin } from "../lib/supabase";
 import { isHostWelcomeEmailConfigured, sendHostWelcomeEmail } from "../lib/hostWelcomeMail";
 import { sendNewLeadNotificationEmail } from "../lib/leadNotificationMail";
@@ -35,9 +36,9 @@ function mapLeadToApi(row: LeadRow) {
 
 router.post("/leads", async (req, res): Promise<void> => {
   try {
-    const clientIp = req.ip ?? "unknown";
-    if (!authRateLimiter.check(clientIp)) {
-      const retryAfter = authRateLimiter.retryAfterSeconds(clientIp);
+    const clientIp = clientIpKey(req.ip);
+    if (!leadsRateLimiter.check(clientIp)) {
+      const retryAfter = leadsRateLimiter.retryAfterSeconds(clientIp);
       res.status(429).json({ error: "Troppe richieste. Riprova più tardi.", retryAfter });
       return;
     }
@@ -76,7 +77,7 @@ router.post("/leads", async (req, res): Promise<void> => {
       return;
     }
 
-    logger.info({ email, propertyName }, "New lead registered");
+    logger.info({ email: maskEmail(email), leadId: row.id }, "New lead registered");
 
     try {
       await sendNewLeadNotificationEmail({
@@ -284,13 +285,13 @@ router.post("/leads/:id/convert", async (req, res): Promise<void> => {
         // di invio email qui è un successo parziale, non un fallimento della
         // conversione — non deve rispondere 500 nascondendo lo stato reale
         // (il client rischierebbe di pensare che vada ritentata da capo).
-        logger.error({ slug, email: normalizedEmail, err: mailErr }, "Lead convert — welcome email failed");
+        logger.error({ slug, email: maskEmail(normalizedEmail), err: mailErr }, "Lead convert — welcome email failed");
       }
     } else {
       logger.warn({ slug }, "Lead convert — invio email non configurato (Resend), email di benvenuto non inviata");
     }
 
-    logger.info({ id, email: normalizedEmail, slug, emailSent }, "Lead converted to property + invite token");
+    logger.info({ id, email: maskEmail(normalizedEmail), slug, emailSent }, "Lead converted to property + invite token");
     res.status(201).json({
       success: true,
       slug,
