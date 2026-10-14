@@ -21,6 +21,7 @@ import { supabaseAdmin } from "../lib/supabase";
 import { maskEmail } from "../lib/logRedact";
 import { propertyRowToCamel, type PropertyRowSnake } from "../lib/supabaseMaps";
 import { upsertHostPassword } from "../lib/hostPasswordUpsert";
+import { validationErrorMessage } from "../lib/validationError";
 
 const router: IRouter = Router();
 
@@ -234,13 +235,13 @@ router.put("/host/:slug", async (req, res): Promise<void> => {
 
     const params = HostUpdatePropertyParams.safeParse(req.params);
     if (!params.success) {
-      res.status(400).json({ error: params.error.message });
+      res.status(400).json({ error: validationErrorMessage(params.error) });
       return;
     }
 
     const body = HostUpdatePropertyBody.safeParse(req.body);
     if (!body.success) {
-      res.status(400).json({ error: body.error.message });
+      res.status(400).json({ error: validationErrorMessage(body.error) });
       return;
     }
 
@@ -391,13 +392,13 @@ router.put("/properties/:slug/host-password", async (req, res): Promise<void> =>
 
     const params = SetHostPasswordParams.safeParse(req.params);
     if (!params.success) {
-      res.status(400).json({ error: params.error.message });
+      res.status(400).json({ error: validationErrorMessage(params.error) });
       return;
     }
 
     const body = SetHostPasswordBody.safeParse(req.body);
     if (!body.success) {
-      res.status(400).json({ error: body.error.message });
+      res.status(400).json({ error: validationErrorMessage(body.error) });
       return;
     }
 

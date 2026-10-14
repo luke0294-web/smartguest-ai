@@ -23,6 +23,7 @@ import { isHostWelcomeEmailConfigured, sendHostWelcomeEmail } from "../lib/hostW
 import { hashToken } from "../lib/tokens";
 import { deleteChatLogs, moveChatLogs } from "../lib/chatLogs";
 import { clientIpKey, publicPropertyRateLimiter } from "../lib/rateLimiter";
+import { validationErrorMessage } from "../lib/validationError";
 
 type SupabasePropertyRowPublic = {
   id: number | string;
@@ -210,7 +211,7 @@ router.post("/properties", async (req, res): Promise<void> => {
 
   const parsed = CreatePropertyBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    res.status(400).json({ error: validationErrorMessage(parsed.error) });
     return;
   }
 
@@ -329,7 +330,7 @@ router.get("/properties/:slug", async (req, res): Promise<void> => {
 
   const params = GetPropertyParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    res.status(400).json({ error: validationErrorMessage(params.error) });
     return;
   }
 
@@ -396,13 +397,13 @@ router.put("/properties/:slug", async (req, res): Promise<void> => {
 
   const params = UpdatePropertyParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    res.status(400).json({ error: validationErrorMessage(params.error) });
     return;
   }
 
   const body = UpdatePropertyBody.safeParse(req.body);
   if (!body.success) {
-    res.status(400).json({ error: body.error.message });
+    res.status(400).json({ error: validationErrorMessage(body.error) });
     return;
   }
 
@@ -464,13 +465,13 @@ router.put("/properties/:slug/full-edit", async (req, res): Promise<void> => {
 
   const params = FullEditPropertyParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    res.status(400).json({ error: validationErrorMessage(params.error) });
     return;
   }
 
   const body = FullEditPropertyBody.safeParse(req.body);
   if (!body.success) {
-    res.status(400).json({ error: body.error.message });
+    res.status(400).json({ error: validationErrorMessage(body.error) });
     return;
   }
 
@@ -711,7 +712,7 @@ router.delete("/properties/:slug", async (req, res): Promise<void> => {
 
   const params = DeletePropertyParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    res.status(400).json({ error: validationErrorMessage(params.error) });
     return;
   }
 

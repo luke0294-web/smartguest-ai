@@ -20,6 +20,7 @@ import {
 import { logOpenAi429IfNeeded } from "../lib/openaiErrors";
 // Separate line on purpose: keeps this change away from the import block other open PRs edit.
 import { clientIpKey } from "../lib/rateLimiter";
+import { validationErrorMessage } from "../lib/validationError";
 
 const router: IRouter = Router();
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -194,13 +195,13 @@ router.post("/properties/:slug/chat", async (req, res): Promise<void> => {
 
   const params = SendPropertyChatParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    res.status(400).json({ error: validationErrorMessage(params.error) });
     return;
   }
 
   const parsed = SendPropertyChatBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    res.status(400).json({ error: validationErrorMessage(parsed.error) });
     return;
   }
 
