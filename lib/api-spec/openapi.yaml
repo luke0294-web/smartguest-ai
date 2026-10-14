@@ -2384,9 +2384,11 @@ components:
       properties:
         propertyName:
           type: string
+          maxLength: 200
           description: Real name of the prospect's property, shown in the demo chat header
         manualContent:
           type: string
+          maxLength: 20000
           description: |
             Real facts about the prospect's actual property (zone, a
             distinctive detail, a nearby tip, etc.) that Cico will use to
@@ -2394,6 +2396,7 @@ components:
             prospect gets a specific, real answer instead of a generic one
         suggestedQuestion:
           type: string
+          maxLength: 500
           description: |
             The curiosity question to suggest to the prospect in the outreach
             message (WhatsApp/email); not shown inside the demo chat itself

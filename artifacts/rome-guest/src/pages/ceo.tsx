@@ -1976,6 +1976,7 @@ export default function CeoPanel() {
                         <input
                           type="text"
                           value={newDemoPropertyName}
+                          maxLength={200}
                           onChange={(e) => { setNewDemoPropertyName(e.target.value); setDemoFormMsg(null); }}
                           placeholder="Es. Suite 83 Roma"
                           className="w-full bg-background border border-border px-4 py-2.5 rounded-xl focus:outline-none focus:border-fuchsia-400 focus:ring-2 focus:ring-fuchsia-100 transition-all text-sm"
@@ -1985,6 +1986,7 @@ export default function CeoPanel() {
                         <label className="text-sm font-semibold text-foreground">Info reali sulla casa</label>
                         <textarea
                           value={newDemoManualContent}
+                          maxLength={20000}
                           onChange={(e) => { setNewDemoManualContent(e.target.value); setDemoFormMsg(null); }}
                           placeholder="Zona, un dettaglio caratteristico, un consiglio nei dintorni... solo cose vere: sono quello che Cico userà per rispondere."
                           rows={5}
@@ -1996,6 +1998,7 @@ export default function CeoPanel() {
                         <input
                           type="text"
                           value={newDemoSuggestedQuestion}
+                          maxLength={500}
                           onChange={(e) => { setNewDemoSuggestedQuestion(e.target.value); setDemoFormMsg(null); }}
                           placeholder="Es. Qual è il consiglio di colazione vicino a te?"
                           className="w-full bg-background border border-border px-4 py-2.5 rounded-xl focus:outline-none focus:border-fuchsia-400 focus:ring-2 focus:ring-fuchsia-100 transition-all text-sm"

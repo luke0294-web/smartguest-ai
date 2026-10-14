@@ -740,10 +740,17 @@ export const CreateDemoProspectHeader = zod.object({
   "X-CEO-Session": zod.string().describe('HMAC session token from POST \/auth\/ceo-login')
 })
 
+export const createDemoProspectBodyPropertyNameMax = 200;
+
+export const createDemoProspectBodyManualContentMax = 20000;
+
+export const createDemoProspectBodySuggestedQuestionMax = 500;
+
+
 export const CreateDemoProspectBody = zod.object({
-  "propertyName": zod.string().describe('Real name of the prospect\'s property, shown in the demo chat header'),
-  "manualContent": zod.string().describe('Real facts about the prospect\'s actual property (zone, a\ndistinctive detail, a nearby tip, etc.) that Cico will use to\nanswer — written so the \"curiosity question\" suggested to the\nprospect gets a specific, real answer instead of a generic one\n'),
-  "suggestedQuestion": zod.string().optional().describe('The curiosity question to suggest to the prospect in the outreach\nmessage (WhatsApp\/email); not shown inside the demo chat itself\n')
+  "propertyName": zod.string().max(createDemoProspectBodyPropertyNameMax, "Il nome della struttura non può superare 200 caratteri").describe('Real name of the prospect\'s property, shown in the demo chat header'),
+  "manualContent": zod.string().max(createDemoProspectBodyManualContentMax, "Le info sulla casa non possono superare 20.000 caratteri").describe('Real facts about the prospect\'s actual property (zone, a\ndistinctive detail, a nearby tip, etc.) that Cico will use to\nanswer — written so the \"curiosity question\" suggested to the\nprospect gets a specific, real answer instead of a generic one\n'),
+  "suggestedQuestion": zod.string().max(createDemoProspectBodySuggestedQuestionMax, "La domanda suggerita non può superare 500 caratteri").optional().describe('The curiosity question to suggest to the prospect in the outreach\nmessage (WhatsApp\/email); not shown inside the demo chat itself\n')
 })
 
 export const CreateDemoProspectResponse = zod.object({

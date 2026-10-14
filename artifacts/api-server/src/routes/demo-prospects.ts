@@ -23,7 +23,13 @@ router.post("/demo-prospects", async (req, res): Promise<void> => {
 
   const parsed = CreateDemoProspectBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    // Zod's error.message is the JSON dump of every issue: show one readable
+    // message instead (the length limits carry their own Italian text).
+    const issue = parsed.error.issues[0];
+    const field = issue?.path.join(".") || "dati";
+    res.status(400).json({
+      error: issue?.code === "too_big" ? issue.message : `Campo "${field}" mancante o non valido.`,
+    });
     return;
   }
 
