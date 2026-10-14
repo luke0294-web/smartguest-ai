@@ -14,10 +14,20 @@ import { toast } from "@/hooks/use-toast";
 function MarcoReplyMarkdown({ marcoReply }: { marcoReply: string }) {
   return (
     <ReactMarkdown
+      // Model output can be steered by guests: no remote images (they would
+      // load from any server when the host opens the Diario — a tracking
+      // pixel), and links open in a new tab, never replacing the dashboard.
+      disallowedElements={["img"]}
+      unwrapDisallowed
       components={{
         p: ({ children }) => <span className="text-sm">{children}</span>,
         strong: ({ children }) => (
           <strong className="font-semibold text-gray-900">{children}</strong>
+        ),
+        a: ({ href, children }) => (
+          <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
+            {children}
+          </a>
         ),
       }}
     >

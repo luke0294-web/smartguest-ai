@@ -516,6 +516,9 @@ export default function GuestChat(props: GuestChatProps = {}) {
     onStreamDelta: (text: string) => void;
   };
 
+  /** Set when a demo lock is restored from sessionStorage on load (see effect below). */
+  const restoredDemoLockRef = useRef(false);
+
   /** Aborts an in-flight SSE reply when the chat unmounts (route change / demo switch). */
   const chatAbortRef = useRef<AbortController | null>(null);
   useEffect(() => () => chatAbortRef.current?.abort(), []);
@@ -598,19 +601,22 @@ export default function GuestChat(props: GuestChatProps = {}) {
     try {
       if (sessionStorage.getItem(`demo_locked_${slug}`) === "true") {
         setDemoChatLocked(true);
-        // Restored lock after a reload: without this the visitor saw a
-        // disabled chat with no explanation (the CTA bubble is otherwise only
-        // added while sending). Embedded demos show their own banner instead.
-        if (!parentHandlesDemoLimitCta) {
-          setMessages((prev) =>
-            prev.some((m) => m.demoCta)
-              ? prev
-              : [...prev, { role: "assistant", content: DEMO_CTA_ASSISTANT_TEXT_IT, demoCta: true }],
-          );
-        }
+        restoredDemoLockRef.current = true;
       }
     } catch {}
-  }, [isDemo, slug, parentHandlesDemoLimitCta]);
+  }, [isDemo, slug]);
+
+  // Restored lock after a reload: without this the visitor saw a disabled chat
+  // with no explanation (the CTA bubble is otherwise only added while sending).
+  // Waits for the welcome bubble, so it isn't skipped and stays first.
+  // Embedded demos show their own banner instead.
+  useEffect(() => {
+    if (!restoredDemoLockRef.current || parentHandlesDemoLimitCta) return;
+    if (messages.length === 0) return;
+    restoredDemoLockRef.current = false;
+    if (messages.some((m) => m.demoCta)) return;
+    setMessages((prev) => [...prev, { role: "assistant", content: DEMO_CTA_ASSISTANT_TEXT_IT, demoCta: true }]);
+  }, [messages, parentHandlesDemoLimitCta]);
 
   useEffect(() => {
     if (!isDemo || !slug || !demoFlowLocked) return;
@@ -955,6 +961,8 @@ export default function GuestChat(props: GuestChatProps = {}) {
                           <ReactMarkdown
                             rehypePlugins={ASSISTANT_MARKDOWN_PLUGINS}
                             components={assistantMarkdownComponents}
+                            disallowedElements={["img"]}
+                            unwrapDisallowed
                           >
                             {msg.content}
                           </ReactMarkdown>

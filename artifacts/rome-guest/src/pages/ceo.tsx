@@ -50,7 +50,8 @@ const createPropertySchema = z.object({
   slug: z.string().min(1, "Lo slug è obbligatorio").regex(/^[a-z0-9-]+$/, "Solo lettere minuscole, numeri e trattini").refine((val) => !isReservedPropertySlug(val), "Questo slug è riservato dal sistema, scegline un altro"),
   whatsappNumber: z.string().optional(),
   ownerEmail: z.string().email("Email non valida").optional().or(z.literal("")),
-  content: z.string().optional(),
+  // Same limit as the API: over it the server answered with raw validation JSON.
+  content: z.string().max(20000, "Il manuale non può superare 20.000 caratteri").optional(),
 });
 
 type CreatePropertyValues = z.infer<typeof createPropertySchema>;
@@ -322,6 +323,8 @@ function ContentEditModal({
   // kept editing: start from the CURRENT manual, or saving would silently
   // overwrite the host's newer text with the stale copy.
   const [loadingFresh, setLoadingFresh] = useState(true);
+  /** Fresh load failed: the text may be stale, so saving needs an explicit confirmation. */
+  const [freshLoadFailed, setFreshLoadFailed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -331,6 +334,7 @@ function ContentEditModal({
       })
       .catch(() => {
         if (!cancelled) {
+          setFreshLoadFailed(true);
           setError("Non sono riuscito a caricare la versione aggiornata: stai vedendo quella in cache, che potrebbe essere vecchia.");
         }
       })
@@ -345,6 +349,18 @@ function ContentEditModal({
   }, [property.slug]);
 
   const handleSave = async () => {
+    if (text.length > 20000) {
+      setError("Il manuale non può superare 20.000 caratteri.");
+      return;
+    }
+    if (
+      freshLoadFailed &&
+      !window.confirm(
+        "Il testo potrebbe non essere aggiornato: se l'host l'ha modificato di recente, salvando sovrascrivi le sue modifiche. Salvare comunque?",
+      )
+    ) {
+      return;
+    }
     setError("");
     setSaved(false);
     setSaving(true);
@@ -400,7 +416,9 @@ function ContentEditModal({
             placeholder="Inserisci qui il regolamento completo, info WiFi, istruzioni check-in/check-out, consigli locali..."
             className="w-full h-72 resize-none border border-gray-200 rounded-2xl px-4 py-3 text-sm leading-relaxed text-gray-800 focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all font-sans"
           />
-          <p className="text-[11px] text-gray-600 mt-1.5">{text.length} caratteri</p>
+          <p className={`text-[11px] mt-1.5 ${text.length > 20000 ? "text-red-600 font-semibold" : "text-gray-600"}`}>
+            {text.length.toLocaleString("it-IT")} / 20.000 caratteri
+          </p>
         </div>
 
         {/* Footer */}
@@ -731,7 +749,13 @@ export default function CeoPanel() {
   };
 
   const deleteHost = async (email: string) => {
-    if (!window.confirm(`Sei sicuro di voler eliminare l'host ${email}?`)) return;
+    if (
+      !window.confirm(
+        `Eliminare l'host ${email}?\n\nNon potrà più accedere e i suoi link di reset/invito smettono di funzionare. Le sue strutture restano, ma senza proprietario: assegnale a un'altra email dalla sezione Proprietà.`,
+      )
+    ) {
+      return;
+    }
     setHostDeleting((prev) => ({ ...prev, [email]: true }));
     try {
       await deleteAdminHost(email, { headers: { ...ceoSessionHeaders } });
