@@ -1,7 +1,7 @@
-import { pgTable, serial, text, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, bigserial, text, timestamp } from "drizzle-orm/pg-core";
 
 export const hostsTable = pgTable("hosts", {
-  id: serial("id").primaryKey(),
+  id: bigserial("id", { mode: "number" }).primaryKey(),
   email: text("email").notNull().unique(),
   hostPassword: text("host_password").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

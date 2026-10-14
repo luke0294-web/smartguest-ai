@@ -1,7 +1,7 @@
-import { pgTable, serial, text, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, bigserial, text, timestamp } from "drizzle-orm/pg-core";
 
 export const leadsTable = pgTable("leads", {
-  id: serial("id").primaryKey(),
+  id: bigserial("id", { mode: "number" }).primaryKey(),
   hostName: text("host_name").notNull(),
   email: text("email").notNull(),
   propertyName: text("property_name").notNull(),

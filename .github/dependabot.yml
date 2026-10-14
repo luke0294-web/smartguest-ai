@@ -1,0 +1,10 @@
+# Security updates for npm dependencies are enabled in the repository
+# settings (they already open PRs like #44). This file only adds version
+# updates for the GitHub Actions used by CI, so they don't silently age.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 3

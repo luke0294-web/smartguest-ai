@@ -28,7 +28,6 @@ const __dirname = path.dirname(__filename);
 const allowlist = [
   "@supabase/supabase-js",
   "bcryptjs",
-  "cookie-parser",
   "cors",
   "express",
   "helmet",
