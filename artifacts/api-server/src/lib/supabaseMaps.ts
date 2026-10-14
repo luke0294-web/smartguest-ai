@@ -4,6 +4,7 @@ export type PropertyRowSnake = {
   slug: string;
   name: string;
   content: string;
+  manual_content?: string | null;
   referral_links?: string | null;
   whatsapp_number: string | null;
   host_password?: string | null;
@@ -43,7 +44,9 @@ export function propertyRowToCamel(
     id: r.id,
     slug: r.slug,
     name: r.name,
-    content: r.content,
+    // Same precedence as the guest chat and the CEO panel: the manual Cico
+    // actually uses is `manual_content`; `content` is the legacy mirror.
+    content: r.manual_content ?? r.content,
     whatsappNumber: r.whatsapp_number,
     hostPassword: r.host_password ?? null,
     email: r.email,

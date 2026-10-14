@@ -111,6 +111,20 @@ app.use("/api", router);
 // Ultimo resort: errori non gestiti (sync throw o, con Express 5, reject delle promesse nei route handler).
 app.use(
   (err: unknown, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    // Client errors raised by the body parsers (malformed JSON → 400, body
+    // over the limit → 413) carry their own status: answer with it instead of
+    // a 500 logged as "critical" that any anonymous request could trigger.
+    const clientStatus =
+      err && typeof err === "object" && "status" in err ? Number((err as { status: unknown }).status) : NaN;
+    if (clientStatus >= 400 && clientStatus < 500) {
+      if (!res.headersSent) {
+        res.status(clientStatus).json({
+          error: clientStatus === 413 ? "Richiesta troppo grande." : "Richiesta non valida.",
+        });
+      }
+      return;
+    }
+
     if (err instanceof multer.MulterError) {
       if (!res.headersSent) {
         res

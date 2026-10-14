@@ -374,16 +374,20 @@ export const HostUpdatePropertyHeader = zod.object({
   "x-host-session": zod.string().describe('HMAC session token from POST \/auth\/host-login. Also accepted via\n`Authorization: Bearer <token>`.\n')
 })
 
+export const hostUpdatePropertyBodyNameMax = 200;
+
 export const hostUpdatePropertyBodyContentMax = 20000;
+
+export const hostUpdatePropertyBodyWhatsappNumberMax = 30;
 
 export const hostUpdatePropertyBodyReferralLinksMax = 2000;
 
 
 
 export const HostUpdatePropertyBody = zod.object({
-  "name": zod.string().optional(),
+  "name": zod.string().max(hostUpdatePropertyBodyNameMax).optional(),
   "content": zod.string().max(hostUpdatePropertyBodyContentMax, "Il manuale casa non può superare 20.000 caratteri").optional(),
-  "whatsappNumber": zod.string().optional(),
+  "whatsappNumber": zod.string().max(hostUpdatePropertyBodyWhatsappNumberMax).optional(),
   "referralLinks": zod.string().max(hostUpdatePropertyBodyReferralLinksMax).optional()
 })
 

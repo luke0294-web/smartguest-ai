@@ -18,6 +18,8 @@ import {
   shouldIncrementPendingQuestions,
 } from "../lib/categorizeMessage";
 import { logOpenAi429IfNeeded } from "../lib/openaiErrors";
+// Separate line on purpose: keeps this change away from the import block other open PRs edit.
+import { clientIpKey } from "../lib/rateLimiter";
 
 const router: IRouter = Router();
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -171,7 +173,7 @@ function resolveLanguageCode(raw: unknown): string {
 // POST /properties/:slug/chat
 // ─────────────────────────────────────────────
 router.post("/properties/:slug/chat", async (req, res): Promise<void> => {
-  const clientIp = req.ip ?? "unknown";
+  const clientIp = clientIpKey(req.ip);
 
   // Per-IP cap first, for every property (including demo), before anything
   // else stores per-request state — so neither session-id rotation nor

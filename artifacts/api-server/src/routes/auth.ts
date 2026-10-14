@@ -5,7 +5,12 @@ import { logger } from "../lib/logger";
 import { requireCeoSession, getCeoPassword, issueCeoToken, verifyCeoPassword } from "../lib/ceo-session";
 import { requireHostSession } from "../lib/host-auth";
 import { hashHostPassword, HOST_PASSWORD_MIN_LENGTH_MESSAGE_IT, MIN_HOST_PASSWORD_LENGTH } from "../lib/passwords";
-import { authRateLimiter, ceoLoginGlobalFailureLimiter, ceoLoginRateLimiter } from "../lib/rateLimiter";
+import {
+  ceoLoginRateLimiter,
+  clientIpKey,
+  forgotPasswordPerEmailLimiter,
+  forgotPasswordRateLimiter,
+} from "../lib/rateLimiter";
 import { maskEmail } from "../lib/logRedact";
 import { supabaseAdmin } from "../lib/supabase";
 import { isHostWelcomeEmailConfigured, sendPasswordResetEmail } from "../lib/hostWelcomeMail";
@@ -72,20 +77,16 @@ const router: IRouter = Router();
 // POST /auth/ceo-login — validate CEO password, issue session token (no env default for password)
 router.post("/auth/ceo-login", async (req, res): Promise<void> => {
   try {
-    const clientIp = req.ip ?? "unknown";
+    const clientIp = clientIpKey(req.ip);
     if (!ceoLoginRateLimiter.check(clientIp)) {
       const retryAfter = ceoLoginRateLimiter.retryAfterSeconds(clientIp);
       res.status(429).json({ error: "Troppi tentativi di accesso. Riprova più tardi.", retryAfter });
       return;
     }
-    // Single shared CEO password: also cap failures across all IPs, so a
-    // distributed guess can't slip under the per-IP limit.
-    if (ceoLoginGlobalFailureLimiter.isLimited("ceo")) {
-      logger.warn("CEO login sospeso: troppi tentativi falliti nell'ultima ora (tutti gli IP)");
-      const retryAfter = ceoLoginGlobalFailureLimiter.retryAfterSeconds("ceo");
-      res.status(429).json({ error: "Troppi tentativi di accesso. Riprova più tardi.", retryAfter });
-      return;
-    }
+    // No global (all-IP) lockout: with a single shared password it would let
+    // anyone keep the CEO locked out, even with the right password. Against
+    // distributed guessing the defence is a long random CEO_PASSWORD (boot
+    // warns below 16 chars) plus this per-IP limit.
 
     const pwd = getCeoPassword();
     if (!pwd) {
@@ -95,7 +96,6 @@ router.post("/auth/ceo-login", async (req, res): Promise<void> => {
 
     const { password } = req.body ?? {};
     if (typeof password !== "string" || !verifyCeoPassword(password, pwd)) {
-      ceoLoginGlobalFailureLimiter.check("ceo");
       logger.warn({ ip: clientIp }, "CEO login fallito");
       res.status(401).json({ error: "Password non corretta." });
       return;
@@ -148,9 +148,9 @@ router.get("/auth/host/me", async (req, res): Promise<void> => {
 // POST /auth/forgot-password — host requests reset by email
 router.post("/auth/forgot-password", async (req, res): Promise<void> => {
   try {
-    const clientIp = req.ip ?? "unknown";
-    if (!authRateLimiter.check(clientIp)) {
-      const retryAfter = authRateLimiter.retryAfterSeconds(clientIp);
+    const clientIp = clientIpKey(req.ip);
+    if (!forgotPasswordRateLimiter.check(clientIp)) {
+      const retryAfter = forgotPasswordRateLimiter.retryAfterSeconds(clientIp);
       res.status(429).json({ error: "Troppe richieste. Riprova più tardi.", retryAfter });
       return;
     }
@@ -197,6 +197,14 @@ router.post("/auth/forgot-password", async (req, res): Promise<void> => {
     // a 500 when sending failed) made a registered address distinguishable
     // from an unknown one by response time or status.
     res.json({ success: true });
+
+    // At most one reset email per address every 15 minutes (no inbox
+    // flooding, no killing the link the host just received). Same response
+    // either way, so this reveals nothing either.
+    if (!forgotPasswordPerEmailLimiter.check(normalizedEmail)) {
+      logger.info({ email: maskEmail(normalizedEmail) }, "Forgot password: richiesta ripetuta ignorata (max 1 ogni 15 min)");
+      return;
+    }
 
     void issueAndSendPasswordReset({
       propertyId: property.id,

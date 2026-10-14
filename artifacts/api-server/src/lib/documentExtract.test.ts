@@ -64,3 +64,24 @@ describe("extractDocxText zip-bomb guard", () => {
     await expect(extractDocxText(bomb)).rejects.toBeInstanceOf(DocumentExtractionError);
   });
 });
+
+describe("zipInflatesWithin (real decompression cap)", () => {
+  it("accepts a normal archive", async () => {
+    const { zipInflatesWithin } = await import("./documentExtract");
+    const zip = buildZip("word/document.xml", Buffer.from("<w:document>ciao</w:document>"));
+    expect(zipInflatesWithin(zip, 1024)).toBe(true);
+  });
+
+  it("rejects a bomb that LIES about its size in the central directory", async () => {
+    const { zipInflatesWithin } = await import("./documentExtract");
+    // Really inflates past the 50 MB cap…
+    const bomb = buildZip("word/document.xml", Buffer.alloc(MAX_DOCX_UNCOMPRESSED_BYTES + 10 * 1024 * 1024));
+    // …but its central directory claims 10 bytes (offset 24 = uncompressed size).
+    const cd = bomb.lastIndexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02]));
+    bomb.writeUInt32LE(10, cd + 24);
+    expect(zipDeclaredUncompressedSize(bomb)).toBe(10); // the declared check alone is fooled…
+    expect(zipInflatesWithin(bomb, MAX_DOCX_UNCOMPRESSED_BYTES)).toBe(false); // …the real one is not
+    // …and the rejection comes from the guard, before mammoth/JSZip ever runs.
+    await expect(extractDocxText(bomb)).rejects.toThrow(/troppo grande o danneggiato/);
+  });
+});

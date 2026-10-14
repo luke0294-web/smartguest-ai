@@ -22,7 +22,7 @@ import { upsertHostPassword } from "../lib/hostPasswordUpsert";
 import { isHostWelcomeEmailConfigured, sendHostWelcomeEmail } from "../lib/hostWelcomeMail";
 import { hashToken } from "../lib/tokens";
 import { deleteChatLogs, moveChatLogs } from "../lib/chatLogs";
-import { publicPropertyRateLimiter } from "../lib/rateLimiter";
+import { clientIpKey, publicPropertyRateLimiter } from "../lib/rateLimiter";
 
 type SupabasePropertyRowPublic = {
   id: number | string;
@@ -321,7 +321,7 @@ router.post("/properties", async (req, res): Promise<void> => {
 router.get("/properties/:slug", async (req, res): Promise<void> => {
   // Public endpoint (guest page): capped per IP so nobody can enumerate house
   // manuals by trying property names in bulk.
-  const clientIp = req.ip ?? "unknown";
+  const clientIp = clientIpKey(req.ip);
   if (!publicPropertyRateLimiter.check(clientIp)) {
     res.status(429).json({ error: "Troppe richieste. Riprova più tardi." });
     return;
@@ -551,7 +551,17 @@ router.put("/properties/:slug/full-edit", async (req, res): Promise<void> => {
     }
 
     if (email !== undefined) {
-      propPatch.email = String(email).trim().toLowerCase() || null;
+      const newEmail = String(email).trim().toLowerCase() || null;
+      propPatch.email = newEmail;
+      // New owner → pending reset/invite links (sent to the OLD owner) must die:
+      // they are honoured against the CURRENT owner email, so the old owner
+      // could otherwise set the new owner's password and take over the account.
+      if (newEmail !== (currentRow.email?.trim().toLowerCase() || null)) {
+        propPatch.reset_token = null;
+        propPatch.reset_requested_at = null;
+        propPatch.invite_token = null;
+        propPatch.invite_token_expires_at = null;
+      }
     }
 
     const targetSlug = (typeof propPatch.slug === "string" ? propPatch.slug : slug) as string;
@@ -564,7 +574,9 @@ router.put("/properties/:slug/full-edit", async (req, res): Promise<void> => {
         return;
       }
 
-      if (targetSlug !== slug && !(await moveChatLogs(slug, targetSlug))) {
+      // Clear leftovers under the target slug first, so the move doesn't merge
+      // this host's Diario with another tenant's old conversations.
+      if (targetSlug !== slug && (!(await deleteChatLogs(targetSlug)) || !(await moveChatLogs(slug, targetSlug)))) {
         res.status(500).json({
           error: `Slug aggiornato a "${targetSlug}", ma il diario non è stato spostato. Riprova o contatta il supporto.`,
         });

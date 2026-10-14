@@ -154,6 +154,29 @@ router.delete("/admin/hosts/:email", async (req, res): Promise<void> => {
     // an address into a URIError (500).
     const email = String(req.params.email ?? "").trim().toLowerCase();
 
+    // Unlink the host's properties FIRST (owner email + pending reset/invite
+    // links). Deleting only the `hosts` row did not revoke anything: the
+    // properties still pointed at this email, so "forgot password" found them
+    // and the reset re-created the account. The properties stay, without an
+    // owner, until the CEO assigns them to someone.
+    const { data: unlinked, error: unlinkError } = await supabaseAdmin
+      .from("properties")
+      .update({
+        email: null,
+        reset_token: null,
+        reset_requested_at: null,
+        invite_token: null,
+        invite_token_expires_at: null,
+      })
+      .eq("email", email)
+      .select("slug");
+
+    if (unlinkError) {
+      logger.error({ unlinkError }, "DELETE /admin/hosts — scollegamento proprietà fallito");
+      res.status(500).json({ error: "Impossibile scollegare le strutture dell'host. Nessuna modifica fatta all'account." });
+      return;
+    }
+
     const { data: deletedRows, error } = await supabaseAdmin
       .from("hosts")
       .delete()
@@ -166,12 +189,15 @@ router.delete("/admin/hosts/:email", async (req, res): Promise<void> => {
       return;
     }
 
-    if (!deletedRows?.length) {
+    if (!deletedRows?.length && !unlinked?.length) {
       res.status(404).json({ error: "Host non trovato." });
       return;
     }
 
-    logger.info({ email: maskEmail(email) }, "Host deleted by CEO");
+    logger.info(
+      { email: maskEmail(email), unlinkedProperties: unlinked?.length ?? 0 },
+      "Host deleted by CEO (properties unlinked)",
+    );
     res.sendStatus(204);
   } catch (error) {
     logger.error({ err: error }, "DELETE /admin/hosts — eccezione non gestita");

@@ -4,7 +4,31 @@
  * Designed to be GC-friendly: stale entries are pruned lazily.
  */
 
+import { isIPv6 } from "node:net";
 import { isProductionSecurityEnabled } from "./validateEnv";
+
+/**
+ * Rate-limit key for a client address. IPv4 (incl. IPv4-mapped IPv6) is used
+ * as is; IPv6 is grouped by its /64 prefix — one home/mobile connection owns a
+ * whole /64, so keying on the full /128 let a single client rotate addresses
+ * and get a fresh bucket for every request.
+ */
+export function clientIpKey(ip: string | undefined | null): string {
+  if (!ip) return "unknown";
+  const addr = ip.startsWith("::ffff:") && !ip.slice(7).includes(":") ? ip.slice(7) : ip;
+  if (!isIPv6(addr)) return addr;
+  const [head, tail] = addr.split("::");
+  const headParts = head ? head.split(":") : [];
+  const tailParts = tail === undefined ? [] : tail ? tail.split(":") : [];
+  const groups =
+    tail === undefined
+      ? headParts
+      : [...headParts, ...Array(Math.max(0, 8 - headParts.length - tailParts.length)).fill("0"), ...tailParts];
+  return `${groups
+    .slice(0, 4)
+    .map((g) => (g.toLowerCase().replace(/^0+/, "") || "0"))
+    .join(":")}::/64`;
+}
 
 interface RateLimitEntry {
   timestamps: number[];
@@ -62,18 +86,6 @@ export class RateLimiter {
     return true; // Allowed
   }
 
-  /**
-   * True if `key` is currently at its limit — WITHOUT recording a request.
-   * Pair with `check()` to count only some events (e.g. failed logins).
-   */
-  isLimited(key: string): boolean {
-    if (!isRateLimitingEnabled()) return false;
-    const cutoff = Date.now() - this.windowMs;
-    const entry = this.store.get(key);
-    if (!entry) return false;
-    return entry.timestamps.filter((t) => t > cutoff).length >= this.maxRequests;
-  }
-
   /** Returns seconds until the oldest request in the window expires */
   retryAfterSeconds(key: string): number {
     const entry = this.store.get(key);
@@ -118,10 +130,32 @@ export const aiDocumentRateLimiter = new RateLimiter({
   windowMs: 60 * 60 * 1000,
 });
 
-/** Strict limit for auth and public lead intake endpoints (per IP). */
+/** Host login (per IP). Separate from leads/forgot-password so lead-form traffic behind one NAT can't block logins. */
 export const authRateLimiter = new RateLimiter({
   maxRequests: 10,
   windowMs: 60 * 60 * 1000,
+});
+
+/** Public lead form (per IP). */
+export const leadsRateLimiter = new RateLimiter({
+  maxRequests: 10,
+  windowMs: 60 * 60 * 1000,
+});
+
+/** Forgot-password requests (per IP). */
+export const forgotPasswordRateLimiter = new RateLimiter({
+  maxRequests: 10,
+  windowMs: 60 * 60 * 1000,
+});
+
+/**
+ * Forgot-password per target email: at most one reset email every 15
+ * minutes, so nobody can flood a host's inbox (each request also replaces
+ * the previous link).
+ */
+export const forgotPasswordPerEmailLimiter = new RateLimiter({
+  maxRequests: 1,
+  windowMs: 15 * 60 * 1000,
 });
 
 /**
@@ -140,13 +174,3 @@ export const ceoLoginRateLimiter = new RateLimiter({
   windowMs: 60 * 60 * 1000,
 });
 
-/**
- * CEO login: failed attempts across ALL IPs. There is a single CEO password,
- * so a distributed guess (many IPs, few tries each) would slip under any
- * per-IP limit. Above this, CEO login pauses for everyone until the window
- * moves on — a deliberate trade-off: brief lockout over a guessable panel.
- */
-export const ceoLoginGlobalFailureLimiter = new RateLimiter({
-  maxRequests: 30,
-  windowMs: 60 * 60 * 1000,
-});

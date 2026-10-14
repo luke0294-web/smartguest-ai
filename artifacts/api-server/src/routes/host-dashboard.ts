@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { randomBytes } from "node:crypto";
 import {
   GetHostPropertyResponse,
   SetHostPasswordParams,
@@ -14,7 +15,7 @@ import {
 } from "../lib/host-session";
 import { requireHostSession, requireHostOwnsPropertySlug } from "../lib/host-auth";
 import { hashHostPassword, verifyHostPassword } from "../lib/passwords";
-import { authRateLimiter } from "../lib/rateLimiter";
+import { authRateLimiter, clientIpKey } from "../lib/rateLimiter";
 import { generateGuestQrDataUrl } from "../lib/generateQr";
 import { supabaseAdmin } from "../lib/supabase";
 import { maskEmail } from "../lib/logRedact";
@@ -47,6 +48,17 @@ function toValidDate(value: unknown, fallbackMs: number): Date {
 
 type HostRow = { id: number; email: string; host_password: string };
 
+/**
+ * bcrypt hash of a random string, computed once. Unknown emails are checked
+ * against it so login takes the same ~bcrypt time whether or not the email
+ * exists — otherwise response time revealed which emails are hosts.
+ */
+let dummyHashPromise: Promise<string> | null = null;
+function dummyPasswordHash(): Promise<string> {
+  dummyHashPromise ??= hashHostPassword(randomBytes(16).toString("hex"));
+  return dummyHashPromise;
+}
+
 async function authenticateHost(
   email: string,
   password: string,
@@ -60,7 +72,10 @@ async function authenticateHost(
     .eq("email", normalized)
     .maybeSingle<HostRow>();
 
-  if (error || !host) return null;
+  if (error || !host) {
+    await verifyHostPassword(await dummyPasswordHash(), password);
+    return null;
+  }
 
   const ok = await verifyHostPassword(host.host_password, password);
   if (!ok) return null;
@@ -84,7 +99,7 @@ async function authenticateHost(
 // POST /api/auth/host-login — email+password → list of owned properties + session token
 router.post("/auth/host-login", async (req, res): Promise<void> => {
   try {
-    const clientIp = req.ip ?? "unknown";
+    const clientIp = clientIpKey(req.ip);
     if (!authRateLimiter.check(clientIp)) {
       const retryAfter = authRateLimiter.retryAfterSeconds(clientIp);
       res.status(429).json({ error: "Troppi tentativi di accesso. Riprova più tardi.", retryAfter });

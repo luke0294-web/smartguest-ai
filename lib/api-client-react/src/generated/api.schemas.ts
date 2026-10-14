@@ -184,9 +184,11 @@ export interface HostPropertyResponse {
 }
 
 export interface HostUpdatePropertyRequest {
+  /** @maxLength 200 */
   name?: string;
   /** @maxLength 20000 */
   content?: string;
+  /** @maxLength 30 */
   whatsappNumber?: string;
   /** @maxLength 2000 */
   referralLinks?: string;

@@ -4,7 +4,7 @@ import { CreateLeadBody } from "@workspace/api-zod";
 import { logger } from "../lib/logger";
 import { maskEmail } from "../lib/logRedact";
 import { requireCeoSession } from "../lib/ceo-session";
-import { authRateLimiter } from "../lib/rateLimiter";
+import { clientIpKey, leadsRateLimiter } from "../lib/rateLimiter";
 import { supabaseAdmin } from "../lib/supabase";
 import { isHostWelcomeEmailConfigured, sendHostWelcomeEmail } from "../lib/hostWelcomeMail";
 import { sendNewLeadNotificationEmail } from "../lib/leadNotificationMail";
@@ -36,9 +36,9 @@ function mapLeadToApi(row: LeadRow) {
 
 router.post("/leads", async (req, res): Promise<void> => {
   try {
-    const clientIp = req.ip ?? "unknown";
-    if (!authRateLimiter.check(clientIp)) {
-      const retryAfter = authRateLimiter.retryAfterSeconds(clientIp);
+    const clientIp = clientIpKey(req.ip);
+    if (!leadsRateLimiter.check(clientIp)) {
+      const retryAfter = leadsRateLimiter.retryAfterSeconds(clientIp);
       res.status(429).json({ error: "Troppe richieste. Riprova più tardi.", retryAfter });
       return;
     }

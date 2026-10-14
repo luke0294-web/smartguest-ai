@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { DEMO_SLUG } from "./demoProperty";
 import { isProductionSecurityEnabled } from "./validateEnv";
+import { clientIpKey } from "./rateLimiter";
 
 const AI_MAX_MESSAGES_PER_SESSION = 12;
 /**
@@ -101,8 +102,11 @@ function readSlugForAiLimit(req: Request): string | undefined {
  */
 function getAiCounterKey(req: Request): string {
   const sessionId = readSessionIdFromBody(req) ?? readSessionIdFromHeaders(req);
-  if (sessionId) return `session:${sessionId}`;
-  return `ip:${req.ip ?? "unknown"}`;
+  // Per demo (slug): one browser session is shared by /demo and every
+  // personalized /demo/demo-… link, so trying the generic demo used to eat
+  // the prospect's own demo before they even opened it.
+  if (sessionId) return `session:${sessionId}:${readSlugForAiLimit(req) ?? ""}`;
+  return `ip:${clientIpKey(req.ip)}`;
 }
 
 /**
@@ -119,12 +123,18 @@ export function enforceAiMessageLimit(req: Request, res: Response): boolean {
     const key = getAiCounterKey(req);
     const used = aiMessageCountByKey.get(key) ?? 0;
 
-    const ipKey = `demo-ip:${req.ip ?? "unknown"}`;
+    const ipKey = `demo-ip:${clientIpKey(req.ip)}`;
     const ipNext = (aiMessageCountByKey.get(ipKey) ?? 0) + 1;
     if (ipNext > AI_MAX_DEMO_MESSAGES_PER_IP) {
       // Checked before recording the session key, so an over-limit IP can't
-      // keep adding new keys to the map.
-      res.status(429).json({ error: "Demo limit reached" });
+      // keep adding new keys to the map. Distinct error from the per-session
+      // cap: this one is temporary and shared by a whole network, so the
+      // frontend must NOT lock the visitor's tab for good.
+      res.status(429).json({
+        error: "Demo IP limit reached",
+        reply:
+          "Da questa rete sono già stati provati molti messaggi demo nell'ultima ora. Riprova più tardi! 🙏",
+      });
       return false;
     }
     aiMessageCountByKey.set(ipKey, ipNext);
@@ -142,7 +152,7 @@ export function enforceAiMessageLimit(req: Request, res: Response): boolean {
   }
 
   const sessionId = readXSessionIdForProdLimit(req);
-  const key = sessionId ? `prod:${sessionId}` : `prod-ip:${req.ip ?? "unknown"}`;
+  const key = sessionId ? `prod:${sessionId}` : `prod-ip:${clientIpKey(req.ip)}`;
 
   const now = Date.now();
   const timestamps = prodRateTimestampsBySession.get(key) ?? [];
