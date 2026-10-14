@@ -21,9 +21,10 @@ describe("leadSlug", () => {
     },
   );
 
-  it("adds a 4-char random suffix so guest links can't be guessed from the name", () => {
+  it("adds an 8-char random suffix so guest links can't be guessed from the name", () => {
     const candidate = leadSlugCandidate("casa-roma");
-    expect(candidate).toMatch(/^casa-roma-[a-z0-9]{4}$/);
+    expect(candidate).toMatch(/^casa-roma-[a-z0-9]{8}$/);
+    expect(leadSlugCandidate("casa-roma")).not.toBe(candidate);
   });
 
   it("caps very long names", () => {

@@ -17,10 +17,17 @@ function slugifyPropertyName(name: string): string {
   );
 }
 
+const SUFFIX_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
+const SUFFIX_LENGTH = 8;
+
 function randomSuffix(): string {
-  // 4 lowercase alphanumerics: ~1.6M combinations per name — enough that a
-  // guest link can't be guessed from the property name alone.
-  return randomBytes(8).toString("base64url").replace(/[^a-z0-9]/gi, "").toLowerCase().slice(0, 4).padEnd(4, "0");
+  // 8 chars from 36 symbols: ~2.8 × 10^12 combinations per name. The guest
+  // link (and the house manual behind it) must not be guessable even by a
+  // distributed attacker going through the public rate limits.
+  const bytes = randomBytes(SUFFIX_LENGTH);
+  let out = "";
+  for (let i = 0; i < SUFFIX_LENGTH; i++) out += SUFFIX_ALPHABET[bytes[i] % SUFFIX_ALPHABET.length];
+  return out;
 }
 
 /**
