@@ -26,6 +26,10 @@ const titleTransformer: InputTransformerFn = (config) => {
  *    20.000 caratteri")` (create/update/hostUpdate) and on
  *    `setHostPasswordBodyHostPasswordMin` ("La password deve contenere almeno
  *    8 caratteri").
+ *  - Italian messages on the `createDemoProspectBody` limits (PR #45):
+ *    propertyName "Il nome della struttura non può superare 200 caratteri",
+ *    manualContent "Le info sulla casa non possono superare 20.000 caratteri",
+ *    suggestedQuestion "La domanda suggerita non può superare 500 caratteri".
  * Each patch also carries a comment in the generated file. Losing the SSE
  * patch or the messages does NOT break the build, so always review the diff.
  */

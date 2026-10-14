@@ -4,7 +4,7 @@
 
 🔗 [heycico.com](https://heycico.com) · [Demo live](https://heycico.com/demo)
 
-> Documento aggiornato il 13 ottobre 2026 (controllo generale), allineato al codice di `main` più le PR #43–#48.
+> Documento aggiornato il 14 ottobre 2026 (controllo generale), allineato al codice di `main` più le PR #43–#50.
 
 ---
 
@@ -53,7 +53,7 @@ Punti distintivi dell'implementazione:
 - **Risposta in streaming (SSE)**, non un singolo blocco di testo — l'ospite vede Cico scrivere in tempo reale.
 - **Language lock**: Cico risponde sempre nella lingua dell'ultimo messaggio dell'ospite, indipendentemente dalla lingua del regolamento caricato dall'host — 11 lingue supportate in UI (IT, EN, DE, FR, ES, NL, ZH, JA, KO, PT, PL).
 - **Manual-first**: Cico attinge solo al regolamento fornito dall'host; suggerisce il contatto WhatsApp dell'host solo per informazioni mancanti, emergenze o problemi tecnici irrisolvibili.
-- **Modalità demo pubblica** (`/demo`, `/guest/demo`): regolamento fittizio precaricato, limite più stringente (12 messaggi/ora per sessione e 36/ora per IP), nessuna persistenza dei log — pensata per far provare il prodotto senza esporre dati di proprietà reali.
+- **Modalità demo pubblica** (`/demo`, `/guest/demo`): regolamento fittizio precaricato, limite più stringente (12 messaggi per sessione e 36 per rete, azzerati un'ora dopo l'ultimo messaggio), nessuna persistenza dei log — pensata per far provare il prodotto senza esporre dati di proprietà reali.
 - **Demo personalizzate per l'outreach** (`/demo/demo-…`): il CEO crea dal pannello (tab "Demo") un link per un singolo prospect, con informazioni vere sulla sua struttura, da mandare nel messaggio con una "domanda curiosa" da fare a Cico. Stesse regole della demo pubblica; registra quando il prospect scrive per la prima volta.
 
 ---
@@ -203,14 +203,14 @@ La chat e la lettura pubblica di una demo personalizzata passano dalle rotte nor
 ### Flusso lead → host
 
 1. Form pubblico crea un lead (`status: "Nuovo"`)
-2. Il CEO converte il lead: viene creata la proprietà con uno slug generato dal nome più un suffisso casuale (es. `casa-roma-k3x9`, così il link ospite non si indovina) e un token di invito a tempo (48 ore)
+2. Il CEO converte il lead: viene creata la proprietà con uno slug generato dal nome più un suffisso casuale di 8 caratteri (es. `casa-roma-k3x9p2qa`, così il link ospite non si indovina) e un token di invito a tempo (48 ore)
 3. L'host riceve un'email di benvenuto con link di setup, imposta la propria password (hash bcrypt), e da quel momento accede con le proprie credenziali
 
 ---
 
 ## Database (Supabase)
 
-PostgreSQL gestito da Supabase. Il backend opera quasi sempre tramite il client **service role**, con Row-Level Security attiva a livello di schema ma senza policy `anon` — l'accesso è di fatto riservato al server.
+PostgreSQL gestito da Supabase. Il backend usa **sempre e solo** il client **service role**. Row-Level Security è attiva su tutte le tabelle senza alcuna policy, quindi con la chiave anon/publishable non si legge nulla: l'accesso è riservato al server. Per `properties` va eseguito una volta `supabase/properties_rls.sql`.
 
 | Tabella | Contenuto |
 |---|---|
@@ -230,19 +230,21 @@ Gli script SQL (da eseguire a mano nel SQL Editor di Supabase) sono in `artifact
 
 Alcune scelte di design pensate per un prodotto che espone una chat pubblica non autenticata:
 
-- **Rate limiting in-memory** per IP (`req.ip`, con `trust proxy` = 1 hop):
-  - chat: 100/ora, controllato prima di tutto il resto;
-  - demo: 12 messaggi/ora per sessione e 36/ora per IP;
+- **Rate limiting in-memory** per IP (`req.ip`, con `trust proxy` = 1 hop; gli IPv6 sono raggruppati per /64, perché una sola connessione riceve un intero /64):
+  - chat: 100/ora, controllato prima di tutto il resto, più 60/minuto per sessione (`x-session-id`, o per IP se manca);
+  - demo: 12 messaggi per sessione e 36 per IP, azzerati un'ora dopo l'ultimo messaggio; il limite per IP risponde `Demo IP limit reached` e non blocca la scheda;
   - trascrizione e vision: 10/ora ciascuna; lettura documenti: 20/ora;
-  - login CEO: 5/ora per IP, più un tetto di 30 tentativi falliti/ora da tutti gli IP insieme;
-  - login host, recupero password e form lead: 10/ora, in un unico contatore condiviso;
+  - login CEO: 5/ora per IP (nessun blocco globale, che permetterebbe a chiunque di chiudere fuori il CEO);
+  - login host, recupero password e form lead: 10/ora ciascuno, con contatori separati;
+  - recupero password: al massimo una email ogni 15 minuti per indirizzo (la risposta è sempre la stessa);
   - lettura pubblica di una proprietà: 300/ora.
 
   Per verificare che Render passi davvero un solo proxy, imposta `LOG_PROXY_DEBUG=true`, apri il sito e confronta `ip` e `xForwardedFor` nei log.
 - **Sessioni host** firmate HMAC-SHA256, TTL di 8 ore, accettate via header `Authorization: Bearer` o `x-host-session`.
 - **Ownership check esplicito**: ogni operazione su una proprietà verifica che l'email della sessione host corrisponda a quella proprietaria (`requireHostOwnsPropertySlug`), non solo che la sessione sia valida.
-- **Guardrail AI dedicato**: limite separato di messaggi sulla modalità demo, per evitare abusi del limite di spesa OpenAI. Il campo `language` della chat accetta solo le lingue supportate (finisce nel prompt di sistema).
-- **Log puliti**: i token di reset e invito negli URL vengono oscurati (`[redacted]`), le email mascherate (`ma***@gmail.com`). Lo stesso vale per Vercel Analytics.
+- **Guardrail AI dedicato**: limite separato di messaggi sulla modalità demo, per evitare abusi del limite di spesa OpenAI. Il campo `language` della chat accetta solo le lingue supportate (finisce nel prompt di sistema). Non esiste un tetto di spesa globale nel codice: va impostato un limite mensile nella dashboard OpenAI.
+- **Limiti sui campi**: nome struttura 200 caratteri, WhatsApp 30, link di referral 2000, regolamento 20.000; form lead: nome 120, email 254, struttura 200.
+- **Log puliti**: i token di reset e invito negli URL vengono oscurati (`[redacted]`), le email mascherate (`ma***@gmail.com`). Anche gli URL inviati a Vercel Analytics hanno i token oscurati.
 - **Token di reset e invito**: 256 bit casuali, salvati come hash SHA-256, monouso (consumati con una scrittura atomica), scadenza 2 ore (reset) e 48 ore (invito).
 - **Scanning automatico attivo sul repository**: GitHub Secret Scanning, Push Protection e Dependabot abilitati.
 
@@ -264,6 +266,8 @@ Obbligatorie all'avvio del server (il boot fallisce esplicitamente se mancano):
 All'avvio il server avvisa nei log (senza bloccarsi) se `CEO_PASSWORD` ha meno di 16 caratteri o il segreto di sessione meno di 32. `SUPABASE_ANON_KEY` non serve più: il server usa solo la chiave service role.
 
 **Frontend (Vercel):** `VITE_API_ORIGIN`, cioè l'URL pubblico dell'API su Render, è **obbligatoria**: senza di lei la build di produzione si ferma, invece di pubblicare un sito bianco.
+
+**Build dell'intero monorepo** (`pnpm run build`, come in CI): oltre a `VITE_API_ORIGIN` servono `PORT` e `BASE_PATH`, richieste dal `vite.config.ts` di `artifacts/mockup-sandbox` (bastano valori fittizi, es. `PORT=5174 BASE_PATH=/`).
 
 Opzionali lato server: `PORT` (default `8080`), `LOG_LEVEL`, `EMAIL_FROM_NAME`, `ENABLE_RATE_LIMITING`, `EMAIL_REPLY_TO` / `RESEND_REPLY_TO`, `LOG_PROXY_DEBUG`. Lato frontend/dev: `BASE_PATH`, `REPL_ID`, `API_PROXY_TARGET`.
 

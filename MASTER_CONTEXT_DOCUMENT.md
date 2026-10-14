@@ -1,7 +1,7 @@
 # HeyCico / SmartGuest AI — Master Context Document
 
 > **Purpose:** Feed this file as system/context to Claude, GPT, Gemini, etc.  
-> **Branch scanned:** `main` + PR #43–#48 (13 October 2026 audit: guest chat + Super-Diario + host tools + personalized outreach demos; no live Stripe routes).  
+> **Branch scanned:** `main` + PR #43–#50 (13–14 October 2026 audit: guest chat + Super-Diario + host tools + personalized outreach demos; no live Stripe routes).  
 > **Rule:** Describes only what exists in code/SQL unless marked **NOT IMPLEMENTED**.
 
 ---
@@ -19,7 +19,7 @@ HeyCico is a B2B SaaS for short-term rental hosts. Each **property** gets a publ
 | Role | Entry | Capabilities |
 |------|-------|--------------|
 | **Guest** | `/guest/:slug`, `/demo`, `/guest/demo` | Chat with Cico (SSE stream), language selector, WhatsApp escalation, quick-reply chips |
-| **Host** | `/login` → `/host/dashboard` → `/host/:slug` | Edit manual, WhatsApp, referral links; AI voice/image ingest; open Diario; view pending badge |
+| **Host** | `/login` → `/host/dashboard` → `/host/:slug` | Edit manual, WhatsApp, referral links; text extraction from PDF/.docx uploads and photos; open Diario; view pending badge |
 | **CEO/Admin** | `/ceo` | Leads CRUD, convert lead→property, manage properties/hosts, resend welcome email, send PDF |
 
 Ownership model: `properties.email` must match authenticated host session email (`artifacts/api-server/src/lib/host-auth.ts` → `requireHostOwnsPropertySlug`).
@@ -148,8 +148,8 @@ Demo cap: **12 user messages** (`DEMO_USER_MESSAGE_LIMIT`), synced with backend 
 ### 2.1 Stack
 
 - **Express 5** + TypeScript (`tsx` dev, esbuild prod bundle via `build.ts`)
-- **Supabase JS** — `supabase` (anon) + `supabaseAdmin` (service role) in `src/lib/supabase.ts`
-- **Validation** — Zod schemas in `@workspace/api-zod` (generated from partial OpenAPI)
+- **Supabase JS** — only `supabaseAdmin` (service role) in `src/lib/supabase.ts`; no anon client, `SUPABASE_ANON_KEY` is not used
+- **Validation** — Zod schemas in `@workspace/api-zod` (generated from `lib/api-spec/openapi.yaml`, which covers every route; a few hand patches listed in `orval.config.ts`)
 - **Logging** — Pino + pino-http (`src/lib/logger.ts`), redacts auth/password headers
 - **Email** — Resend (`src/lib/resend.ts`, `src/lib/hostWelcomeMail.ts`)
 
@@ -222,6 +222,13 @@ All paths prefixed with `/api`. Router index: `artifacts/api-server/src/routes/i
 |--------|------|------|------|
 | POST | `/ai/transcribe` | Host | `routes/ai.ts` |
 | POST | `/ai/vision` | Host | `routes/ai.ts` |
+| POST | `/ai/extract-document` | Host — native PDF/.docx parsing, max 15MB, no AI call | `routes/ai.ts` |
+
+#### Personalized demos
+| Method | Path | Auth | File |
+|--------|------|------|------|
+| GET / POST | `/demo-prospects` | CEO | `routes/demo-prospects.ts` |
+| DELETE | `/demo-prospects/:slug` | CEO | `routes/demo-prospects.ts` |
 
 #### Leads
 | Method | Path | Auth | File |
@@ -259,23 +266,25 @@ In-memory sliding window per IP (not shared across API instances):
 | `aiTranscribeRateLimiter` | 10 req / hour / IP | `/ai/transcribe` |
 | `aiVisionRateLimiter` | 10 req / hour / IP | `/ai/vision` |
 | `aiDocumentRateLimiter` | 20 req / hour / IP | `/ai/extract-document` |
-| `authRateLimiter` | 10 req / hour / IP (one shared bucket) | host-login, forgot-password, leads POST |
-| `ceoLoginRateLimiter` | 5 req / hour / IP | `/auth/ceo-login` |
-| `ceoLoginGlobalFailureLimiter` | 30 failures / hour, all IPs | `/auth/ceo-login` |
+| `authRateLimiter` | 10 req / hour / IP | `/auth/host-login` |
+| `leadsRateLimiter` | 10 req / hour / IP | `POST /leads` |
+| `forgotPasswordRateLimiter` | 10 req / hour / IP | `/auth/forgot-password` |
+| `forgotPasswordPerEmailLimiter` | 1 email / 15 min per target address | `/auth/forgot-password` (the response is identical either way) |
+| `ceoLoginRateLimiter` | 5 req / hour / IP | `/auth/ceo-login` — per IP only: a global lock would let anyone block the real CEO |
 | `publicPropertyRateLimiter` | 300 req / hour / IP | `GET /properties/:slug` |
 
-Keys use Express `req.ip` with `app.set("trust proxy", 1)`.
+Keys use Express `req.ip` with `app.set("trust proxy", 1)`, normalized by `clientIpKey`: IPv4 as-is, IPv6 grouped by /64 (one home or phone connection gets a whole /64, so per-address keys were trivial to rotate). Set `LOG_PROXY_DEBUG=true` to log `req.ip` next to `X-Forwarded-For` and check the proxy hop count on Render.
 
 #### AI guard — `artifacts/api-server/src/lib/aiGuard.ts`
 
-`enforceAiMessageLimit(req, res)` called before chat + AI upload routes:
+`enforceAiMessageLimit(req, res)` is called only by the guest chat route (`routes/chat.ts`), after `chatRateLimiter`. The AI upload routes use their own per-IP limiters above.
 
 | Mode | Rule |
 |------|------|
-| Demo slug | 12 messages / hour per key: `sessionId` body → `x-session-id` header → IP fallback |
+| Demo slugs (`demo`, `demo-…`) | 12 messages per key: `sessionId` body → `x-session-id` header → IP fallback; the key includes the slug, so the generic demo doesn't consume a personalized one. Plus 36 messages per IP (/64 for IPv6) across all sessions → 429 `Demo IP limit reached` (temporary: the frontend does not lock the tab) |
 | Production | 60 req / minute per `x-session-id` header; **no header = fallback to per-IP limit** (fail closed, not open) |
 
-TTL: demo counter resets after 1 hour (in-memory).
+TTL: each demo counter is deleted 1 hour after its **last** message (the timer restarts on every message — not a rolling window). In-memory, lost on restart.
 
 #### Host session — `artifacts/api-server/src/lib/host-session.ts`
 
@@ -287,7 +296,7 @@ TTL: demo counter resets after 1 hour (in-memory).
 
 #### CEO session — `artifacts/api-server/src/lib/ceo-session.ts`
 
-- Plain compare against `CEO_PASSWORD` env (not slow-hashed)
+- Constant-time compare (SHA-256 digests + `timingSafeEqual`) against `CEO_PASSWORD` env — not slow-hashed, so use a long random password (boot warns under 16 chars)
 - Token issued on successful login; sent as `x-ceo-session` header from CEO panel
 
 #### Passwords — `artifacts/api-server/src/lib/passwords.ts`
@@ -299,10 +308,10 @@ TTL: demo counter resets after 1 hour (in-memory).
 
 ## 3) Database Schema (Supabase)
 
-**Access pattern:** Backend uses `supabaseAdmin` (service role) for virtually all operations. RLS enabled on tables but anon policies dropped — effectively server-only access.
+**Access pattern:** Backend uses `supabaseAdmin` (service role) for every operation. RLS is enabled with no policies (`properties_rls.sql`, `ceo_hosts_leads.sql`, `chat_logs.sql`, `demo_prospects.sql`), so the anon/publishable key can read nothing.
 
 **SQL migration files:** `artifacts/api-server/supabase/*.sql`  
-**Drizzle mirror (partial drift):** `lib/db/src/schema/*.ts`
+**Drizzle mirror (documentation only, may drift):** `lib/db/src/schema/*.ts` — not used at runtime; the `drizzle-kit push` scripts were removed, schema changes go through the SQL files
 
 ### 3.1 Table Reference
 
