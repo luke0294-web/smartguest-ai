@@ -472,7 +472,7 @@ export default function GuestChat(props: GuestChatProps = {}) {
   const wouterParams = useParams<{ slug: string }>();
   const params = routeParams ?? wouterParams;
   const slug = embeddedDemo?.property.slug ?? params?.slug ?? "";
-  const isDemo = slug === "demo";
+  const isDemo = slug === "demo" || slug.startsWith("demo-");
 
   const {
     data: fetchedProperty,

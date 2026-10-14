@@ -1516,6 +1516,122 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /demo-prospects:
+    post:
+      operationId: createDemoProspect
+      tags: [demo-prospects]
+      summary: |
+        Create a personalized demo link for an outreach prospect: a
+        /demo/{slug} page pre-loaded with real facts about their property,
+        used to hook them with a specific question in the outreach message
+        (CEO only)
+      parameters:
+        - $ref: "#/components/parameters/CeoSessionHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDemoProspectRequest"
+      responses:
+        "201":
+          description: Personalized demo created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DemoProspect"
+        "400":
+          description: Invalid data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    get:
+      operationId: listDemoProspects
+      tags: [demo-prospects]
+      summary: List all personalized demos, newest first (CEO only)
+      parameters:
+        - $ref: "#/components/parameters/CeoSessionHeader"
+      responses:
+        "200":
+          description: Personalized demos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DemoProspect"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /demo-prospects/{slug}:
+    delete:
+      operationId: deleteDemoProspect
+      tags: [demo-prospects]
+      summary: Delete a personalized demo (CEO only)
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/CeoSessionHeader"
+      responses:
+        "200":
+          description: Personalized demo deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  slug:
+                    type: string
+                required:
+                  - success
+                  - slug
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Personalized demo not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /admin/hosts:
     get:
       operationId: listAdminHosts
@@ -2261,6 +2377,58 @@ components:
         - email
         - propertyName
         - status
+        - createdAt
+
+    CreateDemoProspectRequest:
+      type: object
+      properties:
+        propertyName:
+          type: string
+          description: Real name of the prospect's property, shown in the demo chat header
+        manualContent:
+          type: string
+          description: |
+            Real facts about the prospect's actual property (zone, a
+            distinctive detail, a nearby tip, etc.) that Cico will use to
+            answer — written so the "curiosity question" suggested to the
+            prospect gets a specific, real answer instead of a generic one
+        suggestedQuestion:
+          type: string
+          description: |
+            The curiosity question to suggest to the prospect in the outreach
+            message (WhatsApp/email); not shown inside the demo chat itself
+      required:
+        - propertyName
+        - manualContent
+
+    DemoProspect:
+      type: object
+      properties:
+        slug:
+          type: string
+        url:
+          type: string
+          description: Full shareable link to the personalized demo (/demo/{slug})
+        propertyName:
+          type: string
+        manualContent:
+          type: string
+        suggestedQuestion:
+          type: string
+          nullable: true
+        firstMessageAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Set the first time the prospect actually sends a chat message
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - slug
+        - url
+        - propertyName
+        - manualContent
         - createdAt
 
     UpdateLeadStatusRequest:

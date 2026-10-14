@@ -7,7 +7,12 @@ import {
 } from "@workspace/api-zod";
 import { logger } from "../lib/logger";
 import { chatRateLimiter } from "../lib/rateLimiter";
-import { DEMO_SLUG, DEMO_MASTER_MANUAL, demoPropertyRowForChat } from "../lib/demoProperty";
+import { DEMO_SLUG, demoPropertyRowForChat } from "../lib/demoProperty";
+import {
+  isPersonalizedDemoSlug,
+  loadDemoProspectBySlug,
+  markDemoProspectFirstMessage,
+} from "../lib/demoProspects";
 import { requireHostSession, requireHostOwnsPropertySlug } from "../lib/host-auth";
 import { detectNeedsAttention } from "../lib/detectNeedsAttention";
 import { enforceAiMessageLimit } from "../lib/aiGuard";
@@ -180,7 +185,8 @@ router.post("/properties/:slug/chat", async (req, res): Promise<void> => {
 
   try {
   const slug = params.data.slug;
-  const isDemo = slug === DEMO_SLUG;
+  const isPersonalizedDemo = isPersonalizedDemoSlug(slug);
+  const isDemo = slug === DEMO_SLUG || isPersonalizedDemo;
   const userMessage = parsed.data.message || "";
   // Always trust what the guest writes, not the UI selector
   const languageCode = parsed.data.language || "en";
@@ -206,7 +212,21 @@ router.post("/properties/:slug/chat", async (req, res): Promise<void> => {
     referralLinks: string;
   };
 
-  if (isDemo) {
+  if (isPersonalizedDemo) {
+    const prospect = await loadDemoProspectBySlug(slug);
+    if (!prospect) {
+      res.status(404).json({ error: "Demo not found." });
+      return;
+    }
+    // Fire-and-forget: records the prospect's first real engagement for the CEO panel.
+    markDemoProspectFirstMessage(slug);
+    property = {
+      slug,
+      name: prospect.property_name,
+      content: prospect.manual_content,
+      referralLinks: "",
+    };
+  } else if (isDemo) {
     const demoRow = demoPropertyRowForChat();
     property = {
       slug: demoRow.slug,
@@ -237,8 +257,13 @@ router.post("/properties/:slug/chat", async (req, res): Promise<void> => {
 
   const { conversationHistory = [] } = parsed.data;
 
-  /** Demo: always `DEMO_MASTER_MANUAL` in the system prompt; prod: Supabase manual. */
-  const houseManual = isDemo ? DEMO_MASTER_MANUAL : property.content;
+  /**
+   * `property.content` already holds the right manual for every case: the
+   * fixed `DEMO_MASTER_MANUAL` for the plain "/demo" property, the
+   * prospect's own facts for a personalized demo, and the Supabase manual
+   * for a real property.
+   */
+  const houseManual = property.content;
 
   // 4. Guardia: nessun contenuto disponibile — SSE done only (no OpenAI)
   if (!houseManual.trim()) {

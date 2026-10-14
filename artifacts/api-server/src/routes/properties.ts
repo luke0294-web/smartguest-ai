@@ -17,6 +17,7 @@ import { requireCeoSession } from "../lib/ceo-session";
 import { hashHostPassword, HOST_PASSWORD_MIN_LENGTH_MESSAGE_IT, MIN_HOST_PASSWORD_LENGTH } from "../lib/passwords";
 import { generateGuestQrDataUrl } from "../lib/generateQr";
 import { DEMO_SLUG, isReservedPropertySlug, parseDemoPropertyForGet } from "../lib/demoProperty";
+import { isPersonalizedDemoSlug, loadDemoProspectBySlug, parseDemoProspectForGet } from "../lib/demoProspects";
 import { supabaseAdmin } from "../lib/supabase";
 import { upsertHostPassword } from "../lib/hostPasswordUpsert";
 import { isHostWelcomeEmailConfigured, sendHostWelcomeEmail } from "../lib/hostWelcomeMail";
@@ -306,6 +307,16 @@ router.get("/properties/:slug", async (req, res): Promise<void> => {
   try {
     if (params.data.slug === DEMO_SLUG) {
       res.json(parseDemoPropertyForGet());
+      return;
+    }
+
+    if (isPersonalizedDemoSlug(params.data.slug)) {
+      const prospect = await loadDemoProspectBySlug(params.data.slug);
+      if (!prospect) {
+        res.status(404).json({ error: "Proprietà non trovata." });
+        return;
+      }
+      res.json(parseDemoProspectForGet(prospect));
       return;
     }
 

@@ -10,6 +10,7 @@ import {
   Users, AlertCircle, Sparkles, QrCode, X, Inbox,
   UserCog, Copy, CheckCheck, Link2, Eye, EyeOff, RefreshCw,
   Mail, ShieldAlert, FileText, ChevronDown, UserCheck, MoreVertical,
+  Wand2,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -32,8 +33,12 @@ import {
   upsertAdminHost,
   deleteAdminHost,
   ceoLogin,
+  createDemoProspect,
+  listDemoProspects,
+  deleteDemoProspect as apiDeleteDemoProspect,
   type Property,
   type LeadStatus,
+  type DemoProspect,
 } from "@workspace/api-client-react";
 import { isReservedPropertySlug } from "@workspace/api-zod";
 import { useQueryClient } from "@tanstack/react-query";
@@ -429,7 +434,7 @@ type InlineEditState = {
 export default function CeoPanel() {
   const [ceoToken, setCeoToken] = useState(readCeoToken);
   const [loginLoading, setLoginLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<"properties" | "leads" | "resets" | "hosts">("properties");
+  const [activeTab, setActiveTab] = useState<"properties" | "leads" | "resets" | "hosts" | "demo">("properties");
   const [qrProperty, setQrProperty] = useState<{ name: string; slug: string } | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [leadsLoading, setLeadsLoading] = useState(false);
@@ -443,6 +448,11 @@ export default function CeoPanel() {
   useEffect(() => {
     return () => {
       if (inlineEditTimerRef.current) clearTimeout(inlineEditTimerRef.current);
+    };
+  }, []);
+  useEffect(() => {
+    return () => {
+      if (copiedDemoTimerRef.current) clearTimeout(copiedDemoTimerRef.current);
     };
   }, []);
   const [showInlineHostPassword, setShowInlineHostPassword] = useState(false);
@@ -459,6 +469,17 @@ export default function CeoPanel() {
   const [hostFormMsg, setHostFormMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [hostFormSaving, setHostFormSaving] = useState(false);
   const [hostDeleting, setHostDeleting] = useState<Record<string, boolean>>({});
+  const [demoProspects, setDemoProspects] = useState<DemoProspect[]>([]);
+  const [demoProspectsLoading, setDemoProspectsLoading] = useState(false);
+  const [newDemoPropertyName, setNewDemoPropertyName] = useState("");
+  const [newDemoManualContent, setNewDemoManualContent] = useState("");
+  const [newDemoSuggestedQuestion, setNewDemoSuggestedQuestion] = useState("");
+  const [demoFormSaving, setDemoFormSaving] = useState(false);
+  const [demoFormMsg, setDemoFormMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const [lastCreatedDemo, setLastCreatedDemo] = useState<DemoProspect | null>(null);
+  const [demoDeleting, setDemoDeleting] = useState<Record<string, boolean>>({});
+  const [copiedDemoKey, setCopiedDemoKey] = useState<string | null>(null);
+  const copiedDemoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const queryClient = useQueryClient();
 
   const ceoSessionHeaders = { "X-CEO-Session": ceoToken };
@@ -735,6 +756,96 @@ export default function CeoPanel() {
     }
   };
 
+  const fetchDemoProspects = async () => {
+    if (!ceoToken) return;
+    setDemoProspectsLoading(true);
+    try {
+      const data = await listDemoProspects({ headers: { ...ceoSessionHeaders } });
+      setDemoProspects(data);
+    } catch (err) {
+      const message = describeCeoApiError(err, "Impossibile caricare le demo personalizzate. Riprova.");
+      if (message) toast({ title: "Errore", description: message, variant: "destructive" });
+    } finally {
+      setDemoProspectsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (ceoToken && activeTab === "demo") fetchDemoProspects();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, ceoToken]);
+
+  const saveDemoProspect = async () => {
+    if (!newDemoPropertyName.trim() || !newDemoManualContent.trim()) {
+      setDemoFormMsg({ type: "err", text: "Nome struttura e info sulla casa sono obbligatori." });
+      return;
+    }
+    setDemoFormSaving(true);
+    setDemoFormMsg(null);
+    try {
+      const created = await createDemoProspect(
+        {
+          propertyName: newDemoPropertyName.trim(),
+          manualContent: newDemoManualContent.trim(),
+          suggestedQuestion: newDemoSuggestedQuestion.trim() || undefined,
+        },
+        { headers: { ...ceoSessionHeaders } },
+      );
+      setLastCreatedDemo(created);
+      setDemoProspects((prev) => [created, ...prev]);
+      setNewDemoPropertyName("");
+      setNewDemoManualContent("");
+      setNewDemoSuggestedQuestion("");
+      setDemoFormMsg({ type: "ok", text: "Demo creata! Link e messaggio pronti qui sotto." });
+    } catch (err) {
+      const message = describeCeoApiError(err, "Errore di rete.");
+      if (message) setDemoFormMsg({ type: "err", text: message });
+    } finally {
+      setDemoFormSaving(false);
+    }
+  };
+
+  const deleteDemoProspectRow = async (slug: string) => {
+    if (!window.confirm("Eliminare questa demo personalizzata? Il link smetterà di funzionare.")) return;
+    setDemoDeleting((prev) => ({ ...prev, [slug]: true }));
+    try {
+      await apiDeleteDemoProspect(slug, { headers: { ...ceoSessionHeaders } });
+      setDemoProspects((prev) => prev.filter((d) => d.slug !== slug));
+      setLastCreatedDemo((prev) => (prev?.slug === slug ? null : prev));
+    } catch (err) {
+      const message = describeCeoApiError(err, "Impossibile eliminare la demo. Riprova.");
+      if (message) toast({ title: "Errore", description: message, variant: "destructive" });
+    } finally {
+      setDemoDeleting((prev) => { const n = { ...prev }; delete n[slug]; return n; });
+    }
+  };
+
+  const copyDemoText = async (key: string, text: string) => {
+    const setCopied = () => {
+      setCopiedDemoKey(key);
+      if (copiedDemoTimerRef.current) clearTimeout(copiedDemoTimerRef.current);
+      copiedDemoTimerRef.current = setTimeout(() => setCopiedDemoKey(null), 3000);
+    };
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied();
+    } catch {
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+        document.execCommand("copy");
+        setCopied();
+      } catch {
+        console.error("Copia fallita");
+      }
+      document.body.removeChild(textarea);
+    }
+  };
+
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
@@ -1004,6 +1115,22 @@ export default function CeoPanel() {
               {hosts.length > 0 && (
                 <span className={`ml-1 text-xs font-bold px-1.5 py-0.5 rounded-full ${activeTab === "hosts" ? "bg-white/30" : "bg-indigo-100 text-indigo-700"}`}>
                   {hosts.length}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTab("demo")}
+              className={`flex-shrink-0 whitespace-nowrap flex items-center gap-2 px-3 sm:px-5 py-2.5 rounded-xl font-semibold text-sm transition-all ${
+                activeTab === "demo"
+                  ? "bg-fuchsia-600 text-white shadow-md shadow-fuchsia-500/20"
+                  : "text-muted-foreground hover:bg-black/5"
+              }`}
+            >
+              <Wand2 className="w-4 h-4" />
+              Demo
+              {demoProspects.length > 0 && (
+                <span className={`ml-1 text-xs font-bold px-1.5 py-0.5 rounded-full ${activeTab === "demo" ? "bg-white/30" : "bg-fuchsia-100 text-fuchsia-700"}`}>
+                  {demoProspects.length}
                 </span>
               )}
             </button>
@@ -1727,6 +1854,221 @@ export default function CeoPanel() {
                       </p>
                     </div>
                   </div>
+                </div>
+              </motion.div>
+            )}
+
+            {/* ── TAB: DEMO PERSONALIZZATE ── */}
+            {activeTab === "demo" && (
+              <motion.div
+                key="demo"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="grid lg:grid-cols-12 gap-8 items-start"
+              >
+                {/* Left: created demos list */}
+                <div className="lg:col-span-7 flex flex-col gap-4">
+                  <div className="flex items-center justify-between px-1">
+                    <div>
+                      <h2 className="text-xl font-serif font-semibold">Demo Personalizzate</h2>
+                      <p className="text-muted-foreground text-sm mt-0.5">
+                        Un link diverso per ogni prospect, con info vere sulla loro casa — usalo nel messaggio di outreach insieme alla domanda suggerita.
+                      </p>
+                    </div>
+                    <button
+                      onClick={fetchDemoProspects}
+                      disabled={demoProspectsLoading}
+                      className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-black/5 rounded-lg transition-colors"
+                    >
+                      {demoProspectsLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><RefreshCw className="w-4 h-4" /> Aggiorna</>}
+                    </button>
+                  </div>
+
+                  {demoProspectsLoading && (
+                    <div className="flex justify-center py-12">
+                      <Loader2 className="w-8 h-8 text-fuchsia-500 animate-spin" />
+                    </div>
+                  )}
+
+                  {!demoProspectsLoading && demoProspects.length === 0 && (
+                    <div className="glass-panel p-12 rounded-3xl text-center flex flex-col items-center border-dashed">
+                      <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
+                        <Wand2 className="w-8 h-8 text-muted-foreground/50" />
+                      </div>
+                      <h3 className="text-lg font-bold text-foreground mb-1">Nessuna demo personalizzata</h3>
+                      <p className="text-muted-foreground text-sm max-w-sm">
+                        Usa il form per crearne una: incolla nome e info reali sulla struttura di un prospect e ottieni subito un link da mandargli.
+                      </p>
+                    </div>
+                  )}
+
+                  {!demoProspectsLoading && demoProspects.length > 0 && (
+                    <div className="flex flex-col gap-3">
+                      {demoProspects.map((demo) => (
+                        <motion.div
+                          key={demo.slug}
+                          initial={{ opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="glass-panel p-5 rounded-2xl"
+                        >
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="font-bold text-foreground text-[14px] truncate">{demo.propertyName}</p>
+                                {demo.firstMessageAt ? (
+                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                                    Aperta {format(new Date(demo.firstMessageAt), 'dd MMM HH:mm')}
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">
+                                    Non ancora aperta
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[12px] text-muted-foreground truncate mt-0.5">{demo.url}</p>
+                              {demo.suggestedQuestion && (
+                                <p className="text-[12px] text-fuchsia-700 mt-1.5 flex items-start gap-1">
+                                  <Wand2 className="w-3 h-3 flex-shrink-0 mt-0.5" />
+                                  <span>{demo.suggestedQuestion}</span>
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <button
+                                onClick={() => copyDemoText(demo.slug, demo.url)}
+                                className={`px-3 py-1.5 text-[12px] font-medium rounded-lg transition-colors flex items-center gap-1 ${
+                                  copiedDemoKey === demo.slug
+                                    ? "bg-emerald-100 text-emerald-700"
+                                    : "bg-fuchsia-50 text-fuchsia-700 hover:bg-fuchsia-100"
+                                }`}
+                              >
+                                {copiedDemoKey === demo.slug ? <CheckCheck className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                                {copiedDemoKey === demo.slug ? "Copiato!" : "Copia link"}
+                              </button>
+                              <button
+                                onClick={() => deleteDemoProspectRow(demo.slug)}
+                                disabled={demoDeleting[demo.slug]}
+                                className="w-8 h-8 flex items-center justify-center rounded-lg bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition-all disabled:opacity-50"
+                              >
+                                {demoDeleting[demo.slug] ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                              </button>
+                            </div>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Right: quick-create form */}
+                <div className="lg:col-span-5 sticky top-8 flex flex-col gap-4">
+                  <div className="glass-panel rounded-[2rem] overflow-hidden">
+                    <div className="bg-fuchsia-50 px-6 py-5 border-b border-border/50 flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-fuchsia-100 text-fuchsia-600 flex items-center justify-center">
+                        <Wand2 className="w-5 h-5" />
+                      </div>
+                      <h2 className="text-lg font-serif font-bold">Crea Demo Personalizzata</h2>
+                    </div>
+                    <div className="p-6 space-y-4">
+                      <div className="space-y-1.5">
+                        <label className="text-sm font-semibold text-foreground">Nome struttura</label>
+                        <input
+                          type="text"
+                          value={newDemoPropertyName}
+                          onChange={(e) => { setNewDemoPropertyName(e.target.value); setDemoFormMsg(null); }}
+                          placeholder="Es. Suite 83 Roma"
+                          className="w-full bg-background border border-border px-4 py-2.5 rounded-xl focus:outline-none focus:border-fuchsia-400 focus:ring-2 focus:ring-fuchsia-100 transition-all text-sm"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-sm font-semibold text-foreground">Info reali sulla casa</label>
+                        <textarea
+                          value={newDemoManualContent}
+                          onChange={(e) => { setNewDemoManualContent(e.target.value); setDemoFormMsg(null); }}
+                          placeholder="Zona, un dettaglio caratteristico, un consiglio nei dintorni... solo cose vere: sono quello che Cico userà per rispondere."
+                          rows={5}
+                          className="w-full bg-background border border-border px-4 py-2.5 rounded-xl focus:outline-none focus:border-fuchsia-400 focus:ring-2 focus:ring-fuchsia-100 transition-all text-sm resize-y"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-sm font-semibold text-foreground">Domanda suggerita (opzionale)</label>
+                        <input
+                          type="text"
+                          value={newDemoSuggestedQuestion}
+                          onChange={(e) => { setNewDemoSuggestedQuestion(e.target.value); setDemoFormMsg(null); }}
+                          placeholder="Es. Qual è il consiglio di colazione vicino a te?"
+                          className="w-full bg-background border border-border px-4 py-2.5 rounded-xl focus:outline-none focus:border-fuchsia-400 focus:ring-2 focus:ring-fuchsia-100 transition-all text-sm"
+                        />
+                        <p className="text-[11px] text-muted-foreground">
+                          Non appare nella chat: è solo per te, da suggerire nel messaggio a chi ricevi la demo.
+                        </p>
+                      </div>
+
+                      {demoFormMsg && (
+                        <div className={`flex items-center gap-2 text-[12px] px-3 py-2.5 rounded-xl border ${
+                          demoFormMsg.type === "ok"
+                            ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                            : "bg-red-50 border-red-100 text-red-600"
+                        }`}>
+                          {demoFormMsg.type === "ok"
+                            ? <CheckCheck className="w-3.5 h-3.5 flex-shrink-0" />
+                            : <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />}
+                          {demoFormMsg.text}
+                        </div>
+                      )}
+
+                      <button
+                        onClick={saveDemoProspect}
+                        disabled={demoFormSaving}
+                        className="w-full bg-fuchsia-600 text-white font-medium py-3 rounded-xl shadow-md shadow-fuchsia-200 hover:bg-fuchsia-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
+                      >
+                        {demoFormSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Wand2 className="w-4 h-4" /> Crea demo</>}
+                      </button>
+                    </div>
+                  </div>
+
+                  {lastCreatedDemo && (
+                    <div className="glass-panel rounded-[2rem] overflow-hidden border-2 border-fuchsia-200">
+                      <div className="bg-fuchsia-600 px-6 py-4">
+                        <p className="text-white font-serif font-bold text-sm">Pronta! Ecco cosa mandare</p>
+                      </div>
+                      <div className="p-6 space-y-3">
+                        <div className="space-y-1">
+                          <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Link demo</p>
+                          <div className="flex items-center gap-2">
+                            <code className="flex-1 min-w-0 truncate text-[12px] bg-muted px-3 py-2 rounded-lg">{lastCreatedDemo.url}</code>
+                            <button
+                              onClick={() => copyDemoText("last-link", lastCreatedDemo.url)}
+                              className={`px-3 py-2 text-[12px] font-medium rounded-lg transition-colors flex items-center gap-1 flex-shrink-0 ${
+                                copiedDemoKey === "last-link" ? "bg-emerald-100 text-emerald-700" : "bg-fuchsia-50 text-fuchsia-700 hover:bg-fuchsia-100"
+                              }`}
+                            >
+                              {copiedDemoKey === "last-link" ? <CheckCheck className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                            </button>
+                          </div>
+                        </div>
+                        {lastCreatedDemo.suggestedQuestion && (
+                          <div className="space-y-1">
+                            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Riga da incollare nel messaggio</p>
+                            <div className="flex items-start gap-2">
+                              <p className="flex-1 min-w-0 text-[12px] bg-muted px-3 py-2 rounded-lg">
+                                Prova a chiedere a Cico: "{lastCreatedDemo.suggestedQuestion}" → {lastCreatedDemo.url}
+                              </p>
+                              <button
+                                onClick={() => copyDemoText("last-line", `Prova a chiedere a Cico: "${lastCreatedDemo.suggestedQuestion}" → ${lastCreatedDemo.url}`)}
+                                className={`px-3 py-2 text-[12px] font-medium rounded-lg transition-colors flex items-center gap-1 flex-shrink-0 ${
+                                  copiedDemoKey === "last-line" ? "bg-emerald-100 text-emerald-700" : "bg-fuchsia-50 text-fuchsia-700 hover:bg-fuchsia-100"
+                                }`}
+                              >
+                                {copiedDemoKey === "last-line" ? <CheckCheck className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </motion.div>
             )}

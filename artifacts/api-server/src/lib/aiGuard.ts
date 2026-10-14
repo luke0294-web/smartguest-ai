@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { DEMO_SLUG } from "./demoProperty";
+import { isPersonalizedDemoSlug } from "./demoProspects";
 import { isProductionSecurityEnabled } from "./validateEnv";
 
 const AI_MAX_MESSAGES_PER_SESSION = 12;
@@ -102,7 +103,7 @@ export function enforceAiMessageLimit(req: Request, res: Response): boolean {
 
   const slug = readSlugForAiLimit(req);
 
-  if (slug === DEMO_SLUG) {
+  if (slug === DEMO_SLUG || (slug !== undefined && isPersonalizedDemoSlug(slug))) {
     const key = getAiCounterKey(req);
     const used = aiMessageCountByKey.get(key) ?? 0;
     const next = used + 1;
