@@ -30,9 +30,6 @@ catalog:
 
 minimumReleaseAge: 1440
 
-minimumReleaseAgeExclude:
-  - '@replit/*'
-
 # NOTE: `overrides` and `onlyBuiltDependencies` live ONLY in the root
 # package.json ("pnpm" field). pnpm 10 ignores the copies that used to be here
 # whenever package.json defines them, so they were dead and misleading.
