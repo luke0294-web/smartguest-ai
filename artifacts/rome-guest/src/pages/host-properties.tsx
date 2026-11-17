@@ -33,13 +33,19 @@ export default function HostProperties() {
       const data = await getHostMe({ headers: { Authorization: `Bearer ${s.sessionToken}` } });
       setProperties(data.properties ?? []);
     } catch (err) {
-      const isApiError = err && typeof err === "object" && "status" in err;
-      if (isApiError) {
+      const status = err && typeof err === "object" ? (err as { status?: number }).status : undefined;
+      // Only an invalid/expired session logs the host out; a temporary server
+      // error (5xx, 429, cold start) used to wipe the session too.
+      if (status === 401) {
         clearHostSession();
         navigate("/login");
         return;
       }
-      setError("Errore di connessione. Riprova.");
+      setError(
+        status === undefined
+          ? "Errore di connessione. Riprova."
+          : "Il server non risponde correttamente in questo momento. Riprova tra poco.",
+      );
     } finally {
       setIsLoading(false);
     }

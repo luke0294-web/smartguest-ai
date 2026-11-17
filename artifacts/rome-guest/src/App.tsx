@@ -21,6 +21,17 @@ const DiarioDiBordo = lazy(() => import("./pages/diario"));
 const SignupRedirect = lazy(() => import("./pages/signup-redirect"));
 const DemoPage = lazy(() => import("./pages/demo"));
 
+/**
+ * Reset/setup links carry a live token in the path (/setup-password/<token>
+ * is valid 48 h and sets the host's password): never send it to analytics.
+ */
+function redactTokenUrls<T extends { url: string }>(event: T): T {
+  return {
+    ...event,
+    url: event.url.replace(/\/(reset-password|setup-password)\/[^/?#]+/, "/$1/[redacted]"),
+  };
+}
+
 function RouteFallback() {
   return (
     <div className="min-h-[100dvh] flex items-center justify-center">
@@ -74,7 +85,7 @@ function App() {
           <Router />
         </WouterRouter>
         <Toaster />
-        <Analytics />
+        <Analytics beforeSend={redactTokenUrls} />
       </TooltipProvider>
     </QueryClientProvider>
   );

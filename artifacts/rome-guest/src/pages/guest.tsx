@@ -58,10 +58,24 @@ export const DEMO_USER_MESSAGE_LIMIT = 12;
 const DEMO_CTA_ASSISTANT_TEXT_IT =
   "Hai raggiunto il limite di messaggi per la demo. Registrati gratis per creare il tuo portiere virtuale!";
 
-/** Demo chat: backend returns 429 when the demo message cap is hit — lock UI on any 429. */
+/**
+ * Demo chat: lock the UI only for the demo message cap ("Demo limit reached").
+ * The per-IP hourly limiter also answers 429 (with a friendly `reply`), and
+ * treating that as the demo cap locked the tab for good after a temporary limit.
+ */
 function isDemoChat429(err: unknown): boolean {
-  return Boolean(err && typeof err === "object" && (err as { status?: number }).status === 429);
+  if (!err || typeof err !== "object") return false;
+  const { status, data } = err as { status?: number; data?: { error?: unknown } };
+  return status === 429 && data?.error === "Demo limit reached";
 }
+
+/**
+ * The API reads only the last 6 turns and rejects a history of more than 20
+ * items or items over 2000 chars — sending the whole conversation made every
+ * message from the 11th on fail with a 400 until the page was reloaded.
+ */
+const HISTORY_FOR_API_MAX_ITEMS = 6;
+const CHAT_MESSAGE_MAX_CHARS = 2000;
 
 function marcoWelcomedStorageKey(slug: string): string {
   return `marco_welcomed_${slug}`;
@@ -502,10 +516,21 @@ export default function GuestChat(props: GuestChatProps = {}) {
     onStreamDelta: (text: string) => void;
   };
 
+  /** Set when a demo lock is restored from sessionStorage on load (see effect below). */
+  const restoredDemoLockRef = useRef(false);
+
+  /** Aborts an in-flight SSE reply when the chat unmounts (route change / demo switch). */
+  const chatAbortRef = useRef<AbortController | null>(null);
+  useEffect(() => () => chatAbortRef.current?.abort(), []);
+
   const { mutate: sendMessage, isPending, reset: resetSendChatMutation } = useMutation({
     mutationKey: ["sendPropertyChat"],
-    mutationFn: ({ slug: s, data, onStreamDelta }: GuestChatMutationVars) =>
-      sendPropertyChatSse(s, data, onStreamDelta),
+    mutationFn: ({ slug: s, data, onStreamDelta }: GuestChatMutationVars) => {
+      chatAbortRef.current?.abort();
+      const controller = new AbortController();
+      chatAbortRef.current = controller;
+      return sendPropertyChatSse(s, data, onStreamDelta, { signal: controller.signal });
+    },
   });
   const [inputValue, setInputValue] = useState("");
   /** SSE assistant reply in flight — cursor + scroll sync; cleared on success/error (stream done). */
@@ -553,7 +578,10 @@ export default function GuestChat(props: GuestChatProps = {}) {
   }, [messages, isPending, isStreaming]);
 
   const historyForApi = (msgs: ConversationMessage[]) =>
-    msgs.map(({ role, content }) => ({ role, content }));
+    msgs
+      .filter((m) => !m.demoCta && !m.streaming && m.content.trim())
+      .slice(-HISTORY_FOR_API_MAX_ITEMS)
+      .map(({ role, content }) => ({ role, content: content.slice(0, CHAT_MESSAGE_MAX_CHARS) }));
 
   const userMessageCount = messages.filter((m) => m.role === "user").length;
   const demoFlowLocked =
@@ -573,9 +601,22 @@ export default function GuestChat(props: GuestChatProps = {}) {
     try {
       if (sessionStorage.getItem(`demo_locked_${slug}`) === "true") {
         setDemoChatLocked(true);
+        restoredDemoLockRef.current = true;
       }
     } catch {}
   }, [isDemo, slug]);
+
+  // Restored lock after a reload: without this the visitor saw a disabled chat
+  // with no explanation (the CTA bubble is otherwise only added while sending).
+  // Waits for the welcome bubble, so it isn't skipped and stays first.
+  // Embedded demos show their own banner instead.
+  useEffect(() => {
+    if (!restoredDemoLockRef.current || parentHandlesDemoLimitCta) return;
+    if (messages.length === 0) return;
+    restoredDemoLockRef.current = false;
+    if (messages.some((m) => m.demoCta)) return;
+    setMessages((prev) => [...prev, { role: "assistant", content: DEMO_CTA_ASSISTANT_TEXT_IT, demoCta: true }]);
+  }, [messages, parentHandlesDemoLimitCta]);
 
   useEffect(() => {
     if (!isDemo || !slug || !demoFlowLocked) return;
@@ -668,6 +709,7 @@ export default function GuestChat(props: GuestChatProps = {}) {
         },
         onError: (err: unknown) => {
           setIsStreaming(false);
+          if (err instanceof DOMException && err.name === "AbortError") return;
           if (isDemo && isDemoChat429(err)) {
             setDemoChatLocked(true);
             try {
@@ -919,6 +961,8 @@ export default function GuestChat(props: GuestChatProps = {}) {
                           <ReactMarkdown
                             rehypePlugins={ASSISTANT_MARKDOWN_PLUGINS}
                             components={assistantMarkdownComponents}
+                            disallowedElements={["img"]}
+                            unwrapDisallowed
                           >
                             {msg.content}
                           </ReactMarkdown>
@@ -1052,6 +1096,7 @@ export default function GuestChat(props: GuestChatProps = {}) {
               type="text"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
+              maxLength={CHAT_MESSAGE_MAX_CHARS}
               placeholder={t.placeholder}
               className="chat-input w-full px-5 py-3.5 pr-14 rounded-2xl text-[14.5px] font-sans focus:outline-none transition-all"
               disabled={isPending || demoFlowLocked}

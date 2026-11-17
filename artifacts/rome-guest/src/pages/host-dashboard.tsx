@@ -21,7 +21,7 @@ import {
   BookOpen,
 } from "lucide-react";
 import { getAiSecurityHeaders } from "@/lib/apiUrl";
-import { getHostSession, type HostSession } from "@/lib/hostSession";
+import { clearHostSession, getHostSession, type HostSession } from "@/lib/hostSession";
 import {
   getHostProperty,
   hostUpdateProperty,
@@ -70,9 +70,14 @@ Vi preghiamo di lasciare le stoviglie pulite (o lavastoviglie avviata) e svuotar
 - Lavatrice: [In bagno, detersivo sotto il lavandino]`;
 
 const updateSchema = z.object({
-  name: z.string().min(1, "Il nome è obbligatorio"),
-  content: z.string().min(1, "Il regolamento è obbligatorio"),
-  whatsappNumber: z.string().optional(),
+  name: z.string().min(1, "Il nome è obbligatorio").max(200, "Massimo 200 caratteri"),
+  // Same limit as the API: without it, an imported PDF over 20,000 chars was
+  // only rejected server-side, inside the autosave loop.
+  content: z
+    .string()
+    .min(1, "Il regolamento è obbligatorio")
+    .max(20000, "Il manuale non può superare 20.000 caratteri: accorcialo prima che venga salvato."),
+  whatsappNumber: z.string().max(30, "Massimo 30 caratteri").optional(),
   referralLinks: z.string().max(2000, "Massimo 2000 caratteri").optional(),
 });
 
@@ -97,6 +102,8 @@ type AiState =
   | { type: "success"; message: string }
   | { type: "error"; message: string };
 
+type SaveResult = "saved" | "failed" | "aborted";
+
 export default function HostDashboard() {
   const params = useParams<{ slug: string }>();
   const [, navigate] = useLocation();
@@ -109,6 +116,10 @@ export default function HostDashboard() {
   const [isSaving, setIsSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [saveError, setSaveError] = useState("");
+  /** Snapshot of the form content whose save just failed — never retried automatically. */
+  const failedSnapshotRef = useRef<string | null>(null);
+  const aiIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveAbortControllerRef = useRef<AbortController | null>(null);
   const [aiState, setAiState] = useState<AiState>({ type: "idle" });
   const [pendingCount, setPendingCount] = useState(0);
@@ -119,23 +130,81 @@ export default function HostDashboard() {
   const updateForm = useForm<UpdateValues>({
     resolver: zodResolver(updateSchema),
     defaultValues: { name: "", content: "", whatsappNumber: "", referralLinks: "" },
+    // Autosave validates on every pause: jumping the cursor to the invalid
+    // field each time made typing elsewhere impossible. Errors show inline.
+    shouldFocusError: false,
   });
-  // Osserva tutti i campi del form e controlla se l'utente ha fatto modifiche (isDirty)
-  const formValues = updateForm.watch();
+  /** JSON of the last content known to be saved (or loaded) — the live "is dirty?" check. */
+  const lastSavedSnapshotRef = useRef<string>("");
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** The save in flight and the content it is saving, so a flush can join it instead of aborting it. */
+  const inFlightSaveRef = useRef<{ snapshot: string; promise: Promise<SaveResult> } | null>(null);
+  const hasUnsavedChanges = () => JSON.stringify(updateForm.getValues()) !== lastSavedSnapshotRef.current;
+  // Osserva tutti i campi del form e controlla se l'utente ha fatto modifiche (isDirty).
+  // watch() returns a NEW object on every render, so the debounce must depend
+  // on a stable string: depending on the object re-armed the timer on every
+  // re-render — after a failed save that meant an alert every 1.5 s, forever.
+  const formSnapshot = JSON.stringify(updateForm.watch());
   const isDirty = updateForm.formState.isDirty;
 
   useEffect(() => {
     // Se non ci sono modifiche, non fare nulla
     if (!isDirty) return;
+    // Contenuto identico a quello appena fallito: aspetta una nuova modifica.
+    if (failedSnapshotRef.current === formSnapshot) return;
 
     // Se ci sono modifiche, aspetta 1.5 secondi da quando l'host smette di scrivere
     const timer = setTimeout(() => {
-      updateForm.handleSubmit(handleUpdate)();
+      autosaveTimerRef.current = null;
+      void updateForm.handleSubmit(handleUpdate)();
     }, 1500);
+    autosaveTimerRef.current = timer;
 
     // Se l'host digita un'altra lettera prima di 1.5s, azzera il timer
-    return () => clearTimeout(timer);
-  }, [formValues, isDirty]);
+    return () => {
+      clearTimeout(timer);
+      if (autosaveTimerRef.current === timer) autosaveTimerRef.current = null;
+    };
+  }, [formSnapshot, isDirty]);
+
+  // Warn before closing/reloading the tab with unsaved or still-saving edits.
+  useEffect(() => {
+    if (!isDirty && !isSaving) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [isDirty, isSaving]);
+
+  useEffect(() => {
+    return () => {
+      if (aiIdleTimerRef.current) clearTimeout(aiIdleTimerRef.current);
+    };
+  }, []);
+
+  // Leaving the page by any route we don't intercept (browser Back, a link
+  // elsewhere) unmounts the editor and cancels the debounce: send the pending
+  // edits one last time with keepalive, so they survive the navigation.
+  const latestSessionRef = useRef<HostSession | null>(null);
+  latestSessionRef.current = session;
+  useEffect(() => {
+    return () => {
+      const current = latestSessionRef.current;
+      if (!current || !hasUnsavedChanges()) return;
+      const parsed = updateSchema.safeParse(updateForm.getValues());
+      if (!parsed.success) return;
+      void hostUpdateProperty(slug, parsed.data, {
+        headers: { Authorization: `Bearer ${current.sessionToken}` },
+        keepalive: true,
+      }).catch(() => {
+        /* best effort: the page is already gone */
+      });
+    };
+    // Mount/unmount only: reads the latest values through refs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug]);
 
   useEffect(() => {
     if (!slug) return;
@@ -162,12 +231,14 @@ export default function HostDashboard() {
           ? json.content
           : DEFAULT_MANUAL_TEMPLATE;
 
-      updateForm.reset({
+      const loaded = {
         name: json.name,
         content: initialContent,
         whatsappNumber: json.whatsappNumber ?? "",
         referralLinks: json.referralLinks ?? "",
-      });
+      };
+      updateForm.reset(loaded);
+      lastSavedSnapshotRef.current = JSON.stringify(updateForm.getValues());
     } catch (err) {
       const apiErr = err && typeof err === "object" && "status" in err
         ? (err as { status: number; data?: { error?: string } })
@@ -222,11 +293,44 @@ export default function HostDashboard() {
     };
   }, [slug, session]);
 
+  /**
+   * Save pending edits before leaving the page. Returns false if they could
+   * not be saved (the error is shown and the host stays on the page) —
+   * leaving used to cancel the debounce timer and silently drop the edits.
+   */
+  const flushPendingSave = async (): Promise<boolean> => {
+    // Stop the pending debounce: otherwise it fires mid-flush and aborts it.
+    if (autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+    }
+    // Live check (formState.isDirty is a render snapshot and lags behind).
+    if (!hasUnsavedChanges()) return true;
+    // Holder object: assigned inside the callbacks below.
+    const outcome: { result: SaveResult | "invalid" } = { result: "failed" };
+    await updateForm.handleSubmit(
+      async (data) => {
+        outcome.result = await handleUpdate(data);
+      },
+      () => {
+        outcome.result = "invalid";
+      },
+    )();
+    return outcome.result === "saved";
+  };
+
+  const navigateAfterSave = async (e: React.MouseEvent, href: string) => {
+    if (!hasUnsavedChanges()) return; // nothing pending: normal link navigation
+    e.preventDefault();
+    if (await flushPendingSave()) navigate(href);
+  };
+
   const handleOpenDiario = async () => {
     if (!session) {
       navigate("/login");
       return;
     }
+    if (!(await flushPendingSave())) return;
     try {
       await resetPendingQuestions(slug, { headers: { Authorization: `Bearer ${session.sessionToken}` } });
       setPendingCount(0);
@@ -237,8 +341,21 @@ export default function HostDashboard() {
     }
   };
 
-  const handleUpdate = async (data: UpdateValues) => {
-    if (!session) return;
+  const handleUpdate = (data: UpdateValues): Promise<SaveResult> => {
+    // Same content already being saved: join that request instead of aborting
+    // it (a flush right after the debounce fired used to cancel its own save).
+    const snapshot = JSON.stringify(data);
+    if (inFlightSaveRef.current?.snapshot === snapshot) return inFlightSaveRef.current.promise;
+    const promise = runSave(data);
+    inFlightSaveRef.current = { snapshot, promise };
+    void promise.finally(() => {
+      if (inFlightSaveRef.current?.promise === promise) inFlightSaveRef.current = null;
+    });
+    return promise;
+  };
+
+  const runSave = async (data: UpdateValues): Promise<SaveResult> => {
+    if (!session) return "failed";
 
     // Abort any save still in flight so at most one PUT is ever pending — otherwise
     // an older, superseded response could land after a newer one and either overwrite
@@ -258,17 +375,43 @@ export default function HostDashboard() {
       // if the host kept typing while this request was in flight, resetting here
       // would silently discard those keystrokes. Leaving isDirty true lets the
       // next debounce cycle pick up and save the newer content instead.
+      lastSavedSnapshotRef.current = JSON.stringify(data);
       if (JSON.stringify(updateForm.getValues()) === JSON.stringify(data)) {
         updateForm.reset(data);
       }
 
+      failedSnapshotRef.current = null;
+      setSaveError("");
       if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
       setIsSaved(true);
       savedTimerRef.current = setTimeout(() => setIsSaved(false), 3000);
+      return "saved";
     } catch (err: unknown) {
-      if (err instanceof DOMException && err.name === "AbortError") return;
-      const data = err && typeof err === "object" ? (err as { data?: { error?: string } }).data : undefined;
-      alert(data?.error ?? getErrorMessage(err, "Errore nel salvataggio."));
+      if (err instanceof DOMException && err.name === "AbortError") return "aborted";
+      const apiErr = err && typeof err === "object" ? (err as { status?: number; data?: { error?: string } }) : undefined;
+      if (apiErr?.status === 401) {
+        // Expired 8h session: retrying can't succeed.
+        clearHostSession();
+        navigate("/login");
+        return "failed";
+      }
+      setIsSaved(false);
+      // Shown inline, and this exact content is not retried until edited again.
+      // Block retries only if the form still holds exactly what failed; if the
+      // host kept typing meanwhile, let the newer content try again.
+      const current = JSON.stringify(updateForm.getValues());
+      failedSnapshotRef.current = current === JSON.stringify(data) ? current : null;
+      const raw = apiErr?.data?.error;
+      // Server messages are shown only when they are human text — never the
+      // raw validation JSON (which the generic error message also contains).
+      setSaveError(
+        apiErr?.status === 403
+          ? "Questa struttura non risulta più associata al tuo account: le modifiche non sono state salvate."
+          : raw && !raw.trim().startsWith("[") && !raw.trim().startsWith("{")
+            ? raw
+            : "Salvataggio non riuscito. Modifica il testo o riprova tra poco.",
+      );
+      return "failed";
     } finally {
       if (saveAbortControllerRef.current === controller) {
         setIsSaving(false);
@@ -292,6 +435,7 @@ export default function HostDashboard() {
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = "";
+    if (aiIdleTimerRef.current) clearTimeout(aiIdleTimerRef.current);
     setAiState({ type: "extracting" });
     try {
       const json = await aiExtractDocument(
@@ -315,7 +459,9 @@ export default function HostDashboard() {
         message: data?.error ?? getErrorMessage(err, "Errore nella lettura del documento."),
       });
     } finally {
-      setTimeout(() => setAiState({ type: "idle" }), 4500);
+      // One shared timer: a finished upload must not reset a second one still running.
+      if (aiIdleTimerRef.current) clearTimeout(aiIdleTimerRef.current);
+      aiIdleTimerRef.current = setTimeout(() => setAiState({ type: "idle" }), 4500);
     }
   };
 
@@ -325,6 +471,7 @@ export default function HostDashboard() {
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = "";
+    if (aiIdleTimerRef.current) clearTimeout(aiIdleTimerRef.current);
     setAiState({ type: "scanning" });
     try {
       const json = await aiVision(
@@ -348,7 +495,8 @@ export default function HostDashboard() {
         message: data?.error ?? getErrorMessage(err, "Errore nell'analisi dell'immagine."),
       });
     } finally {
-      setTimeout(() => setAiState({ type: "idle" }), 3500);
+      if (aiIdleTimerRef.current) clearTimeout(aiIdleTimerRef.current);
+      aiIdleTimerRef.current = setTimeout(() => setAiState({ type: "idle" }), 3500);
     }
   };
 
@@ -447,12 +595,14 @@ export default function HostDashboard() {
             </button>
             <Link
               href={`/guest/${slug}`}
+              onClick={(e) => void navigateAfterSave(e, `/guest/${slug}`)}
               className="text-xs sm:text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-colors shadow-sm shadow-blue-200"
             >
               Chat
             </Link>
             <Link
               href="/host/dashboard"
+              onClick={(e) => void navigateAfterSave(e, "/host/dashboard")}
               className="text-xs sm:text-sm font-medium text-gray-600 hover:text-gray-800 transition-colors"
             >
               ← Dashboard
@@ -479,6 +629,11 @@ export default function HostDashboard() {
             <div className="text-[13px] font-medium min-w-[100px] text-right">
               {isSaving && <span className="text-blue-500 animate-pulse">Salvataggio...</span>}
               {isSaved && !isSaving && <span className="text-emerald-500">Salvato ✅</span>}
+              {saveError && !isSaving && (
+                <span className="text-red-600" role="alert">
+                  {saveError}
+                </span>
+              )}
             </div>
           </div>
 
@@ -494,6 +649,7 @@ export default function HostDashboard() {
               </label>
               <input
                 {...updateForm.register("name")}
+                maxLength={200}
                 className="border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
               />
               {updateForm.formState.errors.name && (
@@ -511,6 +667,7 @@ export default function HostDashboard() {
               </label>
               <input
                 {...updateForm.register("whatsappNumber")}
+                maxLength={30}
                 placeholder="es. 393901234567"
                 className="border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
               />
