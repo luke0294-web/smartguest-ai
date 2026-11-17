@@ -25,7 +25,7 @@ catalog:
   tailwind-merge: 3.5.0
   tailwindcss: ^4.1.14
   tsx: ^4.21.0
-  vite: ^8.3.0
+  vite: ^8.3.8
   zod: 3.25.76
 
 minimumReleaseAge: 1440
@@ -41,3 +41,10 @@ auditConfig:
     # e lì riceve solo pattern scritti nel codice, mai input degli utenti.
     # Togliere quando esce una versione corretta o quando mockup-sandbox viene eliminato.
     - GHSA-vfj7-8cjw-p6xm
+    # picomatch 2.3.2 / 4.0.7: nessuna versione corretta pubblicata (novembre 2026).
+    # Arriva solo da strumenti di sviluppo (vitest, mockup-sandbox → fast-glob), mai in produzione,
+    # e riceve solo pattern scritti nel codice. Togliere quando esce la correzione.
+    - GHSA-fc5q-39xc-vjpf
+    # zod 3.25.76: TEMPORANEO. La correzione esiste solo in zod 4 (salto di versione maggiore),
+    # da fare con la PR dedicata (Dependabot #53). Togliere appena zod 4 è su main.
+    - GHSA-mrhx-c7xc-m3w5
