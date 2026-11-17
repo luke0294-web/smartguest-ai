@@ -1,6 +1,7 @@
 import PDFDocument from "pdfkit";
 import QRCode from "qrcode";
 import { logger } from "./logger";
+import { maskEmail } from "./logRedact";
 import { getResendFromHeader, isResendEmailConfigured, sendResendEmail } from "./resend";
 
 export function isHostWelcomeEmailConfigured(): boolean {
@@ -203,7 +204,7 @@ export async function sendPasswordResetEmail(opts: {
     html,
   });
 
-  logger.info({ to: opts.to }, "Password reset email sent");
+  logger.info({ to: maskEmail(opts.to) }, "Password reset email sent");
 }
 
 /**
@@ -251,5 +252,5 @@ export async function sendHostWelcomeEmail(opts: {
     ],
   });
 
-  logger.info({ to: opts.to, slug: opts.slug }, "Host welcome email sent");
+  logger.info({ to: maskEmail(opts.to), slug: opts.slug }, "Host welcome email sent");
 }

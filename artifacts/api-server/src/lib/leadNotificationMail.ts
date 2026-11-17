@@ -58,14 +58,15 @@ export async function sendNewLeadNotificationEmail(lead: {
   propertyName: string;
 }): Promise<void> {
   if (!isResendEmailConfigured()) {
-    logger.warn({ lead }, "Nuovo lead — notifica CEO non inviata (Resend non configurato)");
+    logger.warn("Nuovo lead — notifica CEO non inviata (Resend non configurato)");
     return;
   }
 
   await sendResendEmail({
     from: getResendFromHeader(),
     to: CEO_NOTIFICATION_EMAIL,
-    subject: `Nuovo lead: ${lead.propertyName}`,
+    // Public input: no line breaks in a header, and a sane length.
+    subject: `Nuovo lead: ${lead.propertyName.replace(/[\r\n]+/g, " ").trim().slice(0, 120)}`,
     html: buildNewLeadNotificationEmailHtml(lead),
   });
 }

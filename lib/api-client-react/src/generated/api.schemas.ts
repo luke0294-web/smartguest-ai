@@ -77,7 +77,11 @@ export interface ChatMessageRequest {
   message: string;
   /** @maxItems 20 */
   conversationHistory?: ConversationMessage[];
-  /** UI language code (e.g. en, it) for reply language */
+  /**
+     * UI language code (e.g. en, it) for reply language. Unsupported
+     * codes fall back to "en" server-side.
+     * @maxLength 10
+     */
   language?: string;
   /**
      * Demo chat only: city id (e.g. roma, milano) for localized AI context.
@@ -180,10 +184,13 @@ export interface HostPropertyResponse {
 }
 
 export interface HostUpdatePropertyRequest {
+  /** @maxLength 200 */
   name?: string;
   /** @maxLength 20000 */
   content?: string;
+  /** @maxLength 30 */
   whatsappNumber?: string;
+  /** @maxLength 2000 */
   referralLinks?: string;
 }
 
@@ -245,8 +252,11 @@ export interface AiTextResponse {
 }
 
 export interface CreateLeadRequest {
+  /** @maxLength 120 */
   hostName: string;
+  /** @maxLength 254 */
   email: string;
+  /** @maxLength 200 */
   propertyName: string;
 }
 

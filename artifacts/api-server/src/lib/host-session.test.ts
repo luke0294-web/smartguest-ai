@@ -179,3 +179,22 @@ describe("host-session", () => {
     });
   });
 });
+
+describe("getHostSessionSecret whitespace handling", () => {
+  const original = { ...process.env };
+  afterEach(() => {
+    process.env = { ...original };
+  });
+
+  it("falls back to SESSION_SECRET when HOST_SESSION_SECRET is only whitespace", () => {
+    process.env.HOST_SESSION_SECRET = "   ";
+    process.env.SESSION_SECRET = "a-real-secret";
+    expect(getHostSessionSecret()).toBe("a-real-secret");
+  });
+
+  it("returns undefined when both are blank", () => {
+    process.env.HOST_SESSION_SECRET = " ";
+    process.env.SESSION_SECRET = "";
+    expect(getHostSessionSecret()).toBeUndefined();
+  });
+});

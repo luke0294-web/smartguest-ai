@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { logger } from "../lib/logger";
+import { maskEmail } from "../lib/logRedact";
 import { requireCeoSession } from "../lib/ceo-session";
 import { hashHostPassword, HOST_PASSWORD_MIN_LENGTH_MESSAGE_IT, MIN_HOST_PASSWORD_LENGTH } from "../lib/passwords";
 import { supabaseAdmin } from "../lib/supabase";
@@ -105,12 +106,12 @@ router.post("/admin/hosts", async (req, res): Promise<void> => {
         return;
       }
       if (!updatedRow) {
-        logger.warn({ email: normalizedEmail }, "POST /admin/hosts — update: nessuna riga aggiornata");
+        logger.warn({ email: maskEmail(normalizedEmail) }, "POST /admin/hosts — update: nessuna riga aggiornata");
         res.status(404).json({ error: "Host non trovato." });
         return;
       }
 
-      logger.info({ email: normalizedEmail }, "Host password updated by CEO");
+      logger.info({ email: maskEmail(normalizedEmail) }, "Host password updated by CEO");
       res.json({ success: true, email: normalizedEmail, action: "updated" });
     } else {
       const { data: insertedRow, error: insErr } = await supabaseAdmin
@@ -128,12 +129,12 @@ router.post("/admin/hosts", async (req, res): Promise<void> => {
         return;
       }
       if (!insertedRow) {
-        logger.error({ email: normalizedEmail }, "POST /admin/hosts — insert: nessuna riga restituita");
+        logger.error({ email: maskEmail(normalizedEmail) }, "POST /admin/hosts — insert: nessuna riga restituita");
         res.status(500).json({ error: "Impossibile creare l'host su Supabase." });
         return;
       }
 
-      logger.info({ email: normalizedEmail }, "Host created by CEO");
+      logger.info({ email: maskEmail(normalizedEmail) }, "Host created by CEO");
       res.status(201).json({ success: true, email: normalizedEmail, action: "created" });
     }
   } catch (error) {
@@ -149,7 +150,32 @@ router.delete("/admin/hosts/:email", async (req, res): Promise<void> => {
   if (!requireCeoSession(req, res)) return;
 
   try {
-    const email = decodeURIComponent(req.params.email).toLowerCase();
+    // Express 5 already decodes route params; decoding again turned a "%" in
+    // an address into a URIError (500).
+    const email = String(req.params.email ?? "").trim().toLowerCase();
+
+    // Unlink the host's properties FIRST (owner email + pending reset/invite
+    // links). Deleting only the `hosts` row did not revoke anything: the
+    // properties still pointed at this email, so "forgot password" found them
+    // and the reset re-created the account. The properties stay, without an
+    // owner, until the CEO assigns them to someone.
+    const { data: unlinked, error: unlinkError } = await supabaseAdmin
+      .from("properties")
+      .update({
+        email: null,
+        reset_token: null,
+        reset_requested_at: null,
+        invite_token: null,
+        invite_token_expires_at: null,
+      })
+      .eq("email", email)
+      .select("slug");
+
+    if (unlinkError) {
+      logger.error({ unlinkError }, "DELETE /admin/hosts — scollegamento proprietà fallito");
+      res.status(500).json({ error: "Impossibile scollegare le strutture dell'host. Nessuna modifica fatta all'account." });
+      return;
+    }
 
     const { data: deletedRows, error } = await supabaseAdmin
       .from("hosts")
@@ -163,12 +189,15 @@ router.delete("/admin/hosts/:email", async (req, res): Promise<void> => {
       return;
     }
 
-    if (!deletedRows?.length) {
+    if (!deletedRows?.length && !unlinked?.length) {
       res.status(404).json({ error: "Host non trovato." });
       return;
     }
 
-    logger.info({ email }, "Host deleted by CEO");
+    logger.info(
+      { email: maskEmail(email), unlinkedProperties: unlinked?.length ?? 0 },
+      "Host deleted by CEO (properties unlinked)",
+    );
     res.sendStatus(204);
   } catch (error) {
     logger.error({ err: error }, "DELETE /admin/hosts — eccezione non gestita");

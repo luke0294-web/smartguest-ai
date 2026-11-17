@@ -6,9 +6,10 @@ const HOST_SESSION_TTL_SEC = 8 * 3600;
 
 /** Prefer HOST_SESSION_SECRET; SESSION_SECRET is accepted so one server secret can suffice. */
 export function getHostSessionSecret(): string | undefined {
-  const s = process.env.HOST_SESSION_SECRET || process.env.SESSION_SECRET;
-  if (s === undefined || s === "") return undefined;
-  return s.trim();
+  // Trim each before choosing: a whitespace-only HOST_SESSION_SECRET used to
+  // win over a valid SESSION_SECRET, then trim to "" and break every login.
+  const s = process.env.HOST_SESSION_SECRET?.trim() || process.env.SESSION_SECRET?.trim();
+  return s || undefined;
 }
 
 /**
