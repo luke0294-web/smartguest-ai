@@ -14,10 +14,20 @@ import { toast } from "@/hooks/use-toast";
 function MarcoReplyMarkdown({ marcoReply }: { marcoReply: string }) {
   return (
     <ReactMarkdown
+      // Model output can be steered by guests: no remote images (they would
+      // load from any server when the host opens the Diario — a tracking
+      // pixel), and links open in a new tab, never replacing the dashboard.
+      disallowedElements={["img"]}
+      unwrapDisallowed
       components={{
         p: ({ children }) => <span className="text-sm">{children}</span>,
         strong: ({ children }) => (
           <strong className="font-semibold text-gray-900">{children}</strong>
+        ),
+        a: ({ href, children }) => (
+          <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
+            {children}
+          </a>
         ),
       }}
     >
@@ -52,10 +62,14 @@ export default function DiarioDiBordo() {
       })
       .catch((err: unknown) => {
         const status = err && typeof err === "object" ? (err as { status?: number }).status : undefined;
-        if (status === 401 || status === 403) {
+        // 401 = session expired → log in again. 403 = valid session but not
+        // this host's property (e.g. a stale link): keep the session.
+        if (status === 401) {
           clearHostSession();
           navigate("/login");
           setError("Sessione scaduta. Accedi di nuovo.");
+        } else if (status === 403) {
+          setError("Questa struttura non è associata al tuo account.");
         } else {
           setError(`Impossibile caricare il diario.`);
         }
@@ -93,7 +107,7 @@ export default function DiarioDiBordo() {
       setLogs((prev) => prev.map((log) => (log.id === id ? { ...log, resolved: true } : log)));
     } catch (err) {
       const status = err && typeof err === "object" ? (err as { status?: number }).status : undefined;
-      if (status === 401 || status === 403) {
+      if (status === 401) {
         clearHostSession();
         navigate("/login");
         return;
@@ -125,7 +139,7 @@ export default function DiarioDiBordo() {
       setLogs((prev) => prev.map((log) => ({ ...log, resolved: true })));
     } catch (err) {
       const status = err && typeof err === "object" ? (err as { status?: number }).status : undefined;
-      if (status === 401 || status === 403) {
+      if (status === 401) {
         clearHostSession();
         navigate("/login");
         return;
