@@ -12,7 +12,7 @@ out-tsc
 node_modules
 
 # IDEs and editors
-/.idea
+.idea/
 .project
 .classpath
 .c9/
@@ -30,10 +30,12 @@ node_modules
 # misc
 /.sass-cache
 /connect.lock
-/coverage
+coverage/
 /libpeerconnection.log
-npm-debug.log
-yarn-error.log
+*.log
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 testem.log
 /typings
 
@@ -48,6 +50,14 @@ Thumbs.db
 .cache/
 .local/
 
+# Deploy / tooling local state
+.vercel/
+.claude/settings.local.json
+
+# Keys & certificates (never commit)
+*.pem
+*.key
+
 # Secrets & local env (never commit)
 .env
 .env.*
@@ -56,5 +66,3 @@ Thumbs.db
 # Local SQLite artifacts (never commit)
 database.db
 *.db
-
-database.db

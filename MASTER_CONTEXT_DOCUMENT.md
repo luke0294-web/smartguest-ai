@@ -1,7 +1,7 @@
 # HeyCico / SmartGuest AI — Master Context Document
 
 > **Purpose:** Feed this file as system/context to Claude, GPT, Gemini, etc.  
-> **Branch scanned:** `main` (commit snapshot: guest chat + Super-Diario + host tools; no live Stripe routes).  
+> **Branch scanned:** `main` + PR #43–#50 (13–14 October 2026 audit: guest chat + Super-Diario + host tools + personalized outreach demos; no live Stripe routes).  
 > **Rule:** Describes only what exists in code/SQL unless marked **NOT IMPLEMENTED**.
 
 ---
@@ -19,7 +19,7 @@ HeyCico is a B2B SaaS for short-term rental hosts. Each **property** gets a publ
 | Role | Entry | Capabilities |
 |------|-------|--------------|
 | **Guest** | `/guest/:slug`, `/demo`, `/guest/demo` | Chat with Cico (SSE stream), language selector, WhatsApp escalation, quick-reply chips |
-| **Host** | `/login` → `/host/dashboard` → `/host/:slug` | Edit manual, WhatsApp, referral links; AI voice/image ingest; open Diario; view pending badge |
+| **Host** | `/login` → `/host/dashboard` → `/host/:slug` | Edit manual, WhatsApp, referral links; text extraction from PDF/.docx uploads and photos; open Diario; view pending badge |
 | **CEO/Admin** | `/ceo` | Leads CRUD, convert lead→property, manage properties/hosts, resend welcome email, send PDF |
 
 Ownership model: `properties.email` must match authenticated host session email (`artifacts/api-server/src/lib/host-auth.ts` → `requireHostOwnsPropertySlug`).
@@ -57,11 +57,14 @@ Ownership model: `properties.email` must match authenticated host session email 
 **Host-side AI tools** (`artifacts/api-server/src/routes/ai.ts`):
 - `POST /api/ai/transcribe` — Whisper `whisper-1`, language `it`, 25MB max, host session required
 - `POST /api/ai/vision` — `gpt-4o-mini` vision, extracts house rules text from uploaded image, host session required
+- `POST /api/ai/extract-document` — native PDF/.docx text extraction (no AI call), 15MB max, rejects .docx declaring >50MB uncompressed, host session required
 
 **NOT Magic Import:** There is **no** Airbnb URL scraper, listing import API, or "Magic Import" module anywhere in the repo. Host content ingestion is:
 1. Manual textarea edit (`PUT /api/host/:slug`)
-2. Voice dictation → Whisper → append to textarea
+2. Document upload (PDF/.docx) → native text extraction → append to textarea
 3. Photo scan → Vision → append to textarea
+
+(`/api/ai/transcribe` exists server-side but the frontend does not call it today.)
 
 The word "Airbnb" appears only in marketing copy (`artifacts/api-server/src/routes/send-pdf.ts` email HTML).
 
@@ -95,7 +98,6 @@ Demo cap: **12 user messages** (`DEMO_USER_MESSAGE_LIMIT`), synced with backend 
 **Supporting libs:**
 - `artifacts/api-server/src/lib/categorizeMessage.ts` — tourism vs house vs mixed keyword patterns; `shouldIncrementPendingQuestions()` matches uncertainty/host-fallback phrases (multilingual)
 - `artifacts/api-server/src/lib/detectNeedsAttention.ts` — negative indicators (sorry, don't know, contact host, whatsapp, etc.) on normalized reply text
-- Frontend mirror: `artifacts/rome-guest/src/lib/detectNeedsAttention.ts` (Diario UI grouping)
 
 **Pending questions badge:**
 - When host-fallback detected, increment `properties.pending_questions_count`
@@ -130,8 +132,14 @@ Demo cap: **12 user messages** (`DEMO_USER_MESSAGE_LIMIT`), synced with backend 
 - Slug constant: `demo` (`artifacts/api-server/src/lib/demoProperty.ts`)
 - Public routes: `/demo`, `/guest/demo`
 - Uses hardcoded English master manual (prevents Italian grammar leak in multilingual demo)
-- Stricter limits: 12 msgs/hour per session key (`artifacts/api-server/src/lib/aiGuard.ts`)
-- No `chat_logs` persistence for demo slug
+- Stricter limits: 12 msgs/hour per session key + 36/hour per IP (`artifacts/api-server/src/lib/aiGuard.ts`); session ids must match `^[A-Za-z0-9-]{8,64}$`, otherwise the IP is the key
+- No `chat_logs` persistence for demo slugs
+
+**Personalized outreach demos** (`artifacts/api-server/src/lib/demoProspects.ts`, `routes/demo-prospects.ts`, CEO tab "Demo"):
+- Slug `demo-<name>-<random>`, stored in table `demo_prospects` (real facts about one prospect's property + optional "curiosity question" for the outreach message)
+- Frontend `/demo/:slug` (only `demo-…` slugs accepted); chat and GET go through the normal `/properties/:slug` routes, which recognize the `demo-` prefix
+- Every `demo-…` slug is reserved (`lib/api-zod/src/reservedSlugs.ts`): a real property can never take one
+- `first_message_at` records the prospect's first chat message (engagement signal in the CEO panel)
 
 ---
 
@@ -140,15 +148,17 @@ Demo cap: **12 user messages** (`DEMO_USER_MESSAGE_LIMIT`), synced with backend 
 ### 2.1 Stack
 
 - **Express 5** + TypeScript (`tsx` dev, esbuild prod bundle via `build.ts`)
-- **Supabase JS** — `supabase` (anon) + `supabaseAdmin` (service role) in `src/lib/supabase.ts`
-- **Validation** — Zod schemas in `@workspace/api-zod` (generated from partial OpenAPI)
+- **Supabase JS** — only `supabaseAdmin` (service role) in `src/lib/supabase.ts`; no anon client, `SUPABASE_ANON_KEY` is not used
+- **Validation** — Zod schemas in `@workspace/api-zod` (generated from `lib/api-spec/openapi.yaml`, which covers every route; a few hand patches listed in `orval.config.ts`)
 - **Logging** — Pino + pino-http (`src/lib/logger.ts`), redacts auth/password headers
 - **Email** — Resend (`src/lib/resend.ts`, `src/lib/hostWelcomeMail.ts`)
 
 ### 2.2 App Bootstrap
 
 **File:** `artifacts/api-server/src/app.ts`
-- `helmet()`, CORS allowlist: `FRONTEND_URL`, `heycico.com`, `*.vercel.app`
+- `helmet()`, CORS allowlist: `FRONTEND_URL`, `heycico.com`, `www.heycico.com`, and a regex for THIS project's Vercel preview URLs only (`smartguest-ai-rome-guest-git-…-luke0294-8669s-projects.vercel.app`) — not a bare `*.vercel.app`
+- Request logs: reset/invite tokens in URLs redacted (`src/lib/logRedact.ts`); emails masked in app logs
+- Optional `LOG_PROXY_DEBUG=true` logs `req.ip` vs `X-Forwarded-For` (to verify `trust proxy` = 1 hop)
 - JSON body 5MB (15MB for `/api/send-pdf`)
 - All routes mounted at `/api/*`
 - Global error handler (500 JSON)
@@ -212,6 +222,13 @@ All paths prefixed with `/api`. Router index: `artifacts/api-server/src/routes/i
 |--------|------|------|------|
 | POST | `/ai/transcribe` | Host | `routes/ai.ts` |
 | POST | `/ai/vision` | Host | `routes/ai.ts` |
+| POST | `/ai/extract-document` | Host — native PDF/.docx parsing, max 15MB, no AI call | `routes/ai.ts` |
+
+#### Personalized demos
+| Method | Path | Auth | File |
+|--------|------|------|------|
+| GET / POST | `/demo-prospects` | CEO | `routes/demo-prospects.ts` |
+| DELETE | `/demo-prospects/:slug` | CEO | `routes/demo-prospects.ts` |
 
 #### Leads
 | Method | Path | Auth | File |
@@ -235,7 +252,7 @@ All paths prefixed with `/api`. Router index: `artifacts/api-server/src/routes/i
 |--------|------|------|------|
 | POST | `/send-pdf` | CEO | `routes/send-pdf.ts` |
 
-**OpenAPI coverage gap:** `lib/api-spec/openapi.yaml` documents only `/healthz`, `/properties`, `/properties/{slug}`, `/properties/{slug}/chat`. Most CEO/host/auth routes are **not** in OpenAPI.
+**OpenAPI:** `lib/api-spec/openapi.yaml` covers every route (incl. `/demo-prospects`). The generated zod file carries hand patches that `codegen` wipes — listed at the top of `lib/api-spec/orval.config.ts`.
 
 ### 2.4 Security & Utility Middleware
 
@@ -245,23 +262,29 @@ In-memory sliding window per IP (not shared across API instances):
 
 | Limiter | Limit | Used by |
 |---------|-------|---------|
-| `chatRateLimiter` | 100 req / hour / IP | Guest chat (all slugs incl. demo) |
+| `chatRateLimiter` | 100 req / hour / IP | Guest chat (all slugs incl. demo) — checked first |
 | `aiTranscribeRateLimiter` | 10 req / hour / IP | `/ai/transcribe` |
 | `aiVisionRateLimiter` | 10 req / hour / IP | `/ai/vision` |
-| `authRateLimiter` | 10 req / hour / IP | login, forgot-password, leads POST |
+| `aiDocumentRateLimiter` | 20 req / hour / IP | `/ai/extract-document` |
+| `authRateLimiter` | 10 req / hour / IP | `/auth/host-login` |
+| `leadsRateLimiter` | 10 req / hour / IP | `POST /leads` |
+| `forgotPasswordRateLimiter` | 10 req / hour / IP | `/auth/forgot-password` |
+| `forgotPasswordPerEmailLimiter` | 1 email / 15 min per target address | `/auth/forgot-password` (the response is identical either way) |
+| `ceoLoginRateLimiter` | 5 req / hour / IP | `/auth/ceo-login` — per IP only: a global lock would let anyone block the real CEO |
+| `publicPropertyRateLimiter` | 300 req / hour / IP | `GET /properties/:slug` |
 
-`getClientIp()` honors `X-Forwarded-For` (proxy-aware).
+Keys use Express `req.ip` with `app.set("trust proxy", 1)`, normalized by `clientIpKey`: IPv4 as-is, IPv6 grouped by /64 (one home or phone connection gets a whole /64, so per-address keys were trivial to rotate). Set `LOG_PROXY_DEBUG=true` to log `req.ip` next to `X-Forwarded-For` and check the proxy hop count on Render.
 
 #### AI guard — `artifacts/api-server/src/lib/aiGuard.ts`
 
-`enforceAiMessageLimit(req, res)` called before chat + AI upload routes:
+`enforceAiMessageLimit(req, res)` is called only by the guest chat route (`routes/chat.ts`), after `chatRateLimiter`. The AI upload routes use their own per-IP limiters above.
 
 | Mode | Rule |
 |------|------|
-| Demo slug | 12 messages / hour per key: `sessionId` body → `x-session-id` header → IP fallback |
+| Demo slugs (`demo`, `demo-…`) | 12 messages per key: `sessionId` body → `x-session-id` header → IP fallback; the key includes the slug, so the generic demo doesn't consume a personalized one. Plus 36 messages per IP (/64 for IPv6) across all sessions → 429 `Demo IP limit reached` (temporary: the frontend does not lock the tab) |
 | Production | 60 req / minute per `x-session-id` header; **no header = fallback to per-IP limit** (fail closed, not open) |
 
-TTL: demo counter resets after 1 hour (in-memory).
+TTL: each demo counter is deleted 1 hour after its **last** message (the timer restarts on every message — not a rolling window). In-memory, lost on restart.
 
 #### Host session — `artifacts/api-server/src/lib/host-session.ts`
 
@@ -273,7 +296,7 @@ TTL: demo counter resets after 1 hour (in-memory).
 
 #### CEO session — `artifacts/api-server/src/lib/ceo-session.ts`
 
-- Plain compare against `CEO_PASSWORD` env (not slow-hashed)
+- Constant-time compare (SHA-256 digests + `timingSafeEqual`) against `CEO_PASSWORD` env — not slow-hashed, so use a long random password (boot warns under 16 chars)
 - Token issued on successful login; sent as `x-ceo-session` header from CEO panel
 
 #### Passwords — `artifacts/api-server/src/lib/passwords.ts`
@@ -285,10 +308,10 @@ TTL: demo counter resets after 1 hour (in-memory).
 
 ## 3) Database Schema (Supabase)
 
-**Access pattern:** Backend uses `supabaseAdmin` (service role) for virtually all operations. RLS enabled on tables but anon policies dropped — effectively server-only access.
+**Access pattern:** Backend uses `supabaseAdmin` (service role) for every operation. RLS is enabled with no policies (`properties_rls.sql`, `ceo_hosts_leads.sql`, `chat_logs.sql`, `demo_prospects.sql`), so the anon/publishable key can read nothing.
 
 **SQL migration files:** `artifacts/api-server/supabase/*.sql`  
-**Drizzle mirror (partial drift):** `lib/db/src/schema/*.ts`
+**Drizzle mirror (documentation only, may drift):** `lib/db/src/schema/*.ts` — not used at runtime; the `drizzle-kit push` scripts were removed, schema changes go through the SQL files
 
 ### 3.1 Table Reference
 
@@ -304,7 +327,7 @@ TTL: demo counter resets after 1 hour (in-memory).
 | `pending_questions_count` | badge counter |
 | `referral_links` | plain text, max ~2000 chars |
 | `host_password` | legacy per-property password (migrating to `hosts` table) |
-| `reset_token`, `reset_requested_at` | password reset flow — `reset_token` stores a sha256 hash of the token, not the plaintext (see `hashResetToken` in `routes/auth.ts`) |
+| `reset_token`, `reset_requested_at` | password reset flow — `reset_token` stores a sha256 hash of the token, not the plaintext (`hashToken` in `src/lib/tokens.ts`); consumed with one conditional update (single use) |
 | `invite_token`, `invite_token_expires_at` | first-time setup after lead conversion |
 
 #### `hosts`
@@ -333,6 +356,16 @@ TTL: demo counter resets after 1 hour (in-memory).
 | `status` | `Nuovo`, `Contattato`, `In Trattativa`, `Chiuso`, `Non Interessato` |
 | `created_at` | timestamptz |
 
+#### `demo_prospects` (`supabase/demo_prospects.sql`)
+| Column | Notes |
+|--------|-------|
+| `id` | identity PK |
+| `slug` | unique, always `demo-…` |
+| `property_name`, `manual_content` | prospect's real property facts (the demo's "manual") |
+| `suggested_question` | curiosity question for the outreach message (not shown in chat) |
+| `first_message_at` | set on the prospect's first chat message |
+| `created_at` | timestamptz |
+
 #### `host_knowledge` (Drizzle only — **may not exist in Supabase**)
 Defined in `lib/db/src/schema/knowledge.ts` — single-row knowledge table; **not referenced** by current API routes.
 
@@ -347,7 +380,7 @@ File: `artifacts/api-server/supabase/stripe_billing.sql`
 hosts (1) ──< properties (via properties.email = hosts.email, app-level)
 hosts (1) ──< stripe_customers (SQL FK host_id)     [NOT USED BY API]
 hosts (1) ──< subscriptions (SQL FK host_id)        [NOT USED BY API]
-properties.slug ──< chat_logs.property_slug (logical, no SQL FK)
+properties.slug ──< chat_logs.property_slug (logical, no SQL FK — the API moves logs on slug rename and deletes them with the property; supabase/chat_logs_orphans_cleanup.sql removes pre-existing orphans)
 ```
 
 ### 3.3 RLS Posture
@@ -366,8 +399,6 @@ All Supabase SQL scripts enable RLS and explicitly **drop anon policies**. Runti
 | No `routes/billing.ts` | No checkout/webhook/portal routes |
 | No webhook mount in `app.ts` | No raw body Stripe handler |
 | `stripe_billing.sql` exists | Schema draft only (`host_id`-based model) |
-| `build.ts` allowlist includes `"stripe"` | Legacy/esbuild placeholder; unused |
-| `PROJECT_DOCUMENTATION.md` §12 | Explicitly documents gap |
 
 **What would be needed (not present):**
 - Stripe SDK + env vars (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID`)
@@ -390,30 +421,28 @@ All Supabase SQL scripts enable RLS and explicitly **drop anon policies**. Runti
 
 *(Note: branch `prova` may have had Playwright smoke/full projects — not on current `main`.)*
 
-### 5.2 Vitest / Unit Tests — **NOT PRESENT**
+### 5.2 Vitest / Unit Tests — backend only
 
-- No `vitest` dependency anywhere in monorepo
-- No `*.test.ts` / `*.spec.ts` unit test files
-- No Jest or Testing Library setup
+- `vitest` in `artifacts/api-server`, run by `pnpm run test` (and in CI)
+- Test files in `artifacts/api-server/src/lib/*.test.ts`: CEO/host sessions, host auth, passwords, tokens, rate limiter, lead slugs, log redaction, document extraction (zip-bomb guard), env validation, demo prospects
+- No frontend tests
 
 ### 5.3 What IS verified today
 
 | Check | Command | Scope |
 |-------|---------|-------|
 | TypeScript | `pnpm run typecheck` | libs + all artifacts |
+| Unit tests | `pnpm run test` | api-server libs (Vitest) |
 | Production build | `pnpm run build` | typecheck + vite build + api esbuild |
+| Dependency audit | `pnpm audit --audit-level=high` | CI, also weekly |
 
-### 5.4 Testable pure functions (no automated coverage)
-
-These modules contain business logic suitable for unit tests but have **zero** test files:
+### 5.4 Testable pure functions still without tests
 
 | Module | Functions |
 |--------|-----------|
 | `artifacts/api-server/src/lib/categorizeMessage.ts` | `categorizeMessage`, `shouldIncrementPendingQuestions`, `isHostFallbackResponse` |
 | `artifacts/api-server/src/lib/detectNeedsAttention.ts` | `detectNeedsAttention` |
 | `artifacts/api-server/src/lib/aiGuard.ts` | `enforceAiMessageLimit` |
-| `artifacts/api-server/src/lib/rateLimiter.ts` | `RateLimiter.check`, `retryAfterSeconds` |
-| `artifacts/rome-guest/src/lib/detectNeedsAttention.ts` | frontend copy of attention detection |
 | `lib/api-client-react/src/property-chat-sse.ts` | SSE parser |
 
 ---
@@ -428,6 +457,8 @@ These modules contain business logic suitable for unit tests but have **zero** t
 | `/login` | Host login |
 | `/ceo` | CEO admin panel |
 | `/demo` | Embedded demo chat |
+| `/demo/:slug` | Personalized outreach demo (`demo-…` slugs only) |
+| `/admin` | Redirect to `/ceo` |
 | `/guest/:slug` | Guest chat |
 | `/host/dashboard` | Host property list |
 | `/host/:slug` | Host property editor |
@@ -438,7 +469,7 @@ These modules contain business logic suitable for unit tests but have **zero** t
 
 ### 6.2 API URL resolution — `src/lib/apiUrl.ts`
 
-- Production: requires `VITE_API_ORIGIN`
+- Production: requires `VITE_API_ORIGIN` — the production build fails without it (`vite.config.ts`)
 - Dev: Vite proxy `/api` → `API_PROXY_TARGET` or `127.0.0.1:8080`
 - `getAiSecurityHeaders()` adds `x-session-id` from `getOrCreateDemoSessionId()`
 
@@ -454,7 +485,9 @@ These modules contain business logic suitable for unit tests but have **zero** t
 ### 6.4 Deploy
 
 - Frontend: Vercel (`artifacts/rome-guest/vercel.json`, output `dist/public`)
-- Backend: Node service, `node dist/index.cjs` after `pnpm build`
+- Backend: Render Node service (dashboard-only config, no `render.yaml`): `node artifacts/api-server/dist/index.cjs` after `pnpm --filter @workspace/api-server run build`
+- Node pinned to `22.x` via `engines` (root, api-server, rome-guest); CI uses Node 22
+- `vercel.json`: SPA rewrite (except `/assets/*`), `nosniff`/`Referrer-Policy` everywhere, `X-Frame-Options: DENY` on CEO/login/host/diario/password pages
 
 ---
 
@@ -462,11 +495,11 @@ These modules contain business logic suitable for unit tests but have **zero** t
 
 ### Required (API boot — `validateEnv.ts`)
 
-`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `OPENAI_API_KEY`, `CEO_PASSWORD`, `FRONTEND_URL`, `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `HOST_SESSION_SECRET` **or** `SESSION_SECRET`
+`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `OPENAI_API_KEY`, `CEO_PASSWORD`, `FRONTEND_URL`, `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `HOST_SESSION_SECRET` **or** `SESSION_SECRET` (boot warns if `CEO_PASSWORD` < 16 chars or the session secret < 32). `SUPABASE_ANON_KEY` is no longer used.
 
 ### Optional / tooling
 
-`PORT`, `NODE_ENV`, `LOG_LEVEL`, `DATABASE_URL` (drizzle-kit), `VITE_API_ORIGIN`, `API_PROXY_TARGET`, `BASE_PATH`, `EMAIL_FROM_NAME`, `EMAIL_REPLY_TO`, `RESEND_REPLY_TO`, `REPL_ID`
+`PORT`, `LOG_LEVEL`, `ENABLE_RATE_LIMITING`, `LOG_PROXY_DEBUG`, `DATABASE_URL` (drizzle-kit only), `API_PROXY_TARGET`, `BASE_PATH`, `EMAIL_FROM_NAME`, `EMAIL_REPLY_TO`, `RESEND_REPLY_TO`, `REPL_ID`. `VITE_API_ORIGIN` is required on Vercel (frontend build). Note: `build.ts` defines `process.env.NODE_ENV = "production"` inside the bundle, so the built server always runs with hardening on unless `ENABLE_RATE_LIMITING=false`.
 
 ### Stripe (not used on `main`)
 
@@ -477,7 +510,7 @@ These modules contain business logic suitable for unit tests but have **zero** t
 ## 8) Monorepo Layout
 
 ```
-Guest-Assistant-AI/
+smartguest-ai/
 ├── artifacts/
 │   ├── api-server/          # Express API (production backend)
 │   ├── rome-guest/          # React SPA (production frontend)
@@ -502,12 +535,12 @@ Guest-Assistant-AI/
 |-------|--------|
 | **Magic Import (Airbnb URL scraper)** | **Does not exist** — not drafted, not partial |
 | **Stripe billing** | SQL draft only; **no API/UI** on `main` |
-| **Automated tests** | **None** (no Playwright, no Vitest) |
-| **OpenAPI completeness** | ~4 routes documented vs ~40+ live |
+| **Automated tests** | Backend unit tests only (Vitest); no frontend/E2E tests |
+| **Pending-questions counter** | read-then-write, not atomic (needs an SQL function) |
 | **Rate limits** | In-memory; breaks with horizontal scaling |
-| **Schema drift** | Drizzle `lib/db` vs Supabase columns (`manual_content`, invites) |
+| **Schema mirror** | `lib/db` aligned with the SQL scripts (October 2026); no `CREATE TABLE properties` script in the repo |
 | **Analytics dashboard** | **Not on `main`** (was on `prova` branch with mock data) |
-| **CEO auth** | Plain password compare, not hashed |
+| **CEO auth** | Single shared password (env), compared in constant time; HMAC session token keyed off it |
 
 ---
 

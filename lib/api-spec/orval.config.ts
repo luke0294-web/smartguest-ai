@@ -13,6 +13,26 @@ const titleTransformer: InputTransformerFn = (config) => {
   return config;
 };
 
+/**
+ * ⚠️  `clean: true` regenerates lib/api-zod/src/generated/api.ts from scratch,
+ * wiping a few HAND PATCHES that orval cannot produce. After every
+ * `pnpm --filter @workspace/api-spec codegen`, restore them (see `git diff`):
+ *  - `SendPropertyChatResponse`: an object { reply, propertyName } — orval
+ *    emits `zod.unknown()` because the route streams text/event-stream (SSE).
+ *  - `AiTranscribeBody.audio`, `AiVisionBody.image`,
+ *    `AiExtractDocumentBody.document`: `zod.any()` — orval emits
+ *    `zod.instanceof(File)`, which doesn't typecheck in this Node-side package.
+ *  - Italian messages on `.max(...ContentMax, "Il manuale casa non può superare
+ *    20.000 caratteri")` (create/update/hostUpdate) and on
+ *    `setHostPasswordBodyHostPasswordMin` ("La password deve contenere almeno
+ *    8 caratteri").
+ *  - Italian messages on the `createDemoProspectBody` limits (PR #45):
+ *    propertyName "Il nome della struttura non può superare 200 caratteri",
+ *    manualContent "Le info sulla casa non possono superare 20.000 caratteri",
+ *    suggestedQuestion "La domanda suggerita non può superare 500 caratteri".
+ * Each patch also carries a comment in the generated file. Losing the SSE
+ * patch or the messages does NOT break the build, so always review the diff.
+ */
 export default defineConfig({
   "api-client-react": {
     input: {

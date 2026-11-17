@@ -10,9 +10,21 @@ on:
     # push/PR otherwise, so a quiet main can go stale on security advisories.
     - cron: "0 6 * * 1"
 
+# Read-only token: CI only checks out code and runs local commands.
+permissions:
+  contents: read
+
+# A newer push to the same PR cancels the older, now-irrelevant run. Runs on
+# main (push/schedule) are never cancelled, so every commit on main keeps a
+# complete result.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   typecheck-build-audit:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -24,6 +36,7 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies
+        id: install
         run: pnpm install --frozen-lockfile
 
       - name: Typecheck
@@ -39,6 +52,12 @@ jobs:
           # (dev-convenience gate, not a real secret) — harmless placeholder values.
           PORT: "5174"
           BASE_PATH: "/"
+          # rome-guest's production build refuses to run without it (it would
+          # ship a blank page) — placeholder only, the CI build is never deployed.
+          VITE_API_ORIGIN: "https://api.example.invalid"
 
       - name: Audit dependencies
+        # Runs even if an earlier step failed, so a broken build never hides
+        # a new vulnerability (but not when dependencies didn't install).
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: pnpm audit --audit-level=high
