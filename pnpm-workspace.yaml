@@ -26,7 +26,7 @@ catalog:
   tailwindcss: ^4.1.14
   tsx: ^4.21.0
   vite: ^8.3.8
-  zod: 3.25.76
+  zod: 4.6.6
 
 minimumReleaseAge: 1440
 
@@ -45,6 +45,3 @@ auditConfig:
     # Arriva solo da strumenti di sviluppo (vitest, mockup-sandbox → fast-glob), mai in produzione,
     # e riceve solo pattern scritti nel codice. Togliere quando esce la correzione.
     - GHSA-fc5q-39xc-vjpf
-    # zod 3.25.76: TEMPORANEO. La correzione esiste solo in zod 4 (salto di versione maggiore),
-    # da fare con la PR dedicata (Dependabot #53). Togliere appena zod 4 è su main.
-    - GHSA-mrhx-c7xc-m3w5
