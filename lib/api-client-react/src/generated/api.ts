@@ -32,9 +32,12 @@ import type {
   ChatMessageRequest,
   ChatRateLimitedResponse,
   ConvertLeadResponse,
+  CreateDemoProspectRequest,
   CreateLeadRequest,
   CreatePropertyRequest,
+  DeleteDemoProspect200,
   DeleteLead200,
+  DemoProspect,
   ErrorResponse,
   ForgotPasswordRequest,
   FullEditPropertyRequest,
@@ -2902,6 +2905,245 @@ export const useConvertLead = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getConvertLeadMutationOptions(options));
+    }
+
+export const getCreateDemoProspectUrl = () => {
+
+
+
+
+  return `/api/demo-prospects`
+}
+
+/**
+ * @summary Create a personalized demo link for an outreach prospect: a
+/demo/{slug} page pre-loaded with real facts about their property,
+used to hook them with a specific question in the outreach message
+(CEO only)
+
+ */
+export const createDemoProspect = async (createDemoProspectRequest: CreateDemoProspectRequest, options?: Parameters<typeof customFetch>[1]): Promise<DemoProspect> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+return customFetch<DemoProspect>(getCreateDemoProspectUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(createDemoProspectRequest)
+  }
+);}
+
+
+
+
+
+export const getCreateDemoProspectMutationKey = () => ['createDemoProspect'] as const;
+
+export const getCreateDemoProspectMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createDemoProspect>>, TError,CreateDemoProspectMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createDemoProspect>>, TError,CreateDemoProspectMutationVariables, TContext> => {
+
+const mutationKey = getCreateDemoProspectMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createDemoProspect>>, CreateDemoProspectMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createDemoProspect(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateDemoProspectMutationResult = NonNullable<Awaited<ReturnType<typeof createDemoProspect>>>
+    export type CreateDemoProspectMutationBody = BodyType<CreateDemoProspectRequest>
+    export type CreateDemoProspectMutationError = ErrorType<ErrorResponse>
+    export type CreateDemoProspectMutationVariables = {data: BodyType<CreateDemoProspectRequest>}
+
+    /**
+ * @summary Create a personalized demo link for an outreach prospect: a
+/demo/{slug} page pre-loaded with real facts about their property,
+used to hook them with a specific question in the outreach message
+(CEO only)
+
+ */
+export const useCreateDemoProspect = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createDemoProspect>>, TError,CreateDemoProspectMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createDemoProspect>>,
+        TError,
+        CreateDemoProspectMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateDemoProspectMutationOptions(options));
+    }
+
+export const getListDemoProspectsUrl = () => {
+
+
+
+
+  return `/api/demo-prospects`
+}
+
+/**
+ * @summary List all personalized demos, newest first (CEO only)
+ */
+export const listDemoProspects = async ( options?: Parameters<typeof customFetch>[1]): Promise<DemoProspect[]> => {
+
+  return customFetch<DemoProspect[]>(getListDemoProspectsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListDemoProspectsQueryKey = () => {
+    return [
+    `/api/demo-prospects`
+    ] as const;
+    }
+
+
+export const getListDemoProspectsQueryOptions = <TData = Awaited<ReturnType<typeof listDemoProspects>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDemoProspects>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListDemoProspectsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listDemoProspects>>> = ({ signal }) => listDemoProspects({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listDemoProspects>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListDemoProspectsQueryResult = NonNullable<Awaited<ReturnType<typeof listDemoProspects>>>
+export type ListDemoProspectsQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary List all personalized demos, newest first (CEO only)
+ */
+
+export function useListDemoProspects<TData = Awaited<ReturnType<typeof listDemoProspects>>, TError = ErrorType<ErrorResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDemoProspects>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListDemoProspectsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDeleteDemoProspectUrl = (slug: string,) => {
+
+
+
+
+  return `/api/demo-prospects/${slug}`
+}
+
+/**
+ * @summary Delete a personalized demo (CEO only)
+ */
+export const deleteDemoProspect = async (slug: string, options?: Parameters<typeof customFetch>[1]): Promise<DeleteDemoProspect200> => {
+
+  return customFetch<DeleteDemoProspect200>(getDeleteDemoProspectUrl(slug),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteDemoProspectMutationKey = () => ['deleteDemoProspect'] as const;
+
+export const getDeleteDemoProspectMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteDemoProspect>>, TError,DeleteDemoProspectMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteDemoProspect>>, TError,DeleteDemoProspectMutationVariables, TContext> => {
+
+const mutationKey = getDeleteDemoProspectMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteDemoProspect>>, DeleteDemoProspectMutationVariables> = (props) => {
+          const {slug} = props ?? {};
+
+          return  deleteDemoProspect(slug,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteDemoProspectMutationResult = NonNullable<Awaited<ReturnType<typeof deleteDemoProspect>>>
+
+    export type DeleteDemoProspectMutationError = ErrorType<ErrorResponse>
+    export type DeleteDemoProspectMutationVariables = {slug: string}
+
+    /**
+ * @summary Delete a personalized demo (CEO only)
+ */
+export const useDeleteDemoProspect = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteDemoProspect>>, TError,DeleteDemoProspectMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteDemoProspect>>,
+        TError,
+        DeleteDemoProspectMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeleteDemoProspectMutationOptions(options));
     }
 
 export const getListAdminHostsUrl = () => {

@@ -11,6 +11,16 @@
  */
 export const RESERVED_PROPERTY_SLUGS = new Set<string>(["demo", "dashboard"]);
 
+/**
+ * Ogni slug che inizia con "demo-" è riservato alle demo personalizzate
+ * (vedi lib/demoProspects nel backend) — una proprietà reale con questo
+ * prefisso verrebbe trattata come demo (stesso trattamento di "demo") e
+ * mostrerebbe per sempre il contenuto sbagliato.
+ */
+const RESERVED_PROPERTY_SLUG_PREFIXES = ["demo-"];
+
 export function isReservedPropertySlug(slug: string): boolean {
-  return RESERVED_PROPERTY_SLUGS.has(slug.trim().toLowerCase());
+  const normalized = slug.trim().toLowerCase();
+  if (RESERVED_PROPERTY_SLUGS.has(normalized)) return true;
+  return RESERVED_PROPERTY_SLUG_PREFIXES.some((prefix) => normalized.startsWith(prefix));
 }
