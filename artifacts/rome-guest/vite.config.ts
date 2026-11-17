@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
@@ -19,6 +19,22 @@ const apiProxyTarget =
 
 /** Default `/` per deploy statici (Vercel); opzionale in dev (es. Replit usa BASE_PATH). */
 const basePath = process.env.BASE_PATH?.trim() || "/";
+
+/**
+ * Production builds need VITE_API_ORIGIN (src/lib/apiUrl.ts throws at load
+ * without it). Fail the BUILD instead of shipping a site that is a blank page
+ * in the browser — e.g. if the variable is ever removed on Vercel.
+ */
+const isProductionBuild = process.argv.includes("build") && process.env.NODE_ENV !== "development";
+// loadEnv also reads .env.production files, which Vite (not process.env) uses.
+const productionApiOrigin =
+  process.env.VITE_API_ORIGIN?.trim() ||
+  loadEnv("production", path.resolve(import.meta.dirname), "VITE_").VITE_API_ORIGIN?.trim();
+if (isProductionBuild && !productionApiOrigin) {
+  throw new Error(
+    "VITE_API_ORIGIN mancante: impostala nelle variabili d'ambiente di Vercel (URL pubblico dell'API su Render).",
+  );
+}
 
 export default defineConfig({
   base: basePath,
